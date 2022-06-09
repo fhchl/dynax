@@ -61,6 +61,7 @@ coeffs = dfx.backward_hermite_coefficients(t, u)
 cubic = dfx.CubicInterpolation(t, coeffs)
 ufun = lambda t: cubic.evaluate(t)
 initial_params = [31., 2., 3., 5., 7., 11., 13.]
+initial_params = [2., 3., 5., 7., 11., 13.]
 x0 = jnp.array([17., 19., 23.])
 u = 29
 
@@ -73,7 +74,7 @@ outs = [
   [2]
 ]
 for out in outs:
-  dyn = LoudspeakerDynamics2(initial_params, outputs=out)
+  dyn = LoudspeakerDynamics(initial_params, outputs=out)
   O = dyn.obs_ident_mat(x0, u)
   Os.append(O)
   print("Out:", out)
@@ -101,6 +102,7 @@ from PrettyPrint import PrettyPrintTree
 pt = PrettyPrintTree(default_orientation=PrettyPrintTree.HORIZONTAL)
 n_states = 3
 names = ['i', 'd', 'v', 'Bl1', 'Bl', 'Re', 'Rm', 'K', 'L', 'M']
+names = ['i', 'd', 'v',  'Bl', 'Re', 'Rm', 'K', 'L', 'M']
 
 for out, O in zip(outs, Os):
   pt.print_json(unidentifiable_params(O, n_states, names), name=out)
