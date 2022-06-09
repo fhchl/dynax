@@ -24,29 +24,26 @@ class DynamicalSystem(eqx.Module):
     pass
 
   def obs_ident_mat(self, x0, u=None, t=None):
-    """Generalized observability-identifiability matrix.
+    """Generalized observability-identifiability matrix for constant input.
 
     Villaverde, 2017.
     """
     params, treedef = jax.tree_util.tree_flatten(self)
       
-    def f(xp):
+    def f(x, p):
       """Vector-field for argumented state vector xp = [x, p]."""
-      x, p = xp[:self.n_states], xp[self.n_states:]
       model = treedef.unflatten(p)
-      return jnp.concatenate((model.vector_field(x, u, t), jnp.zeros(self.n_params)))
+      return model.vector_field(x, u, t)
 
-    def g(xp):
+    def g(x, p):
       """Output function for argumented state vector xp = [x, p]."""
-      x, p = xp[:self.n_states], xp[self.n_states:]
       model = treedef.unflatten(p)
       return model.output(x, t)
-    
-    xp = jnp.concatenate((x0, jnp.array(params)))
-    O_i = jnp.vstack(
-        [jax.jacfwd(lie_derivative(f, g, n))(xp) 
-         for n in range(self.n_states+self.n_params)]
-    )
+   
+    params = jnp.array(params)
+    O_i = jnp.vstack([
+              jnp.hstack(jax.jacfwd(lie_derivative(f, g, n), (0, 1))(x0, params)) 
+              for n in range(self.n_states+self.n_params)])
 
     return O_i
 
@@ -147,7 +144,7 @@ def lie_derivative(f, h, n=1):
     return h
   else:
     grad_h = jax.jacfwd(lie_derivative(f, h, n-1))
-    return lambda x: grad_h(x).dot(f(x))
+    return lambda x, *args: grad_h(x, *args).dot(f(x, *args))
 
 
 def fit_ml(model: ForwardModel, t, u, y, x0):
