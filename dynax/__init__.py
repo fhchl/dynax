@@ -41,10 +41,32 @@ class DynamicalSystem(eqx.Module):
       return model.output(x, t)
    
     params = jnp.array(params)
-    O_i = jnp.vstack([
-              jnp.hstack(jax.jacfwd(lie_derivative(f, g, n), (0, 1))(x0, params)) 
-              for n in range(self.n_states+self.n_params)])
+    O_i = jnp.vstack([jnp.hstack(jax.jacfwd(lie_derivative(f, g, n), (0, 1))(x0, params)) for n in range(self.n_states+self.n_params)])
 
+    return O_i
+
+  def extended_obs_ident_mat(self, x0, u, t=None):
+    """Generalized observability-identifiability matrix for constant input.
+
+    Villaverde, 2017.
+    """
+    params, treedef = jax.tree_util.tree_flatten(self)
+      
+    def f(x, u, p):
+      """Vector-field for argumented state vector xp = [x, p]."""
+      model = treedef.unflatten(p)
+      return model.vector_field(x, u, t)
+
+    def g(x, p):
+      """Output function for argumented state vector xp = [x, p]."""
+      model = treedef.unflatten(p)
+      return model.output(x, t)
+     
+    params = jnp.array(params)
+    u = jnp.array(u)
+    lies = [extended_lie_derivative(f, g, n) for n in range(self.n_states+self.n_params)]
+    grad_of_outputs = [jnp.hstack(jax.jacfwd(l, (0, 2))(x0, u, params)) for l in lies]
+    O_i = jnp.vstack(grad_of_outputs)
     return O_i
 
   def test_observability():
@@ -146,6 +168,26 @@ def lie_derivative(f, h, n=1):
     grad_h = jax.jacfwd(lie_derivative(f, h, n-1))
     return lambda x, *args: grad_h(x, *args).dot(f(x, *args))
 
+def extended_lie_derivative(f, h, n=1):
+  """Returns function for n-th derivative of h along f.
+
+  ..math: L_f^n h(x, t) = (\nabla_x L_f^{n-1} h)(x, t)^T f(x, u, t)
+          L_f^0 h(x, t) = h(x, t)
+
+  """
+  if n==0:
+    return lambda x, _, p: h(x, p)
+  elif n==1:
+    return lambda x, u, p: jax.jacfwd(h)(x, p).dot(f(x, u[0], p))
+  else:
+    last_lie = extended_lie_derivative(f, h, n-1)
+    grad_x = jax.jacfwd(last_lie, 0)
+    grad_u = jax.jacfwd(last_lie, 1)
+    def fun(x, u, p):
+      uterms = min(n-2, len(u)-1)
+      return (grad_x(x, u, p).dot(f(x, u[0], p)) +
+              grad_u(x, u, p)[:, :uterms].dot(u[1:uterms+1]))
+    return fun
 
 def fit_ml(model: ForwardModel, t, u, y, x0):
   """Fit forward model via maximum likelihood."""
