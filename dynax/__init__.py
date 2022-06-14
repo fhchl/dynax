@@ -29,7 +29,7 @@ class DynamicalSystem(eqx.Module):
     Villaverde, 2017.
     """
     params, treedef = jax.tree_util.tree_flatten(self)
-      
+
     def f(x, p):
       """Vector-field for argumented state vector xp = [x, p]."""
       model = treedef.unflatten(p)
@@ -39,7 +39,7 @@ class DynamicalSystem(eqx.Module):
       """Output function for argumented state vector xp = [x, p]."""
       model = treedef.unflatten(p)
       return model.output(x, t)
-   
+
     params = jnp.array(params)
     O_i = jnp.vstack([jnp.hstack(jax.jacfwd(lie_derivative(f, g, n), (0, 1))(x0, params)) for n in range(self.n_states+self.n_params)])
 
@@ -51,7 +51,7 @@ class DynamicalSystem(eqx.Module):
     Villaverde, 2017.
     """
     params, treedef = jax.tree_util.tree_flatten(self)
-      
+
     def f(x, u, p):
       """Vector-field for argumented state vector xp = [x, p]."""
       model = treedef.unflatten(p)
@@ -61,7 +61,7 @@ class DynamicalSystem(eqx.Module):
       """Output function for argumented state vector xp = [x, p]."""
       model = treedef.unflatten(p)
       return model.output(x, t)
-     
+
     params = jnp.array(params)
     u = jnp.array(u)
     lies = [extended_lie_derivative(f, g, n) for n in range(self.n_states+self.n_params)]
@@ -77,11 +77,24 @@ class LinearSystem(DynamicalSystem):
   B: jnp.ndarray
   C: jnp.ndarray
 
+  def __init__(self, A, B, C):
+    assert A.shape[0] == A.shape[1]
+    assert B.shape[0] == A.shape[0]
+    assert A.ndim == B.ndim == C.ndim == 2
+    assert C.shape[1] == A.shape[0]
+    self.A = A
+    self.B = B
+    self.C = C
+    self.n_states = A.shape[0]
+    self.n_params = len(A.reshape(-1)) + len(B.reshape(-1)) + len(C.reshape(-1))
+
   def vector_field(self, x, u, t=None):
-    return self.A@x + self.B*u
+    assert x.ndim == 1
+    x = x[:, None]
+    return (self.A.dot(x) + self.B.dot(u)).squeeze()
 
   def output(self, x, t=None):
-    return self.C@x
+    return self.C.dot(x)
 
   def linearize(self, x0):
     return self
@@ -105,13 +118,18 @@ class ControlAffine(DynamicalSystem):
   def output(self, x, t=None):
     return self.h(x, t)
 
-  def linearize(self, x0=0) -> LinearSystem:
+  def linearize(self, x0=None) -> LinearSystem:
+    if x0 is None:
+      x0 = np.zeros((self.n_states, 1))
     A = jax.jacfwd(self.f)(x0)
-    B = self.g(x0)
+    print(A)
+    B = self.g(x0)[:, None]
+    print(B)
     C = jax.jacfwd(self.h)(x0)
+    print(C)
     return LinearSystem(A, B, C)
 
-  def feedback_linearize(self, x0: jnp.ndarray 
+  def feedback_linearize(self, x0: jnp.ndarray
       ) -> tuple[Callable[[float, jnp.ndarray], float], LinearSystem]:
     # check controllalability around x0, Sastry 9.44
     linsys = self.linearize(x0)
@@ -128,7 +146,7 @@ class ControlAffine(DynamicalSystem):
     Lfnh = lie_derivative(self.f, self.h, n)
     LgLfn1h = lie_derivative(self.g, lie_derivative(self.f, self.h, n-1))
     def compensator(r, x):
-      return (-Lfnh(x) + cAn.dot(x) + cAnm1b*r) / LgLfn1h(x)
+      return ((-Lfnh(x) + cAn.dot(x) + cAnm1b*r) / LgLfn1h(x)).squeeze()
 
     return compensator, linsys
 
@@ -168,6 +186,7 @@ def lie_derivative(f, h, n=1):
     grad_h = jax.jacfwd(lie_derivative(f, h, n-1))
     return lambda x, *args: grad_h(x, *args).dot(f(x, *args))
 
+@lru_cache
 def extended_lie_derivative(f, h, n=1):
   """Returns function for n-th derivative of h along f.
 
