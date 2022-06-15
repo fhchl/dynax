@@ -136,7 +136,9 @@ class ControlAffine(DynamicalSystem):
     A, b, n = linsys.A, linsys.B, linsys.A.shape[0]
     contrmat = np.hstack([jnp.linalg.matrix_power(A, ni).dot(b) for ni in range(n)])
     if ((rank := jnp.linalg.matrix_rank(contrmat)) != n):
-      raise ValueError(f"Linearized system not controllable: order={n} but rank(O)={rank}.")
+      import warnings
+      #raise ValueError(f"Linearized system not controllable: order={n} but rank(O)={rank}.")
+      warnings.warn(f"Linearized system not controllable: order={n} but rank(O)={rank}.")
       # FIXME: this raises error, even though LS system should be controllable.
     # TODO: check in volutivity of distribution, Sastry 9.42
     # Sastry 9.102
@@ -145,8 +147,8 @@ class ControlAffine(DynamicalSystem):
     cAnm1b = c.dot(jnp.linalg.matrix_power(A, n-1)).dot(b)
     Lfnh = lie_derivative(self.f, self.h, n)
     LgLfn1h = lie_derivative(self.g, lie_derivative(self.f, self.h, n-1))
-    def compensator(r, x):
-      return ((-Lfnh(x) + cAn.dot(x) + cAnm1b*r) / LgLfn1h(x)).squeeze()
+    def compensator(r, x, z):
+      return ((-Lfnh(x) + cAn.dot(z) + cAnm1b*r) / LgLfn1h(x)).squeeze()
 
     return compensator, linsys
 
@@ -166,11 +168,12 @@ class ForwardModel(eqx.Module):
   def __call__(self, ts, x0, ufun):
     vector_field = lambda t, x, _: self.system.vector_field(x, ufun(t), t)
     term = dfx.ODETerm(vector_field)
-    saveat = dfx.SaveAt(ts=ts)
-    x = dfx.diffeqsolve(term, self.solver, t0=ts[0], t1=ts[-1], dt0=1/self.sr,
+    saveat = dfx.SaveAt(ts=ts, dense=True)
+    sol = dfx.diffeqsolve(term, self.solver, t0=ts[0], t1=ts[-1], dt0=1/self.sr,
                              y0=x0, saveat=saveat, max_steps=100*len(ts),
-                             stepsize_controller=self.step).ys
-    return jax.vmap(self.system.output)(x)
+                             stepsize_controller=self.step)
+    y = jax.vmap(self.system.output)(sol.ys)
+    return y, sol
 
 @lru_cache
 def lie_derivative(f, h, n=1):
