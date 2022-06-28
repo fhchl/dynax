@@ -9,6 +9,7 @@ import numpy as np
 import jax
 import jax.numpy as jnp
 from functools import lru_cache
+from dynax.util import MemoizeJac, value_and_jacfwd
 
 
 class DynamicalSystem(eqx.Module):
@@ -222,12 +223,11 @@ def fit_ml(model: ForwardModel, t, u, y, x0):
   # scale parameters and bounds
   def residuals(params):
     model = treedef.unflatten(params)
-    pred_y = model(t, x0, ufun)
+    pred_y, _ = model(t, x0, ufun)
     res = ((y - pred_y)/std_y).reshape(-1)
     return res / np.sqrt(len(res))
 
-  # solve least_squares in scaled parameter space
-  fun = jax.jit(residuals)
-  jac = jax.jit(jax.jacfwd(residuals))
+  fun = MemoizeJac(jax.jit(lambda x: value_and_jacfwd(residuals, x)))
+  jac = fun.derivative
   res = least_squares(fun, init_params, jac=jac, x_scale='jac', verbose=2)
   print(res.x)
