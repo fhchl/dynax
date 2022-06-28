@@ -64,7 +64,7 @@ ufun = lambda t: cubic.evaluate(t)
 initial_params = [2., 3., 5., 7., 11., 13.]
 
 x0 = jnp.array([17., 19., 23.])
-u = 29
+u = 29.
 
 Os = []
 outs = [
@@ -78,8 +78,10 @@ for out in outs:
   dyn = LoudspeakerDynamics(initial_params, outputs=out)
   # dyn = LoudspeakerDynamics2(initial_params, outputs=out)
   # O = dyn.obs_ident_mat(x0, u)
-  u = [31.]
-  O = dyn.extended_obs_ident_mat(x0, u)
+  # u = [31., 37., 39.]
+  u = 29.
+  #O = dyn.extended_obs_ident_mat(x0, u)
+  O = dyn.obs_ident_mat(x0, u)
   Os.append(O)
   print("Out:", out)
   print("Rank:", np.linalg.matrix_rank(O))
@@ -94,7 +96,7 @@ def unidentifiable_params(O, n_states, names):
     Onew = np.delete(O, i, axis=1)
     if np.linalg.matrix_rank(Onew) == np.linalg.matrix_rank(O):
       unidentifiable.append(i)
-  
+
   if unidentifiable:
     for uni in unidentifiable:
       Onew = np.delete(O, uni, axis=1)
@@ -108,9 +110,9 @@ n_states = 3
 # names = ['i', 'd', 'v', 'Bl1', 'Bl', 'Re', 'Rm', 'K', 'L', 'M']
 names = ['i', 'd', 'v',  'Bl', 'Re', 'Rm', 'K', 'L', 'M']
 
-# for out, O in zip(outs, Os):
-#   pt.print_json(unidentifiable_params(O, n_states, names), name=out)
-#   print()
+for out, O in zip(outs, Os):
+  pt.print_json(unidentifiable_params(O, n_states, names), name=out)
+  print()
 
 
 

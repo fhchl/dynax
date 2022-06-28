@@ -123,11 +123,8 @@ class ControlAffine(DynamicalSystem):
     if x0 is None:
       x0 = np.zeros((self.n_states, 1))
     A = jax.jacfwd(self.f)(x0)
-    print(A)
     B = self.g(x0)[:, None]
-    print(B)
     C = jax.jacfwd(self.h)(x0)
-    print(C)
     return LinearSystem(A, B, C)
 
   def feedback_linearize(self, x0: jnp.ndarray
@@ -166,10 +163,10 @@ class ForwardModel(eqx.Module):
     self.solver = solver
     self.step = step
 
-  def __call__(self, ts, x0, ufun):
+  def __call__(self, ts, x0, ufun, dense=False):
     vector_field = lambda t, x, _: self.system.vector_field(x, ufun(t), t)
     term = dfx.ODETerm(vector_field)
-    saveat = dfx.SaveAt(ts=ts, dense=True)
+    saveat = dfx.SaveAt(ts=ts, dense=dense)
     sol = dfx.diffeqsolve(term, self.solver, t0=ts[0], t1=ts[-1], dt0=1/self.sr,
                              y0=x0, saveat=saveat, max_steps=100*len(ts),
                              stepsize_controller=self.step)
@@ -187,8 +184,7 @@ def lie_derivative(f, h, n=1):
   if n==0:
     return h
   else:
-    grad_h = jax.jacfwd(lie_derivative(f, h, n-1))
-    return lambda x, *args: grad_h(x, *args).dot(f(x, *args))
+    return lambda x, *args: jax.jvp(h, (x, *args), (f(x, *args),))[1]
 
 @lru_cache
 def extended_lie_derivative(f, h, n=1):
@@ -202,6 +198,7 @@ def extended_lie_derivative(f, h, n=1):
     return lambda x, _, p: h(x, p)
   elif n==1:
     return lambda x, u, p: jax.jacfwd(h)(x, p).dot(f(x, u[0], p))
+    #return lambda x, u, p: jax.jvp(h, (x, p), (f(x, u[0], p), ))[1] # FIXME: Tree structure of primal and tangential must be the same
   else:
     last_lie = extended_lie_derivative(f, h, n-1)
     grad_x = jax.jacfwd(last_lie, 0)
