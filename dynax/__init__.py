@@ -224,7 +224,8 @@ def fit_ml(model: ForwardModel, t, u, y, x0):
     res = ((y - pred_y)/std_y).reshape(-1)
     return res / np.sqrt(len(res))
 
+  # compute primal and sensitivties in one forward pass
   fun = MemoizeJac(jax.jit(lambda x: value_and_jacfwd(residuals, x)))
   jac = fun.derivative
   res = least_squares(fun, init_params, jac=jac, x_scale='jac', verbose=2)
-  print(res.x)
+  return res.x
