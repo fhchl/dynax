@@ -7,4 +7,5 @@ setup(
     name=NAME,
     version=VERSION,
     packages=["dynax"],
+    install_requires=['diffrax', 'equinox', 'jax', 'numpy'],
 )
