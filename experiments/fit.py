@@ -52,10 +52,7 @@ true_model = dx.ForwardModel(dyn, sr)
 x0 = jnp.array([0., 0., 0.])
 y, sol = true_model(t, x0, ufun)
 
-# model
+# fit model
 model = dx.ForwardModel(LoudspeakerDynamics(initial_params), sr)
-init_params, treedef = jax.tree_flatten(model)
-std_y = np.std(y, axis=0)
-
 pred_params = dx.fit_ml(model, t, u, y, x0)
 print(pred_params)

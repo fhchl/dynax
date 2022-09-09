@@ -42,7 +42,10 @@ class DynamicalSystem(eqx.Module):
       return model.output(x, t)
 
     params = jnp.array(params)
-    O_i = jnp.vstack([jnp.hstack(jax.jacfwd(lie_derivative(f, g, n), (0, 1))(x0, params)) for n in range(self.n_states+self.n_params)])
+    O_i = jnp.vstack(
+      [jnp.hstack(
+        jax.jacfwd(lie_derivative(f, g, n), (0, 1))(x0, params))
+        for n in range(self.n_states+self.n_params)])
 
     return O_i
 
@@ -73,6 +76,7 @@ class DynamicalSystem(eqx.Module):
   def test_observability():
     pass
 
+
 class LinearSystem(DynamicalSystem):
   A: jnp.ndarray
   B: jnp.ndarray
@@ -99,6 +103,7 @@ class LinearSystem(DynamicalSystem):
 
   def linearize(self, x0):
     return self
+
 
 class ControlAffine(DynamicalSystem):
   @abstractmethod
@@ -150,6 +155,9 @@ class ControlAffine(DynamicalSystem):
 
     return compensator, linsys
 
+
+
+
 class ForwardModel(eqx.Module):
   system: eqx.Module
   sr: int = eqx.static_field()
@@ -186,6 +194,28 @@ def lie_derivative(f, h, n=1):
   else:
     return lambda x, *args: jax.jvp(h, (x, *args), (f(x, *args),))[1]
 
+
+from jax.experimental.jet import jet
+import scipy.special
+
+def lie_derivative2(f, h, x0, n=1):
+    """@robenackComputationLieDerivatives2005, sec 5"""
+    # taylor coefficients of x(t) = \phi_t(x_0)
+    x_primals = [x0]
+    x_series = []
+    for k in range(n):
+        # taylor coefficients of z(t) = f(x(t))
+        z_primals, z_series = jet(f, x_primals, (x_series,))
+        z = [z_primals] + z_series
+        # build xk from zk: \dot x(t) = z(t) = f(x(t))
+        x_series.append(z[k]/(k+1))
+
+    # taylor coefficients of y(t) = h(x(t)) = h(\phi_t(x_0))
+    y_primals, y_series = jet(h, x_primals, (x_series,))
+
+    Lfh = scipy.special.factorial(np.arange(n+1)) * (y_primals + y_series)
+    return Lfh
+
 @lru_cache
 def extended_lie_derivative(f, h, n=1):
   """Returns function for n-th derivative of h along f.
@@ -198,7 +228,8 @@ def extended_lie_derivative(f, h, n=1):
     return lambda x, _, p: h(x, p)
   elif n==1:
     return lambda x, u, p: jax.jacfwd(h)(x, p).dot(f(x, u[0], p))
-    #return lambda x, u, p: jax.jvp(h, (x, p), (f(x, u[0], p), ))[1] # FIXME: Tree structure of primal and tangential must be the same
+    # FIXME: Tree structure of primal and tangential must be the same
+    #return lambda x, u, p: jax.jvp(h, (x, p), (f(x, u[0], p), ))[1]
   else:
     last_lie = extended_lie_derivative(f, h, n-1)
     grad_x = jax.jacfwd(last_lie, 0)
@@ -211,13 +242,15 @@ def extended_lie_derivative(f, h, n=1):
 
 def fit_ml(model: ForwardModel, t, u, y, x0):
   """Fit forward model via maximum likelihood."""
+  t = jnp.asarray(t)
+  u = jnp.asarray(u)
+  y = jnp.asarray(y)
   coeffs = dfx.backward_hermite_coefficients(t, u)
   cubic = dfx.CubicInterpolation(t, coeffs)
   ufun = lambda t: cubic.evaluate(t)
-  init_params, treedef = jax.tree_flatten(model)
+  init_params, treedef = jax.tree_util.tree_flatten(model)
   std_y = np.std(y, axis=0)
 
-  # scale parameters and bounds
   def residuals(params):
     model = treedef.unflatten(params)
     pred_y, _ = model(t, x0, ufun)
@@ -227,5 +260,7 @@ def fit_ml(model: ForwardModel, t, u, y, x0):
   # compute primal and sensitivties in one forward pass
   fun = MemoizeJac(jax.jit(lambda x: value_and_jacfwd(residuals, x)))
   jac = fun.derivative
+  # use https://lmfit.github.io/lmfit-py/index.html instead?
   res = least_squares(fun, init_params, jac=jac, x_scale='jac', verbose=2)
-  return res.x
+  params = res.x
+  return treedef.unflatten(params)
