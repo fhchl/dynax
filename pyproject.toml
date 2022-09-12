@@ -1,0 +1,28 @@
+[project]
+name = "dynax"
+version = "0.0.1"
+authors = [
+  { name="Franz M. Heuchel", email="fhchl@pm.me" },
+]
+description = "Model dynamical systems with JAX"
+readme = "README.md"
+license = { file="LICENSE" }
+requires-python = ">=3.9"
+classifiers = [
+    "Programming Language :: Python :: 3",
+    "License :: OSI Approved :: MIT License",
+    "Operating System :: Unix",
+]
+
+[project.urls]
+"Homepage" = "https://github.com/fhchl/dynax"
+"Bug Tracker" = "https://github.com/fhchl/dynax/issues"
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.pytest.ini_options]
+addopts = [
+    "--import-mode=importlib",
+]
