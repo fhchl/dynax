@@ -30,7 +30,7 @@ def feedback_linearize(sys: ControlAffine, x0: np.ndarray = None, reference="lin
   if not is_controllable(A, b):
     warnings.warn(f"Linearized system not controllable.")
 
-  # TODO: check in volutivity of distribution, Sastry 9.42
+  # TODO: check involutivity of distribution, Sastry 9.42
 
   Lfnh = lie_derivative(sys.f, sys.h, n)
   LgLfn1h = lie_derivative(sys.g, lie_derivative(sys.f, sys.h, n-1))

@@ -18,27 +18,36 @@ def lie_derivative(f, h, n=1):
   if n==0:
     return h
   else:
-    return lambda x, *args: jax.jvp(lie_derivative(f, h, n=n-1), (x, *args), (f(x, *args),))[1]
+    lie_der = lie_derivative(f, h, n=n-1)
+    return lambda x, *args: jax.jvp(lie_der, (x, *args), (f(x, *args),))[1]
 
 
-def lie_derivative2(f, h, n=1):
-    """@robenackComputationLieDerivatives2005, sec 5"""
-    fac = scipy.special.factorial(np.arange(n+1))
-    def liefun(x):
-      # taylor coefficients of x(t) = \phi_t(x_0)
-      x_primals = [x]
-      x_series = []
-      for k in range(n):
-          # taylor coefficients of z(t) = f(x(t))
-          z_primals, z_series = jet(f, x_primals, (x_series,))
-          z = [z_primals] + z_series
-          # build xk from zk: \dot x(t) = z(t) = f(x(t))
-          x_series.append(z[k]/(k+1))
-      # taylor coefficients of y(t) = h(x(t)) = h(\phi_t(x_0))
-      y_primals, y_series = jet(h, x_primals, (x_series,))
-      Lfh = fac * jnp.array((y_primals, *y_series))
-      return Lfh
-    return liefun
+def lie_derivatives_jet(f, h, n=1):
+  """Return iterative Lie derivatives up to order n.
+
+  @robenackComputationLieDerivatives2005, sec 5
+  """
+  fac = scipy.special.factorial(np.arange(n+1))
+  def liefun(x):
+    # taylor coefficients of x(t) = \phi_t(x_0)
+    x_primals = [x]
+    x_series = [jnp.zeros_like(x) for k in range(n)]
+    for k in range(n):
+        # taylor coefficients of z(t) = f(x(t))
+        z_primals, z_series = jet(f, x_primals, (x_series,))
+        z = [z_primals] + z_series
+        # build xk from zk: \dot x(t) = z(t) = f(x(t))
+        x_series[k] = z[k]/(k+1)
+    # taylor coefficients of y(t) = h(x(t)) = h(\phi_t(x_0))
+    y_primals, y_series = jet(h, x_primals, (x_series,))
+    Lfh = fac * jnp.array((y_primals, *y_series))
+    return Lfh
+  return liefun
+
+def lie_derivative_jet(f, h, n=1):
+  """Return n-th order Lie derivative of h along f."""
+  return lambda x: lie_derivatives_jet(f, h, n)(x)[-1]
+
 
 @lru_cache
 def extended_lie_derivative(f, h, n=1):

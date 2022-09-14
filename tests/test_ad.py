@@ -3,6 +3,7 @@ import numpy.testing as npt
 import jax
 from test_linearize import Sastry9_9
 
+import jax.numpy as jnp
 
 def test_lie_derivative():
   sys = Sastry9_9()
@@ -35,21 +36,16 @@ def test_lie_derivative2():
   
   for x in xs:
     x1, x2, _ = x
-    npt.assert_allclose(lie_derivative2(f, h, n=3)(x),
+    npt.assert_allclose(lie_derivatives_jet(f, h, n=3)(x),
                         [h(x), x1 - x2, -x1 - x2**2, -2*x2*(x1+x2**2)], **tol)
-    npt.assert_allclose(lie_derivative2(g, h, n=1)(x)[-1], 0, **tol)
-    npt.assert_allclose(jax.jit(lie_derivative2(g, h, n=1))(x)[-1], 0, **tol)
-    #npt.assert_allclose(lie_derivative2(g, lie_derivative2(f, h, n=1))(x)[-1], 0)
-    #npt.assert_allclose(lie_derivative2(g, lie_derivative2(f, h, n=2))(x),
-    #                    -(1+2*x2)*np.exp(x2), rtol=1e-6)
+    npt.assert_allclose(lie_derivative_jet(g, h, n=1)(x), 0, **tol)
+    npt.assert_allclose(lie_derivative_jet(g, lie_derivative_jet(f, h, n=1))(x), 0)
+    npt.assert_allclose(lie_derivative_jet(g, lie_derivative_jet(f, h, n=2))(x),
+                        -(1+2*x2)*np.exp(x2), rtol=1e-5)
 
 
-#test_lie_derivative()
-test_lie_derivative2()
 
-import time
 from benchmarks import benchmark
-import jax.numpy as jnp
 
 def test_lie_derivative_speed():
   sys = Sastry9_9()
@@ -60,9 +56,8 @@ def test_lie_derivative_speed():
   xs = jnp.array(np.random.normal(size=(10, 3)))
   fun = jax.jit(lie_derivative(f, h, n=10))
   benchmark(lambda: fun(jnp.array(np.random.normal(size=3))), iters=10)
-  # FIXME: problem might be that lie_derivative2 only works with scalars?
-  fun2 = jax.jit(lie_derivative2(f, h, n=10))
+  # FIXME: problem might be that lie_derivatives only works with scalars?
+  fun2 = jax.jit(lie_derivative_jet(f, h, n=10))
   benchmark(lambda: fun2(jnp.array(np.random.normal(size=3))), iters=10)
 
-test_lie_derivative_speed()
 
