@@ -9,20 +9,45 @@ import numpy as np
 import jax
 import jax.numpy as jnp
 from functools import lru_cache
-from dynax.util import MemoizeJac, value_and_jacfwd
+from dynax.util import MemoizeJac, value_and_jacfwd, _ssmatrix
+
+
+def _linearize(f, h, x0, u0):
+  """Linearize dx=f(x,u), y=h(x,u) around equilibrium point."""
+  A = jax.jacfwd(f, argnums=0)(x0, u0)
+  B = jax.jacfwd(f, argnums=1)(x0, u0)
+  C = jax.jacfwd(h, argnums=0)(x0, u0)
+  D = jax.jacfwd(h, argnums=1)(x0, u0)
+  return A, B, C, D
 
 
 class DynamicalSystem(eqx.Module):
-  n_states: int = eqx.static_field()
-  n_params: int = eqx.static_field()
-
+  # these attributes should be overridden by subclasses
+  n_states: int = eqx.static_field(default=None, init=False)
+  n_params: int = eqx.static_field(default=None, init=False)
+  n_inputs: int = eqx.static_field(default=None, init=False)
+  
+  # Don't know if it is possible to set vector_field and output
+  # in a __init__ method, which would make the API nicer. For
+  # now, this class must always be subclassed.
+  # As a an attribute, it can't be assigned to during init. 
+  # As a eqx.static_field, it is not supported by jax, as the JIT
+  # compiler doesn't support staticmethods.
   @abstractmethod
   def vector_field(self, x, u=None, t=None):
     pass
 
   @abstractmethod
-  def output(self, x, t=None):
+  def output(self, x, u=None, t=None):
     pass
+
+  def linearize(self, x0=None, u0=None, t=None):
+    if x0 is None: x0 = np.zeros(self.n_states)
+    if u0 is None: u0 = np.zeros(self.n_inputs)
+    A, B, C, D = _linearize(self.vector_field, self.output, x0, u0)
+    if B.size == 0: B = np.zeros((self. n_states, self.n_inputs))
+    if D.size == 0: D = np.zeros((C.shape[0], self.n_inputs))
+    return LinearSystem(A, B, C, D)
 
   def obs_ident_mat(self, x0, u=None, t=None):
     """Generalized observability-identifiability matrix for constant input.
@@ -77,32 +102,135 @@ class DynamicalSystem(eqx.Module):
     pass
 
 
+class SeriesSystem(DynamicalSystem):
+  """Two systems in series."""
+  _sys1: DynamicalSystem
+  _sys2: DynamicalSystem
+
+  def __init__(self, sys1, sys2):
+    self._sys1 = sys1
+    self._sys2 = sys2
+    self.n_params = sys1.n_params + sys2.n_params
+    self.n_states = sys1.n_states + sys2.n_states
+    self.n_inputs = sys1.n_inputs
+
+  def vector_field(self, x, u=None, t=None):
+    x1 = x[:self._sys1.n_states]
+    x2 = x[self._sys1.n_states:]
+    y1 = self._sys1.output(x1, u, t)
+    dx1 = self._sys1.vector_field(x1, u, t)
+    dx2 = self._sys2.vector_field(x2, y1, t)
+    return jnp.concatenate((dx1, dx2))
+
+  def output(self, x, u=None, t=None):
+    x1 = x[:self._sys1.n_states]
+    x2 = x[self._sys1.n_states:]
+    y1 = self._sys1.output(x1, u, t)
+    y2 = self._sys2.output(x2, y1, t)
+    return y2
+
+
+class FeedbackSystem(DynamicalSystem):
+  """Two systems in parallel."""
+  _sys1: DynamicalSystem
+  _sys2: DynamicalSystem
+
+  def __init__(self, sys1, sys2):
+    """sys1.output must not depend on input."""
+    self._sys1 = sys1
+    self._sys2 = sys2
+    self.n_params = sys1.n_params + sys2.n_params
+    self.n_states = sys1.n_states + sys2.n_states
+    self.n_inputs = sys1.n_inputs
+  
+  def vector_field(self, x, u=None, t=None):
+    if u is None: u = np.zeros(self._sys1.n_inputs)
+    x1 = x[:self._sys1.n_states]
+    x2 = x[self._sys1.n_states:]
+    y1 = self._sys1.output(x1, None, t)
+    y2 = self._sys2.output(x2, y1, t)
+    dx1 = self._sys1.vector_field(x1, u+y2, t)
+    dx2 = self._sys2.vector_field(x2, y1, t)
+    dx = jnp.concatenate((dx1, dx2))
+    return dx
+
+  def output(self, x, u=None, t=None):
+    x1 = x[:self._sys1.n_states]
+    y = self._sys1.output(x1, None, t)
+    return y
+
+
+class StaticStateFeedbackSystem(DynamicalSystem):
+  """Two systems in parallel."""
+  _sys: DynamicalSystem
+  _feedbacklaw: Callable
+
+  def __init__(self, sys, law):
+    """sys1.output must not depend on input."""
+    self._sys = sys
+    self._feedbacklaw = staticmethod(law)
+    self.n_params = sys.n_params
+    self.n_states = sys.n_states
+    self.n_inputs = sys.n_inputs
+  
+  def vector_field(self, x, v=None, t=None):
+    if v is None: v = np.zeros(self._sys1.n_inputs)
+    dx = self._sys1.vector_field(x, self._feedbacklaw(x, v), t)
+    return dx
+
+  def output(self, x, u=None, t=None):
+    y = self._sys1.output(x, None, t)
+    return y
+
+
 class LinearSystem(DynamicalSystem):
   A: jnp.ndarray
   B: jnp.ndarray
   C: jnp.ndarray
+  D: jnp.ndarray
 
-  def __init__(self, A, B, C):
+  def __init__(self, A, B, C, D):
+    A = _ssmatrix(A)
+    B = _ssmatrix(B)
+    C = _ssmatrix(C)
+    D = _ssmatrix(D)
+    assert A.ndim == B.ndim == C.ndim == D.ndim == 2
     assert A.shape[0] == A.shape[1]
-    assert B.shape[0] == A.shape[0]
-    assert A.ndim == B.ndim == C.ndim == 2
+    assert B.shape[0] == A.shape[0] 
     assert C.shape[1] == A.shape[0]
+    assert D.shape[1] == B.shape[1]
+    assert D.shape[0] == C.shape[0]
     self.A = A
     self.B = B
     self.C = C
+    self.D = D
     self.n_states = A.shape[0]
-    self.n_params = len(A.reshape(-1)) + len(B.reshape(-1)) + len(C.reshape(-1))
+    self.n_params = A.size + B.size + C.size + C.size
+    self.n_inputs = B.shape[1]
 
-  def vector_field(self, x, u, t=None):
+  def vector_field(self, x, u=None, t=None):
     assert x.ndim == 1
     x = x[:, None]
-    return (self.A.dot(x) + self.B.dot(u)).squeeze()
+    out = self.A.dot(x)
 
-  def output(self, x, t=None):
-    return self.C.dot(x)
+    if u is not None:
+      assert u.ndim == 1
+      u = u[:, None]
+      out += self.B.dot(u)
 
-  def linearize(self, x0):
-    return self
+    return out.squeeze()
+
+  def output(self, x, u=None, t=None):
+    assert x.ndim == 1
+    x = x[: None]
+    out = self.C.dot(x)
+
+    if u is not None:
+      assert u.ndim == 1
+      u = u[:, None]
+      out += self.D.dot(u)
+
+    return out.squeeze()
 
 
 class ControlAffine(DynamicalSystem):
@@ -121,16 +249,8 @@ class ControlAffine(DynamicalSystem):
   def vector_field(self, x, u, t=None):
     return self.f(x, t) + self.g(x, t)*u
 
-  def output(self, x, t=None):
+  def output(self, x, u=None, t=None):
     return self.h(x, t)
-
-  def linearize(self, x0=None) -> LinearSystem:
-    if x0 is None:
-      x0 = np.zeros((self.n_states, 1))
-    A = jax.jacfwd(self.f)(x0)
-    B = self.g(x0)[:, None]
-    C = jax.jacfwd(self.h)(x0)
-    return LinearSystem(A, B, C)
 
   def feedback_linearize(self, x0: jnp.ndarray
       ) -> tuple[Callable[[float, jnp.ndarray], float], LinearSystem]:
