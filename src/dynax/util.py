@@ -3,6 +3,49 @@ import jax
 import jax.numpy as jnp
 import numpy as np
 
+def _ssmatrix(data, axis=1):
+    """Convert argument to a (possibly empty) 2D state space matrix.
+
+    The axis keyword argument makes it convenient to specify that if the input
+    is a vector, it is a row (axis=1) or column (axis=0) vector.
+
+    Parameters
+    ----------
+    data : array, list, or string
+        Input data defining the contents of the 2D array
+    axis : 0 or 1
+        If input data is 1D, which axis to use for return object.  The default
+        is 1, corresponding to a row matrix.
+
+    Returns
+    -------
+    arr : 2D array, with shape (0, 0) if a is empty
+
+    """
+    arr = jnp.array(data, dtype=float)
+    ndim = arr.ndim
+    shape = arr.shape
+
+    # Change the shape of the array into a 2D array
+    if (ndim > 2):
+        raise ValueError("state-space matrix must be 2-dimensional")
+
+    elif (ndim == 2 and shape == (1, 0)) or \
+         (ndim == 1 and shape == (0, )):
+        # Passed an empty matrix or empty vector; change shape to (0, 0)
+        shape = (0, 0)
+
+    elif ndim == 1:
+        # Passed a row or column vector
+        shape = (1, shape[0]) if axis == 1 else (shape[0], 1)
+
+    elif ndim == 0:
+        # Passed a constant; turn into a matrix
+        shape = (1, 1)
+
+    #  Create the actual object used to store the result
+    return arr.reshape(shape)
+
 def value_and_jacfwd(f, x):
   """Create a function that evaluates both fun and its foward-mode jacobian.
 
