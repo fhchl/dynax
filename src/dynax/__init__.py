@@ -45,6 +45,7 @@ class DynamicalSystem(eqx.Module):
     if x0 is None: x0 = np.zeros(self.n_states)
     if u0 is None: u0 = np.zeros(self.n_inputs)
     A, B, C, D = _linearize(self.vector_field, self.output, x0, u0)
+    # jax creates empty arrays
     if B.size == 0: B = np.zeros((self. n_states, self.n_inputs))
     if D.size == 0: D = np.zeros((C.shape[0], self.n_inputs))
     return LinearSystem(A, B, C, D)
@@ -120,7 +121,7 @@ class SeriesSystem(DynamicalSystem):
     y1 = self._sys1.output(x1, u, t)
     dx1 = self._sys1.vector_field(x1, u, t)
     dx2 = self._sys2.vector_field(x2, y1, t)
-    return jnp.concatenate((dx1, dx2))
+    return jnp.concatenate((jnp.atleast_1d(dx1), jnp.atleast_1d(dx2)))
 
   def output(self, x, u=None, t=None):
     x1 = x[:self._sys1.n_states]
@@ -151,7 +152,7 @@ class FeedbackSystem(DynamicalSystem):
     y2 = self._sys2.output(x2, y1, t)
     dx1 = self._sys1.vector_field(x1, u+y2, t)
     dx2 = self._sys2.vector_field(x2, y1, t)
-    dx = jnp.concatenate((dx1, dx2))
+    dx = jnp.concatenate((jnp.atleast_1d(dx1), jnp.atleast_1d(dx2)))
     return dx
 
   def output(self, x, u=None, t=None):
@@ -191,8 +192,8 @@ class LinearSystem(DynamicalSystem):
 
   def __init__(self, A, B, C, D):
     A = _ssmatrix(A)
-    B = _ssmatrix(B)
     C = _ssmatrix(C)
+    B = _ssmatrix(B)
     D = _ssmatrix(D)
     assert A.ndim == B.ndim == C.ndim == D.ndim == 2
     assert A.shape[0] == A.shape[1]
@@ -209,28 +210,20 @@ class LinearSystem(DynamicalSystem):
     self.n_inputs = B.shape[1]
 
   def vector_field(self, x, u=None, t=None):
-    assert x.ndim == 1
-    x = x[:, None]
     out = self.A.dot(x)
 
     if u is not None:
-      assert u.ndim == 1
-      u = u[:, None]
       out += self.B.dot(u)
 
-    return out.squeeze()
+    return out
 
   def output(self, x, u=None, t=None):
-    assert x.ndim == 1
-    x = x[: None]
     out = self.C.dot(x)
 
     if u is not None:
-      assert u.ndim == 1
-      u = u[:, None]
       out += self.D.dot(u)
 
-    return out.squeeze()
+    return out
 
 
 class ControlAffine(DynamicalSystem):
