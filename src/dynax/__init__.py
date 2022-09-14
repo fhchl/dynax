@@ -8,8 +8,9 @@ import numpy as np
 
 import jax
 import jax.numpy as jnp
-from functools import lru_cache
+
 from dynax.util import MemoizeJac, value_and_jacfwd, _ssmatrix
+from dynax.ad import lie_derivative, extended_lie_derivative
 
 
 def _linearize(f, h, x0, u0):
@@ -42,6 +43,7 @@ class DynamicalSystem(eqx.Module):
     pass
 
   def linearize(self, x0=None, u0=None, t=None):
+    """Linearize around point."""
     if x0 is None: x0 = np.zeros(self.n_states)
     if u0 is None: u0 = np.zeros(self.n_inputs)
     A, B, C, D = _linearize(self.vector_field, self.output, x0, u0)
@@ -269,8 +271,6 @@ class ControlAffine(DynamicalSystem):
     return compensator, linsys
 
 
-
-
 class ForwardModel(eqx.Module):
   system: eqx.Module
   sr: int = eqx.static_field()
@@ -294,64 +294,6 @@ class ForwardModel(eqx.Module):
     y = jax.vmap(self.system.output)(sol.ys)
     return y, sol
 
-@lru_cache
-def lie_derivative(f, h, n=1):
-  """Returns function for n-th derivative of h along f.
-
-  ..math: L_f^n h(x) = (\nabla L_f^{n-1} h)(x)^T f(x)
-          L_f^0 h(x) = h(x)
-
-  """
-  if n==0:
-    return h
-  else:
-    return lambda x, *args: jax.jvp(h, (x, *args), (f(x, *args),))[1]
-
-
-from jax.experimental.jet import jet
-import scipy.special
-
-def lie_derivative2(f, h, x0, n=1):
-    """@robenackComputationLieDerivatives2005, sec 5"""
-    # taylor coefficients of x(t) = \phi_t(x_0)
-    x_primals = [x0]
-    x_series = []
-    for k in range(n):
-        # taylor coefficients of z(t) = f(x(t))
-        z_primals, z_series = jet(f, x_primals, (x_series,))
-        z = [z_primals] + z_series
-        # build xk from zk: \dot x(t) = z(t) = f(x(t))
-        x_series.append(z[k]/(k+1))
-
-    # taylor coefficients of y(t) = h(x(t)) = h(\phi_t(x_0))
-    y_primals, y_series = jet(h, x_primals, (x_series,))
-
-    Lfh = scipy.special.factorial(np.arange(n+1)) * (y_primals + y_series)
-    return Lfh
-
-@lru_cache
-def extended_lie_derivative(f, h, n=1):
-  """Returns function for n-th derivative of h along f.
-
-  ..math: L_f^n h(x, t) = (\nabla_x L_f^{n-1} h)(x, t)^T f(x, u, t)
-          L_f^0 h(x, t) = h(x, t)
-
-  """
-  if n==0:
-    return lambda x, _, p: h(x, p)
-  elif n==1:
-    return lambda x, u, p: jax.jacfwd(h)(x, p).dot(f(x, u[0], p))
-    # FIXME: Tree structure of primal and tangential must be the same
-    #return lambda x, u, p: jax.jvp(h, (x, p), (f(x, u[0], p), ))[1]
-  else:
-    last_lie = extended_lie_derivative(f, h, n-1)
-    grad_x = jax.jacfwd(last_lie, 0)
-    grad_u = jax.jacfwd(last_lie, 1)
-    def fun(x, u, p):
-      uterms = min(n-2, len(u)-1)
-      return (grad_x(x, u, p).dot(f(x, u[0], p)) +
-              grad_u(x, u, p)[:, :uterms].dot(u[1:uterms+1]))
-    return fun
 
 def fit_ml(model: ForwardModel, t, u, y, x0):
   """Fit forward model via maximum likelihood."""
