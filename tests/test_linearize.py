@@ -65,6 +65,7 @@ def test_linearize_sastry9_9():
   assert np.array_equal(linsys.D, [[0.]])
 
 def test_feeback_linearize_sastry9_9():
+  # FIXME: finish this test
   sys = Sastry9_9()
   linsys = sys.linearize()
   compensator, estimator = feedback_linearize(sys)
