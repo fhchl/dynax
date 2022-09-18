@@ -40,11 +40,11 @@ def feedback_linearize(sys: ControlAffine, x0: np.ndarray = None, reference="lin
     c = linsys.C
     cAn = c.dot(np.linalg.matrix_power(A, n))
     cAnm1b = c.dot(np.linalg.matrix_power(A, n-1)).dot(b)
-    def compensator(r, x, z):
-      return ((-Lfnh(x) + cAn.dot(z) + cAnm1b*r) / LgLfn1h(x)).squeeze()
+    def feedbacklaw(x, z, v):
+      return ((-Lfnh(x) + cAn.dot(z) + cAnm1b*v) / LgLfn1h(x)).squeeze()
   elif reference == "normal_form":
     # Sastry 9.34
-    def compensator(x, v):
+    def feedbacklaw(x, v):
       return ((-Lfnh(x) + v) / LgLfn1h(x)).squeeze()
   elif reference == "zeros_of_polynomial":
     # Sastry 9.35
@@ -52,4 +52,4 @@ def feedback_linearize(sys: ControlAffine, x0: np.ndarray = None, reference="lin
   else:
     raise ValueError
   
-  return compensator, linsys
+  return feedbacklaw, linsys
