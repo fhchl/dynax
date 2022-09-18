@@ -177,12 +177,14 @@ class StaticStateFeedbackSystem(DynamicalSystem):
     self.n_inputs = sys.n_inputs
   
   def vector_field(self, x, v=None, t=None):
-    if v is None: v = np.zeros(self._sys1.n_inputs)
-    dx = self._sys1.vector_field(x, self._feedbacklaw(x, v), t)
+    if v is None: v = np.zeros(self._sys.n_inputs)
+    u = self._feedbacklaw(x, v)
+    dx = self._sys.vector_field(x, u, t)
+    # jax.debug.breakpoint() 
     return dx
 
   def output(self, x, u=None, t=None):
-    y = self._sys1.output(x, None, t)
+    y = self._sys.output(x, None, t)
     return y
 
 
@@ -212,19 +214,19 @@ class LinearSystem(DynamicalSystem):
     self.n_inputs = B.shape[1]
 
   def vector_field(self, x, u=None, t=None):
+    x = jnp.atleast_1d(x)
     out = self.A.dot(x)
-
     if u is not None:
+      u = jnp.atleast_1d(u)
       out += self.B.dot(u)
-
     return out
 
   def output(self, x, u=None, t=None):
+    x = jnp.atleast_1d(x)
     out = self.C.dot(x)
-
     if u is not None:
+      u = jnp.atleast_1d(u)
       out += self.D.dot(u)
-
     return out
 
 
@@ -247,62 +249,57 @@ class ControlAffine(DynamicalSystem):
   def output(self, x, u=None, t=None):
     return self.h(x, t)
 
-  def feedback_linearize(self, x0: jnp.ndarray
-      ) -> tuple[Callable[[float, jnp.ndarray], float], LinearSystem]:
-    # check controllalability around x0, Sastry 9.44
-    linsys = self.linearize(x0)
-    A, b, n = linsys.A, linsys.B, linsys.A.shape[0]
-    contrmat = np.hstack([jnp.linalg.matrix_power(A, ni).dot(b) for ni in range(n)])
-    if ((rank := jnp.linalg.matrix_rank(contrmat)) != n):
-      import warnings
-      #raise ValueError(f"Linearized system not controllable: order={n} but rank(O)={rank}.")
-      warnings.warn(f"Linearized system not controllable: order={n} but rank(O)={rank}.")
-      # FIXME: this raises error, even though LS system should be controllable.
-    # TODO: check in volutivity of distribution, Sastry 9.42
-    # Sastry 9.102
-    c = linsys.C
-    cAn = c.dot(jnp.linalg.matrix_power(A, n))
-    cAnm1b = c.dot(jnp.linalg.matrix_power(A, n-1)).dot(b)
-    Lfnh = lie_derivative(self.f, self.h, n)
-    LgLfn1h = lie_derivative(self.g, lie_derivative(self.f, self.h, n-1))
-    def compensator(r, x, z):
-      return ((-Lfnh(x) + cAn.dot(z) + cAnm1b*r) / LgLfn1h(x)).squeeze()
-
-    return compensator, linsys
-
+def spline_it(t, u):
+  """Compute interpolating cubic-spline function."""
+  u = jnp.asarray(u)
+  assert len(t) == u.shape[0], 'time and input must have same number of samples'
+  coeffs = dfx.backward_hermite_coefficients(t, u)
+  cubic = dfx.CubicInterpolation(t, coeffs)
+  fun = lambda t: cubic.evaluate(t)
+  return fun
 
 class ForwardModel(eqx.Module):
-  system: eqx.Module
-  sr: int = eqx.static_field()
+  system: DynamicalSystem
   solver: dfx.AbstractAdaptiveSolver = eqx.static_field()
   step: dfx.AbstractStepSizeController = eqx.static_field()
 
-  def __init__(self, system, sr, solver=dfx.Dopri5(),
+  def __init__(self, system, solver=dfx.Dopri5(),
                step=dfx.ConstantStepSize()):
     self.system = system
-    self.sr = sr
     self.solver = solver
     self.step = step
 
-  def __call__(self, ts, x0, ufun, dense=False):
+  def __call__(self, t, x0, u=None, squeeze=True):
+    # Validate arguments
+    t = jnp.asarray(t)
+    x0 = jnp.asarray(x0)
+    if u is None:
+      ufun = lambda t: None
+    elif callable(u):
+      ufun = u
+    else:  # u is array_like of shape (time, inputs)
+      ufun = spline_it(t, u)
+    # Solve ODE
     vector_field = lambda t, x, _: self.system.vector_field(x, ufun(t), t)
     term = dfx.ODETerm(vector_field)
-    saveat = dfx.SaveAt(ts=ts, dense=dense)
-    sol = dfx.diffeqsolve(term, self.solver, t0=ts[0], t1=ts[-1], dt0=1/self.sr,
-                             y0=x0, saveat=saveat, max_steps=100*len(ts),
-                             stepsize_controller=self.step)
-    y = jax.vmap(self.system.output)(sol.ys)
-    return y, sol
+    saveat = dfx.SaveAt(ts=t)
+    x = dfx.diffeqsolve(term, self.solver, t0=t[0], t1=t[-1], dt0=t[1],
+                        y0=x0, saveat=saveat, max_steps=100*len(t),
+                        stepsize_controller=self.step).ys
+    # Compute output
+    y = jax.vmap(self.system.output)(x)
+    # Remove singleton dimensions
+    if squeeze:
+      x = x.squeeze()
+      y = y.squeeze()
+    return x, y
 
 
 def fit_ml(model: ForwardModel, t, u, y, x0):
   """Fit forward model via maximum likelihood."""
   t = jnp.asarray(t)
-  u = jnp.asarray(u)
   y = jnp.asarray(y)
-  coeffs = dfx.backward_hermite_coefficients(t, u)
-  cubic = dfx.CubicInterpolation(t, coeffs)
-  ufun = lambda t: cubic.evaluate(t)
+  ufun = spline_it(t, u)
   init_params, treedef = jax.tree_util.tree_flatten(model)
   std_y = np.std(y, axis=0)
 

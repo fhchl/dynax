@@ -43,21 +43,19 @@ def test_lie_derivative2():
     npt.assert_allclose(lie_derivative_jet(g, lie_derivative_jet(f, h, n=2))(x),
                         -(1+2*x2)*np.exp(x2), rtol=1e-5)
 
-
-
 from benchmarks import benchmark
 
-def test_lie_derivative_speed():
-  sys = Sastry9_9()
-  f = sys.f
-  h = sys.h
-  
-  np.random.seed(0)
-  xs = jnp.array(np.random.normal(size=(10, 3)))
-  fun = jax.jit(lie_derivative(f, h, n=10))
-  benchmark(lambda: fun(jnp.array(np.random.normal(size=3))), iters=10)
-  # FIXME: problem might be that lie_derivatives only works with scalars?
-  fun2 = jax.jit(lie_derivative_jet(f, h, n=10))
-  benchmark(lambda: fun2(jnp.array(np.random.normal(size=3))), iters=10)
+# def test_lie_derivative_speed():
+#   sys = Sastry9_9()
+#   f = sys.f
+#   h = sys.h
+#   
+#   np.random.seed(0)
+#   xs = jnp.array(np.random.normal(size=(10, 3)))
+#   fun = jax.jit(lie_derivative(f, h, n=10))
+#   benchmark(lambda: fun(jnp.array(np.random.normal(size=3))), iters=10)
+#   # FIXME: problem might be that lie_derivatives only works with scalars?
+#   fun2 = jax.jit(lie_derivative_jet(f, h, n=10))
+#   benchmark(lambda: fun2(jnp.array(np.random.normal(size=3))), iters=10)
 
 

@@ -1,7 +1,7 @@
 import numpy as np
 import jax.numpy as jnp
 
-from dynax import ControlAffine, DynamicalSystem, LinearSystem, ForwardModel
+from dynax import *
 from dynax.linearize import feedback_linearize, is_controllable
 
 def test_is_controllable():
@@ -65,14 +65,20 @@ def test_linearize_sastry9_9():
   assert np.array_equal(linsys.D, [[0.]])
 
 def test_feeback_linearize_sastry9_9():
-  # FIXME: finish this test
+  # TODO: finish this test
   sys = Sastry9_9()
-  linsys = sys.linearize()
-  compensator, estimator = feedback_linearize(sys)
-  
-  sr = 100
-  fwd = ForwardModel(sys, sr)
+  feedbacklaw, _ = feedback_linearize(sys, reference="normal_form")
+  linsys = sys.linearize() 
+  feedbacksys = StaticStateFeedbackSystem(sys, feedbacklaw)
+  print(feedbacksys.linearize())
 
+  t = np.linspace(0, 1)
+  u = np.sin(t)
+  x0 = jnp.zeros(sys.n_states)
+  assert np.allclose(
+    ForwardModel(linsys)(t, x0, u)[1],
+    ForwardModel(feedbacksys)(t, x0, u)[1]
+  )
 
 def test_feedback_linearize():
   class TestSys(ControlAffine): 
