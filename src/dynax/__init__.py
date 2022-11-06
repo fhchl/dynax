@@ -176,11 +176,10 @@ class StaticStateFeedbackSystem(DynamicalSystem):
     self.n_states = sys.n_states
     self.n_inputs = sys.n_inputs
   
-  def vector_field(self, x, v=None, t=None):
-    if v is None: v = np.zeros(self._sys.n_inputs)
-    u = self._feedbacklaw(x, v)
-    dx = self._sys.vector_field(x, u, t)
-    # jax.debug.breakpoint() 
+  def vector_field(self, x, u=None, t=None):
+    if u is None: u = np.zeros(self._sys.n_inputs)
+    v = self._feedbacklaw(x, u)
+    dx = self._sys.vector_field(x, v, t)
     return dx
 
   def output(self, x, u=None, t=None):
