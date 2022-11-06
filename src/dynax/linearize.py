@@ -19,6 +19,12 @@ def is_controllable(A, B):
 def feedback_linearize(sys: ControlAffine, x0: np.ndarray = None, reference="linearized"
                        ) -> tuple[Callable[[float, jnp.ndarray], float], LinearSystem]:
   """Contstruct linearizing feedback law."""
+  # feedback_linearization should solve the system of partial differential
+  # equations to find the output, under which the system is
+  # feedback/full-state/state linearizable. Right now, we assume that the
+  # chosen output is already useful for feedback linearization and we assume
+  # that the relative degree is equal to the number of states. 
+
   assert sys.n_inputs == 1, 'only single input systems supported'
 
   if x0 is None:
@@ -40,7 +46,9 @@ def feedback_linearize(sys: ControlAffine, x0: np.ndarray = None, reference="lin
     c = linsys.C
     cAn = c.dot(np.linalg.matrix_power(A, n))
     cAnm1b = c.dot(np.linalg.matrix_power(A, n-1)).dot(b)
-    def feedbacklaw(x, z, v):
+    def feedbacklaw(x, v):
+      # FIXME: feedbacklaw should only use x and v, what to do about z?
+      z = x
       return ((-Lfnh(x) + cAn.dot(z) + cAnm1b*v) / LgLfn1h(x)).squeeze()
   elif reference == "normal_form":
     # Sastry 9.34
@@ -50,6 +58,6 @@ def feedback_linearize(sys: ControlAffine, x0: np.ndarray = None, reference="lin
     # Sastry 9.35
     pass
   else:
-    raise ValueError
+    raise ValueError(f"unknown option reference={reference}")
   
   return feedbacklaw, linsys

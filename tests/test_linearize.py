@@ -1,8 +1,13 @@
 import numpy as np
+import numpy.testing as npt
 import jax.numpy as jnp
 
 from dynax import *
 from dynax.linearize import feedback_linearize, is_controllable
+
+
+tols = dict(rtol=1e-05, atol=1e-08)
+
 
 def test_is_controllable():
   n = 3
@@ -55,6 +60,7 @@ class Sastry9_9(ControlAffine):
     return x3
 
 def test_linearize_sastry9_9():
+  """Linearize should return 2d-arrays. Refererence computed by hand."""
   sys = Sastry9_9()
   linsys = sys.linearize()
   assert np.array_equal(linsys.A, [[0,  0, 0],
@@ -64,22 +70,37 @@ def test_linearize_sastry9_9():
   assert np.array_equal(linsys.C, [[0, 0, 1]])
   assert np.array_equal(linsys.D, [[0.]])
 
-def test_feeback_linearize_sastry9_9():
-  # TODO: finish this test
+def test_feedback_linearize_sastry9_9_target_linearized():
+  """Feedback linearized system gives same output as system linearized around x0."""
   sys = Sastry9_9()
-  feedbacklaw, _ = feedback_linearize(sys, reference="normal_form")
-  linsys = sys.linearize() 
-  feedbacksys = StaticStateFeedbackSystem(sys, feedbacklaw)
-  print(feedbacksys.linearize())
+  feedbacklaw, _ = feedback_linearize(sys, reference="linearized")
+  target_sys = sys.linearize() 
+  feedback_sys = StaticStateFeedbackSystem(sys, feedbacklaw)
 
   t = np.linspace(0, 1)
   u = np.sin(t)
   x0 = jnp.zeros(sys.n_states)
-  assert np.allclose(
-    ForwardModel(linsys)(t, x0, u)[1],
-    ForwardModel(feedbacksys)(t, x0, u)[1]
+  npt.assert_allclose(
+    ForwardModel(target_sys)(t, x0, u)[1],
+    ForwardModel(feedback_sys)(t, x0, u)[1],
+    **tols
   )
 
+def test_feedback_linearize_sastry9_9_target_normal_form():
+  """Feedback linearized system gives same output as system linearized around x0."""
+  sys = Sastry9_9()
+  feedbacklaw, _ = feedback_linearize(sys, reference="linearized")
+  linsys = sys.linearize() 
+  feedbacksys = StaticStateFeedbackSystem(sys, feedbacklaw)
+
+  t = np.linspace(0, 1)
+  u = np.sin(t)
+  x0 = jnp.zeros(sys.n_states)
+  npt.assert_allclose(
+    ForwardModel(linsys)(t, x0, u)[1],
+    ForwardModel(feedbacksys)(t, x0, u)[1],
+    **tols
+  )
 def test_feedback_linearize():
   class TestSys(ControlAffine): 
     n_inputs = 1
