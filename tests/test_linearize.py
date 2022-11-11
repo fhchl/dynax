@@ -1,10 +1,11 @@
+import diffrax as dfx
+import jax.numpy as jnp
 import numpy as np
 import numpy.testing as npt
-import jax.numpy as jnp
 
-from dynax import *
+from dynax import (ControlAffine, DynamicalSystem, ForwardModel, LinearSystem,
+                   StaticStateFeedbackSystem)
 from dynax.linearize import feedback_linearize, is_controllable
-
 
 tols = dict(rtol=1e-05, atol=1e-08)
 
@@ -35,7 +36,7 @@ def test_linearize_dyn2lin():
   class TestSys(DynamicalSystem):
     n_states = 1
     n_inputs = 1
-    vector_field = lambda self, x, u=None, t=None: -1*x + 2*u 
+    vector_field = lambda self, x, u=None, t=None: -1*x + 2*u
     output = lambda self, x, u=None, t=None: 3*x + 4*u
   sys = TestSys()
   linsys = sys.linearize()
@@ -74,9 +75,8 @@ def test_feedback_linearize_sastry9_9_target_linearized():
   """Feedback linearized system gives same output as system linearized around x0."""
   sys = Sastry9_9()
   feedbacklaw, _ = feedback_linearize(sys, reference="linearized")
-  target_sys = sys.linearize() 
+  target_sys = sys.linearize()
   feedback_sys = StaticStateFeedbackSystem(sys, feedbacklaw)
-
   t = np.linspace(0, 1)
   u = np.sin(t)
   x0 = jnp.zeros(sys.n_states)
@@ -87,22 +87,38 @@ def test_feedback_linearize_sastry9_9_target_linearized():
   )
 
 def test_feedback_linearize_sastry9_9_target_normal_form():
-  """Feedback linearized system gives same output as system linearized around x0."""
+  """Feedback linearized system gives same output as normal form."""
   sys = Sastry9_9()
-  feedbacklaw, _ = feedback_linearize(sys, reference="linearized")
-  linsys = sys.linearize() 
-  feedbacksys = StaticStateFeedbackSystem(sys, feedbacklaw)
+  feedbacklaw, _ = feedback_linearize(sys, reference="normal_form")
+  target_sys = LinearSystem(
+    np.array([[0, 1, 0],
+              [0, 0, 1],
+              [0, 0, 0]]),
+    np.array([[0, 0, 1]]).T,
+    np.array([[1, 0, 0]]),  # z1 = h(x) = x3
+    np.zeros((1,1))
+  )
+  feedback_sys = StaticStateFeedbackSystem(sys, feedbacklaw)
 
   t = np.linspace(0, 1)
-  u = np.sin(t)
+  u = np.sin(100*2*np.pi*t)
   x0 = jnp.zeros(sys.n_states)
+  solver = lambda: dfx.Kvaerno3()
+  step = lambda: dfx.PIDController(rtol=1e-3, atol=1e-6)
+  # FIXME: this test fails as the feedback linearized system seems to diverge. Highly
+  # stiff or am I doing something wrong?
+  import matplotlib.pyplot as plt
+  plt.plot(ForwardModel(target_sys, solver=solver(), step=step(), max_steps=10000000)(t, x0, u)[1])
+  plt.plot(ForwardModel(feedback_sys, solver=solver(), step=step(), max_steps=10000000)(t, x0, u)[1])
+  plt.show()
   npt.assert_allclose(
-    ForwardModel(linsys)(t, x0, u)[1],
-    ForwardModel(feedbacksys)(t, x0, u)[1],
+    ForwardModel(target_sys, solver=solver(), step=step())(t, x0, u)[1],
+    ForwardModel(feedback_sys, solver=solver(), step=step())(t, x0, u)[1],
     **tols
   )
+
 def test_feedback_linearize():
-  class TestSys(ControlAffine): 
+  class TestSys(ControlAffine):
     n_inputs = 1
     n_states = 1
     f = lambda self, x, u=None, t=None: -x**3
@@ -110,7 +126,6 @@ def test_feedback_linearize():
     h = lambda self, x, u, t=None: -x
   sys = TestSys()
   compensator, linsys = feedback_linearize(sys)
-
 
 
 if __name__ == "__main__":

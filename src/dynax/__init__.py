@@ -27,20 +27,19 @@ class DynamicalSystem(eqx.Module):
   n_states: int = eqx.static_field(default=None, init=False)
   n_params: int = eqx.static_field(default=None, init=False)
   n_inputs: int = eqx.static_field(default=None, init=False)
-  
+
   # Don't know if it is possible to set vector_field and output
   # in a __init__ method, which would make the API nicer. For
   # now, this class must always be subclassed.
-  # As a an attribute, it can't be assigned to during init. 
+  # As a an attribute, it can't be assigned to during init.
   # As a eqx.static_field, it is not supported by jax, as the JIT
   # compiler doesn't support staticmethods.
   @abstractmethod
   def vector_field(self, x, u=None, t=None):
     pass
 
-  @abstractmethod
   def output(self, x, u=None, t=None):
-    pass
+    return x
 
   def linearize(self, x0=None, u0=None, t=None):
     """Linearize around point."""
@@ -145,7 +144,7 @@ class FeedbackSystem(DynamicalSystem):
     self.n_params = sys1.n_params + sys2.n_params
     self.n_states = sys1.n_states + sys2.n_states
     self.n_inputs = sys1.n_inputs
-  
+
   def vector_field(self, x, u=None, t=None):
     if u is None: u = np.zeros(self._sys1.n_inputs)
     x1 = x[:self._sys1.n_states]
@@ -175,10 +174,10 @@ class StaticStateFeedbackSystem(DynamicalSystem):
     self.n_params = sys.n_params
     self.n_states = sys.n_states
     self.n_inputs = sys.n_inputs
-  
+
   def vector_field(self, x, u=None, t=None):
     if u is None: u = np.zeros(self._sys.n_inputs)
-    v = self._feedbacklaw(x, u)
+    v = self._feedbacklaw(x, u)  # NOTE: how to extract the modified input v?
     dx = self._sys.vector_field(x, v, t)
     return dx
 
@@ -188,6 +187,7 @@ class StaticStateFeedbackSystem(DynamicalSystem):
 
 
 class LinearSystem(DynamicalSystem):
+  # TODO: could be control-affine?
   A: jnp.ndarray
   B: jnp.ndarray
   C: jnp.ndarray
@@ -200,7 +200,7 @@ class LinearSystem(DynamicalSystem):
     D = _ssmatrix(D)
     assert A.ndim == B.ndim == C.ndim == D.ndim == 2
     assert A.shape[0] == A.shape[1]
-    assert B.shape[0] == A.shape[0] 
+    assert B.shape[0] == A.shape[0]
     assert C.shape[1] == A.shape[0]
     assert D.shape[1] == B.shape[1]
     assert D.shape[0] == C.shape[0]
@@ -261,12 +261,14 @@ class ForwardModel(eqx.Module):
   system: DynamicalSystem
   solver: dfx.AbstractAdaptiveSolver = eqx.static_field()
   step: dfx.AbstractStepSizeController = eqx.static_field()
+  max_steps: int = None
 
   def __init__(self, system, solver=dfx.Dopri5(),
-               step=dfx.ConstantStepSize()):
+               step=dfx.ConstantStepSize(), max_steps=None):
     self.system = system
     self.solver = solver
     self.step = step
+    self.max_steps = max_steps
 
   def __call__(self, t, x0, u=None, squeeze=True):
     # Validate arguments
@@ -278,12 +280,13 @@ class ForwardModel(eqx.Module):
       ufun = u
     else:  # u is array_like of shape (time, inputs)
       ufun = spline_it(t, u)
+    max_steps = 50*len(t) if self.max_steps is None else self.max_steps
     # Solve ODE
     vector_field = lambda t, x, _: self.system.vector_field(x, ufun(t), t)
     term = dfx.ODETerm(vector_field)
     saveat = dfx.SaveAt(ts=t)
     x = dfx.diffeqsolve(term, self.solver, t0=t[0], t1=t[-1], dt0=t[1],
-                        y0=x0, saveat=saveat, max_steps=100*len(t),
+                        y0=x0, saveat=saveat, max_steps=max_steps,
                         stepsize_controller=self.step).ys
     # Compute output
     y = jax.vmap(self.system.output)(x)
@@ -311,7 +314,9 @@ def fit_ml(model: ForwardModel, t, u, y, x0):
   # compute primal and sensitivties in one forward pass
   fun = MemoizeJac(jax.jit(lambda x: value_and_jacfwd(residuals, x)))
   jac = fun.derivative
-  # use https://lmfit.github.io/lmfit-py/index.html instead?
+  # use instead:
+  # - https://lmfit.github.io/lmfit-py/index.html
+  # - https://github.com/dipolar-quantum-gases/jaxfit
   res = least_squares(fun, init_params, jac=jac, x_scale='jac', verbose=2)
   params = res.x
   return treedef.unflatten(params)

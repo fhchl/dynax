@@ -16,14 +16,48 @@ def is_controllable(A, B):
   return np.linalg.matrix_rank(contrmat) == n
 
 
-def feedback_linearize(sys: ControlAffine, x0: np.ndarray = None, reference="linearized"
+def input_output_linearize(sys: ControlAffine, reldeg: int=None, x0: np.ndarray=None,
+                           reference: LinearSystem|str|None=None
+                           ) -> Callable[[float, jnp.ndarray], float]:
+  """Construct input-output linearizing feedback law."""
+  assert sys.n_inputs == 1, 'only single input systems supported'
+  if x0 is None:
+    x0 = np.zeros(sys.n_states)
+
+  Lfnh = lie_derivative(sys.f, sys.h, reldeg)
+  LgLfn1h = lie_derivative(sys.g, lie_derivative(sys.f, sys.h, reldeg-1))
+
+  if isinstance(reference, LinearSystem):
+    # Sastry 9.102
+    assert reference.n_outputs == reference.n_inputs == 1  # reference is SISO
+    A, b, c = reference.A, reference.B, reference.C
+    # TODO: what's the relation between relative degree of orig system and order of
+    # target system?
+    n = reference.n_states
+    cAn = c.dot(np.linalg.matrix_power(A, n))
+    cAnm1b = c.dot(np.linalg.matrix_power(A, n-1)).dot(b)
+    def feedbacklaw(x, v):
+      # FIXME: feedbacklaw should only use x and v, what to do about z?
+      # could give reference state z as part of input v
+      z = x
+      return ((-Lfnh(x) + cAn.dot(z) + cAnm1b*v) / LgLfn1h(x)).squeeze()
+  elif reference == "normal_form":
+    # Sastry 9.34
+    def feedbacklaw(x, v):
+      return ((-Lfnh(x) + v) / LgLfn1h(x)).squeeze()
+    raise ValueError(f"unknown option reference={reference}")
+
+  return feedbacklaw
+
+
+def feedback_linearize(sys: ControlAffine, x0: np.ndarray=None, reference="linearized"
                        ) -> tuple[Callable[[float, jnp.ndarray], float], LinearSystem]:
   """Contstruct linearizing feedback law."""
   # feedback_linearization should solve the system of partial differential
   # equations to find the output, under which the system is
   # feedback/full-state/state linearizable. Right now, we assume that the
   # chosen output is already useful for feedback linearization and we assume
-  # that the relative degree is equal to the number of states. 
+  # that the relative degree is equal to the number of states.
 
   assert sys.n_inputs == 1, 'only single input systems supported'
 
@@ -48,6 +82,7 @@ def feedback_linearize(sys: ControlAffine, x0: np.ndarray = None, reference="lin
     cAnm1b = c.dot(np.linalg.matrix_power(A, n-1)).dot(b)
     def feedbacklaw(x, v):
       # FIXME: feedbacklaw should only use x and v, what to do about z?
+      # could give reference state z as part of input v
       z = x
       return ((-Lfnh(x) + cAn.dot(z) + cAnm1b*v) / LgLfn1h(x)).squeeze()
   elif reference == "normal_form":
@@ -59,5 +94,5 @@ def feedback_linearize(sys: ControlAffine, x0: np.ndarray = None, reference="lin
     pass
   else:
     raise ValueError(f"unknown option reference={reference}")
-  
+
   return feedbacklaw, linsys
