@@ -6,6 +6,7 @@ import numpy.testing as npt
 from dynax import (ControlAffine, DynamicalSystem, ForwardModel, LinearSystem,
                    StaticStateFeedbackSystem)
 from dynax.linearize import feedback_linearize, is_controllable
+from dynax.models import Sastry9_9
 
 tols = dict(rtol=1e-05, atol=1e-08)
 
@@ -44,21 +45,6 @@ def test_linearize_dyn2lin():
   assert np.array_equal(linsys.B, [[2.]])
   assert np.array_equal(linsys.C, [[3.]])
   assert np.array_equal(linsys.D, [[4.]])
-
-class Sastry9_9(ControlAffine):
-  """Sastry Example 9.9"""
-  n_states = 3
-  n_inputs = 1
-  n_params = 0
-  def f(self, x, t=None):
-    x1, x2, _ = x
-    return jnp.array([0., x1 + x2**2, x1-x2])
-  def g(self, x, t=None):
-    _, x2, _ = x
-    return jnp.array([jnp.exp(x2), jnp.exp(x2), 0.])
-  def h(self, x, t=None):
-    _, _, x3 = x
-    return x3
 
 def test_linearize_sastry9_9():
   """Linearize should return 2d-arrays. Refererence computed by hand."""

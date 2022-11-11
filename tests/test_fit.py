@@ -4,21 +4,11 @@ import numpy as np
 import numpy.testing as npt
 
 from dynax import DynamicalSystem, ForwardModel, fit_ml
+from dynax.models import SpringMassDamper
 
 jax.config.update("jax_enable_x64", True)
 
 tols = dict(rtol=1e-05, atol=1e-08)
-
-class SpringMassDamper(DynamicalSystem):
-  """Second order system: m*x'' + r*x' + k*x = u"""
-  m: float
-  r: float
-  k: float
-
-  def vector_field(self, x, u=None, t=None):
-    if u is None: u = 0
-    x1, x2 = x
-    return jnp.array([x2, (u - self.r*x2 - self.k*x1)/self.m])
 
 def test_fit_ml():
   # data

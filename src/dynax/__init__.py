@@ -39,6 +39,7 @@ class DynamicalSystem(eqx.Module):
     pass
 
   def output(self, x, u=None, t=None):
+    """Return state by default."""
     return x
 
   def linearize(self, x0=None, u0=None, t=None):
