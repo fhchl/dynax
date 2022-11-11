@@ -241,9 +241,8 @@ class ControlAffine(DynamicalSystem):
   def g(self, x, t=None):
     pass
 
-  @abstractmethod
   def h(self, x, t=None):
-    pass
+    return x
 
   def vector_field(self, x, u, t=None):
     return self.f(x, t) + self.g(x, t)*u
@@ -261,18 +260,18 @@ def spline_it(t, u):
   return fun
 
 class ForwardModel(eqx.Module):
+  """Combines a dynamical system with a solver."""
   system: DynamicalSystem
   solver: dfx.AbstractAdaptiveSolver = eqx.static_field()
   step: dfx.AbstractStepSizeController = eqx.static_field()
 
-  def __init__(self, system, solver=dfx.Dopri5(),
-               step=dfx.ConstantStepSize()):
+  def __init__(self, system, solver=None, step=None):
     self.system = system
-    self.solver = solver
-    self.step = step
+    self.solver = solver if solver is not None else dfx.Dopri5()
+    self.step = step if step is not None else dfx.ConstantStepSize()
 
   def __call__(self, t, x0, u=None, squeeze=True, **diffeqsolve_kwargs):
-    # Validate arguments
+    """Solve dynamics for state and output trajectories."""
     t = jnp.asarray(t)
     x0 = jnp.asarray(x0)
     if u is None:
@@ -299,17 +298,17 @@ class ForwardModel(eqx.Module):
     return x, y
 
 
-def fit_ml(model: ForwardModel, t, u, y, x0):
+def fit_ml(model: ForwardModel, t, y, x0, u=None):
   """Fit forward model via maximum likelihood."""
   t = jnp.asarray(t)
   y = jnp.asarray(y)
-  ufun = spline_it(t, u)
+  ufun = spline_it(t, u) if u is not None else None
   init_params, treedef = jax.tree_util.tree_flatten(model)
   std_y = np.std(y, axis=0)
 
   def residuals(params):
     model = treedef.unflatten(params)
-    pred_y, _ = model(t, x0, ufun)
+    pred_y, _ = model(t, x0, u=ufun)
     res = ((y - pred_y)/std_y).reshape(-1)
     return res / np.sqrt(len(res))
 
