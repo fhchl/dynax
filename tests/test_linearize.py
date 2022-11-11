@@ -108,8 +108,8 @@ def test_feedback_linearize_sastry9_9_target_normal_form():
   # FIXME: this test fails as the feedback linearized system seems to diverge. Highly
   # stiff or am I doing something wrong?
   import matplotlib.pyplot as plt
-  plt.plot(ForwardModel(target_sys, solver=solver(), step=step(), max_steps=10000000)(t, x0, u)[1])
-  plt.plot(ForwardModel(feedback_sys, solver=solver(), step=step(), max_steps=10000000)(t, x0, u)[1])
+  plt.plot(ForwardModel(target_sys, solver=solver(), step=step())(t, x0, u)[1])
+  plt.plot(ForwardModel(feedback_sys, solver=solver(), step=step())(t, x0, u)[1])
   plt.show()
   npt.assert_allclose(
     ForwardModel(target_sys, solver=solver(), step=step())(t, x0, u)[1],

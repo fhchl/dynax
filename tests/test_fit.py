@@ -1,4 +1,3 @@
-import diffrax as dfx
 import jax
 import jax.numpy as jnp
 import numpy as np
@@ -36,4 +35,3 @@ def test_fit_ml():
   npt.assert_allclose(x_pred, x_true, **tols)
   npt.assert_allclose(jax.tree_util.tree_flatten(pred_model)[0],
                       jax.tree_util.tree_flatten(true_model)[0], **tols)
-

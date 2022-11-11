@@ -103,6 +103,7 @@ class DynamicalSystem(eqx.Module):
   def test_observability():
     pass
 
+# TODO: have output_internals, that makes methods return tuple (x, pytree_interal_states_x)
 
 class SeriesSystem(DynamicalSystem):
   """Two systems in series."""
@@ -261,16 +262,14 @@ class ForwardModel(eqx.Module):
   system: DynamicalSystem
   solver: dfx.AbstractAdaptiveSolver = eqx.static_field()
   step: dfx.AbstractStepSizeController = eqx.static_field()
-  max_steps: int = None
 
   def __init__(self, system, solver=dfx.Dopri5(),
-               step=dfx.ConstantStepSize(), max_steps=None):
+               step=dfx.ConstantStepSize()):
     self.system = system
     self.solver = solver
     self.step = step
-    self.max_steps = max_steps
 
-  def __call__(self, t, x0, u=None, squeeze=True):
+  def __call__(self, t, x0, u=None, squeeze=True, **diffeqsolve_kwargs):
     # Validate arguments
     t = jnp.asarray(t)
     x0 = jnp.asarray(x0)
@@ -280,14 +279,15 @@ class ForwardModel(eqx.Module):
       ufun = u
     else:  # u is array_like of shape (time, inputs)
       ufun = spline_it(t, u)
-    max_steps = 50*len(t) if self.max_steps is None else self.max_steps
     # Solve ODE
+    diffeqsolve_options = dict(saveat=dfx.SaveAt(ts=t), max_steps=50*len(t),
+                               adjoint=dfx.NoAdjoint())
+    diffeqsolve_options |= diffeqsolve_kwargs
     vector_field = lambda t, x, _: self.system.vector_field(x, ufun(t), t)
     term = dfx.ODETerm(vector_field)
-    saveat = dfx.SaveAt(ts=t)
-    x = dfx.diffeqsolve(term, self.solver, t0=t[0], t1=t[-1], dt0=t[1],
-                        y0=x0, saveat=saveat, max_steps=max_steps,
-                        stepsize_controller=self.step).ys
+    x = dfx.diffeqsolve(term, self.solver, t0=t[0], t1=t[-1], dt0=t[1], y0=x0,
+                        stepsize_controller=self.step,
+                        **diffeqsolve_options).ys
     # Compute output
     y = jax.vmap(self.system.output)(x)
     # Remove singleton dimensions
@@ -317,6 +317,7 @@ def fit_ml(model: ForwardModel, t, u, y, x0):
   # use instead:
   # - https://lmfit.github.io/lmfit-py/index.html
   # - https://github.com/dipolar-quantum-gases/jaxfit
+  # - scipy.optimize.curve_fit
   res = least_squares(fun, init_params, jac=jac, x_scale='jac', verbose=2)
   params = res.x
   return treedef.unflatten(params)
