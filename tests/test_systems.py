@@ -1,7 +1,10 @@
+import jax.numpy as jnp
 import numpy as np
-from dynax import *
+import diffrax as dfx
 
-# jax.config.update("jax_debug_nans", True) 
+from dynax import (DynamicalSystem, FeedbackSystem, ForwardModel, LinearSystem,
+                   SeriesSystem)
+
 
 def test_series():
   n1, m1, p1 = 4, 3, 2
@@ -77,7 +80,7 @@ def test_forward_model_crit_damp():
     C2 = x0
     C1 = b/2*C2
     return np.exp(-b*t/2)*(C1*t + C2)
-  x0 = jnp.array([1, 0])  # x(t=0)=1, dx(t=0)=0 
+  x0 = jnp.array([1, 0])  # x(t=0)=1, dx(t=0)=0
   t = np.linspace(0, 1)
   model = ForwardModel(sys, step=dfx.PIDController(rtol=1e-7, atol=1e-9))
   x_pred = model(t, x0)[1]
@@ -102,7 +105,7 @@ def test_forward_model_lin_sys():
     C1 = b/2*C2
     return np.exp(-b*t/2)*(C1*t + C2) + uconst/c
 
-  x0 = jnp.array([1, 0])  # x(t=0)=1, dx(t=0)=0 
+  x0 = jnp.array([1, 0])  # x(t=0)=1, dx(t=0)=0
   t = np.linspace(0, 1)
   u = np.ones_like(t) * uconst
   model = ForwardModel(sys, step=dfx.PIDController(rtol=1e-7, atol=1e-9))

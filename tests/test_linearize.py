@@ -8,8 +8,7 @@ from dynax import (ControlAffine, DynamicalSystem, ForwardModel, LinearSystem,
 from dynax.linearize import feedback_linearize, is_controllable
 from dynax.models import Sastry9_9
 
-tols = dict(rtol=1e-05, atol=1e-08)
-
+tols = dict(rtol=1e-04, atol=1e-06)
 
 def test_is_controllable():
   n = 3
@@ -58,7 +57,7 @@ def test_linearize_sastry9_9():
   assert np.array_equal(linsys.D, [[0.]])
 
 def test_feedback_linearize_sastry9_9_target_linearized():
-  """Feedback linearized system gives same output as system linearized around x0."""
+  """Feedback linearized system equals system linearized around x0."""
   sys = Sastry9_9()
   feedbacklaw, _ = feedback_linearize(sys, reference="linearized")
   target_sys = sys.linearize()
@@ -72,6 +71,9 @@ def test_feedback_linearize_sastry9_9_target_linearized():
     **tols
   )
 
+# FIXME: this test fails as the feedback linearized system seems to diverge.
+# Highly stiff or am I doing something wrong?
+#@pytest.mark.xfail(reason="known parser issue")
 def test_feedback_linearize_sastry9_9_target_normal_form():
   """Feedback linearized system gives same output as normal form."""
   sys = Sastry9_9()
@@ -89,14 +91,9 @@ def test_feedback_linearize_sastry9_9_target_normal_form():
   t = np.linspace(0, 1)
   u = np.sin(100*2*np.pi*t)
   x0 = jnp.zeros(sys.n_states)
-  solver = lambda: dfx.Kvaerno3()
-  step = lambda: dfx.PIDController(rtol=1e-3, atol=1e-6)
-  # FIXME: this test fails as the feedback linearized system seems to diverge. Highly
-  # stiff or am I doing something wrong?
-  import matplotlib.pyplot as plt
-  plt.plot(ForwardModel(target_sys, solver=solver(), step=step())(t, x0, u)[1])
-  plt.plot(ForwardModel(feedback_sys, solver=solver(), step=step())(t, x0, u)[1])
-  plt.show()
+  solver = lambda: dfx.Dopri5()
+  step = lambda: dfx.PIDController(rtol=1e-6, atol=1e-9)
+
   npt.assert_allclose(
     ForwardModel(target_sys, solver=solver(), step=step())(t, x0, u)[1],
     ForwardModel(feedback_sys, solver=solver(), step=step())(t, x0, u)[1],

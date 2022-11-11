@@ -12,6 +12,7 @@ import jax.numpy as jnp
 from dynax.util import MemoizeJac, value_and_jacfwd, _ssmatrix
 from dynax.ad import lie_derivative, extended_lie_derivative
 
+jax.config.update("jax_enable_x64", True)
 
 def _linearize(f, h, x0, u0):
   """Linearize dx=f(x,u), y=h(x,u) around equilibrium point."""

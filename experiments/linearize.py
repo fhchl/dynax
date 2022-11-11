@@ -1,13 +1,12 @@
-import dynax as dx
-import equinox as eqx
-import numpy as np
-import jax.numpy as jnp
 import diffrax as dfx
-import matplotlib.pyplot as plt
+import equinox as eqx
 import jax
-from datetime import datetime
+import jax.numpy as jnp
+import matplotlib.pyplot as plt
+import numpy as np
 
-jax.config.update("jax_enable_x64", True)
+import dynax as dx
+
 
 class LoudspeakerDynamics(dx.ControlAffine):
   Bl1: float

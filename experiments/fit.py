@@ -5,7 +5,6 @@ import diffrax as dfx
 import jax.numpy as jnp
 import numpy as np
 
-jax.config.update("jax_enable_x64", False)
 
 class LoudspeakerDynamics(dx.ControlAffine):
   Bl: float
