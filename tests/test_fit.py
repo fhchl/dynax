@@ -6,7 +6,6 @@ import numpy.testing as npt
 from dynax import DynamicalSystem, ForwardModel, fit_ml
 from dynax.models import SpringMassDamper
 
-jax.config.update("jax_enable_x64", True)
 
 tols = dict(rtol=1e-05, atol=1e-08)
 
