@@ -18,7 +18,7 @@ def test_fit_ml():
   x_true, _ = true_model(t, x0, u)
   # fit
   init_model = ForwardModel(SpringMassDamper(1., 1., 1.))
-  pred_model = fit_ml(init_model, t, u, x_true, x0)
+  pred_model = fit_ml(init_model, t, x_true, x0, u)
   # check result
   x_pred, _ = pred_model(t, x0, u)
   npt.assert_allclose(x_pred, x_true, **tols)

@@ -53,5 +53,5 @@ y, sol = true_model(t, x0, ufun)
 
 # fit model
 model = dx.ForwardModel(LoudspeakerDynamics(initial_params), sr)
-pred_params = dx.fit_ml(model, t, u, y, x0)
+pred_params = dx.fit_ml(model, t, y, x0, u)
 print(pred_params)

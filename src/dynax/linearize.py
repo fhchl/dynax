@@ -16,9 +16,10 @@ def is_controllable(A, B):
   return np.linalg.matrix_rank(contrmat) == n
 
 
-def input_output_linearize(sys: ControlAffine, reldeg: int=None, x0: np.ndarray=None,
+def input_output_linearize(sys: ControlAffine, reldeg: int=None,
+                           x0: np.ndarray=None,
                            reference: LinearSystem|str|None=None
-                           ) -> Callable[[float, jnp.ndarray], float]:
+                          ) -> Callable[[float, jnp.ndarray], float]:
   """Construct input-output linearizing feedback law."""
   assert sys.n_inputs == 1, 'only single input systems supported'
   if x0 is None:
@@ -29,7 +30,7 @@ def input_output_linearize(sys: ControlAffine, reldeg: int=None, x0: np.ndarray=
 
   if isinstance(reference, LinearSystem):
     # Sastry 9.102
-    assert reference.n_outputs == reference.n_inputs == 1  # reference is SISO
+    assert reference.n_inputs == 1  # reference is SISO
     A, b, c = reference.A, reference.B, reference.C
     # TODO: what's the relation between relative degree of orig system and order of
     # target system?
@@ -45,6 +46,7 @@ def input_output_linearize(sys: ControlAffine, reldeg: int=None, x0: np.ndarray=
     # Sastry 9.34
     def feedbacklaw(x, v):
       return ((-Lfnh(x) + v) / LgLfn1h(x)).squeeze()
+  else:
     raise ValueError(f"unknown option reference={reference}")
 
   return feedbacklaw
