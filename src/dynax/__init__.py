@@ -11,6 +11,7 @@ import jax.numpy as jnp
 
 from dynax.util import MemoizeJac, value_and_jacfwd, _ssmatrix
 from dynax.ad import lie_derivative, extended_lie_derivative
+from dynax.custom_types import Array
 
 jax.config.update("jax_enable_x64", True)
 
@@ -250,6 +251,7 @@ class ControlAffine(DynamicalSystem):
   def output(self, x, u=None, t=None):
     return self.h(x, t)
 
+
 def spline_it(t, u):
   """Compute interpolating cubic-spline function."""
   u = jnp.asarray(u)
@@ -258,6 +260,7 @@ def spline_it(t, u):
   cubic = dfx.CubicInterpolation(t, coeffs)
   fun = lambda t: cubic.evaluate(t)
   return fun
+
 
 class ForwardModel(eqx.Module):
   """Combines a dynamical system with a solver."""
@@ -270,7 +273,7 @@ class ForwardModel(eqx.Module):
     self.solver = solver if solver is not None else dfx.Dopri5()
     self.step = step if step is not None else dfx.ConstantStepSize()
 
-  def __call__(self, t, x0, u=None, squeeze=True, **diffeqsolve_kwargs):
+  def __call__(self, x0, t, u=None, squeeze=True, **diffeqsolve_kwargs):
     """Solve dynamics for state and output trajectories."""
     t = jnp.asarray(t)
     x0 = jnp.asarray(x0)
@@ -298,17 +301,60 @@ class ForwardModel(eqx.Module):
     return x, y
 
 
-def fit_ml(model: ForwardModel, t, y, x0, u=None):
+class DiscreteForwardModel(eqx.Module):
+  """Compute flow map for discrete dynamical system."""
+  system: DynamicalSystem
+
+  def __call__(self, x0, num_steps=None, t=None, u=None, squeeze=True):
+    """Solve discrete map."""
+    x0 = jnp.asarray(x0)
+    if num_steps is None:
+      if t is not None:
+        num_steps = len(t)
+      elif u is not None:
+        num_steps = len(u)
+      else:
+        raise ValueError("must specify one of num_steps, t or u")
+
+    if t is None:
+      t = np.zeros(num_steps)
+    if u is None:
+      u = np.zeros(num_steps)
+    inputs = np.stack((t, u), axis=1)
+
+    def scan_fun(state, input):
+      t, u = input
+      next_state = self.system.vector_field(state, u, t)
+      return next_state, state
+
+    _, x = jax.lax.scan(scan_fun, x0, inputs, length=num_steps)
+
+    # Compute output
+    y = jax.vmap(self.system.output)(x)
+    # Remove singleton dimensions
+    if squeeze:
+      x = x.squeeze()
+      y = y.squeeze()
+    return x, y
+
+
+def fit_ml(model: ForwardModel | DiscreteForwardModel,
+           t: Array,
+           y: Array,
+           x0: Array,
+           u: Callable[[float], Array] | Array | None = None
+           ) -> ForwardModel | DiscreteForwardModel:
   """Fit forward model via maximum likelihood."""
   t = jnp.asarray(t)
   y = jnp.asarray(y)
-  ufun = spline_it(t, u) if u is not None else None
+  if isinstance(model, ForwardModel) and u is not None:
+    u = spline_it(t, u)
   init_params, treedef = jax.tree_util.tree_flatten(model)
   std_y = np.std(y, axis=0)
 
   def residuals(params):
     model = treedef.unflatten(params)
-    pred_y, _ = model(t, x0, u=ufun)
+    pred_y, _ = model(x0, t=t, u=u)
     res = ((y - pred_y)/std_y).reshape(-1)
     return res / np.sqrt(len(res))
 

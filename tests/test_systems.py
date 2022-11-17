@@ -1,10 +1,13 @@
 import jax.numpy as jnp
 import numpy as np
 import diffrax as dfx
+import numpy.testing as npt
 
+from scipy.signal import dlsim, dlti
 from dynax import (DynamicalSystem, FeedbackSystem, ForwardModel, LinearSystem,
-                   SeriesSystem)
+                   SeriesSystem, DiscreteForwardModel)
 
+tols = dict(rtol=1e-04, atol=1e-06)
 
 def test_series():
   n1, m1, p1 = 4, 3, 2
@@ -83,7 +86,7 @@ def test_forward_model_crit_damp():
   x0 = jnp.array([1, 0])  # x(t=0)=1, dx(t=0)=0
   t = np.linspace(0, 1)
   model = ForwardModel(sys, step=dfx.PIDController(rtol=1e-7, atol=1e-9))
-  x_pred = model(t, x0)[1]
+  x_pred = model(x0, t)[1]
   x_true = x(t, *x0)
   assert np.allclose(x_true, x_pred)
 
@@ -109,9 +112,34 @@ def test_forward_model_lin_sys():
   t = np.linspace(0, 1)
   u = np.ones_like(t) * uconst
   model = ForwardModel(sys, step=dfx.PIDController(rtol=1e-7, atol=1e-9))
-  x_pred = model(t, x0, u)[1]
+  x_pred = model(x0, t, u)[1]
   x_true = x(t, *x0, uconst)
   assert np.allclose(x_true, x_pred)
+
+
+def test_discrete_forward_model():
+  b = 2; c = 1  # critical damping as b**2 == 4*c
+  t = jnp.arange(50)
+  u = jnp.sin(1/len(t)*2*np.pi*t)
+  x0 = jnp.array([1., 0.])
+  A = jnp.array([[0,  1], [-c, -b]])
+  B = jnp.array([[0], [1]])
+  C = jnp.array([[1, 0]])
+  D = jnp.zeros((1, 1))
+  # test just input
+  sys = LinearSystem(A, B, C, D)
+  model = DiscreteForwardModel(sys)
+  x, y = model(x0, u=u) # ours
+  scipy_sys = dlti(A, B, C, D)
+  _, scipy_y, scipy_x = dlsim(scipy_sys, u, x0=x0)
+  npt.assert_allclose(scipy_y[:, 0], y, **tols)
+  npt.assert_allclose(scipy_x, x, **tols)
+  # test input and time (results should be same)
+  x, y = model(x0, u=u, t=t)
+  scipy_t, scipy_y, scipy_x = dlsim(scipy_sys, u, x0=x0, t=t)
+  npt.assert_allclose(scipy_y[:, 0], y, **tols)
+  npt.assert_allclose(scipy_x, x, **tols)
+
 
 
 if __name__ == "__main__":

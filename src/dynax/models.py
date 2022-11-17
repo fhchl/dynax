@@ -36,7 +36,7 @@ class NonlinearDrag(ControlAffine):
   def f(self, x, u=None, t=None):
     x1, x2 = x
     return jnp.array(
-      [x2, (- self.r*x2*jnp.abs(x2) - self.r*x2 - self.k*x1)/self.m])
+      [x2, (- self.r * (x2 * jnp.abs(x2) + x2) - self.k * x1)/self.m])
   def g(self, x, u=None, t=None):
     if u is None: u = 0
     return jnp.array([0., 1./self.m])
