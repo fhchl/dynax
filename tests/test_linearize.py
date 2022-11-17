@@ -66,8 +66,8 @@ def test_feedback_linearize_sastry9_9_target_linearized():
   u = np.sin(t)
   x0 = jnp.zeros(sys.n_states)
   npt.assert_allclose(
-    ForwardModel(target_sys)(t, x0, u)[1],
-    ForwardModel(feedback_sys)(t, x0, u)[1],
+    ForwardModel(target_sys)(x0, t, u)[1],
+    ForwardModel(feedback_sys)(x0, t, u)[1],
     **tols
   )
 
@@ -95,8 +95,8 @@ def test_feedback_linearize_sastry9_9_target_normal_form():
   step = lambda: dfx.PIDController(rtol=1e-6, atol=1e-9)
 
   npt.assert_allclose(
-    ForwardModel(target_sys, solver=solver(), step=step())(t, x0, u)[1],
-    ForwardModel(feedback_sys, solver=solver(), step=step())(t, x0, u)[1],
+    ForwardModel(target_sys, solver=solver(), step=step())(x0, t, u)[1],
+    ForwardModel(feedback_sys, solver=solver(), step=step())(x0, t, u)[1],
     **tols
   )
 
