@@ -1,6 +1,6 @@
 import jax.numpy as jnp
 
-from dynax import DynamicalSystem, ControlAffine
+from .system import ControlAffine, DynamicalSystem
 
 
 class SpringMassDamper(DynamicalSystem):
