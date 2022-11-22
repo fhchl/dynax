@@ -1,7 +1,7 @@
 import jax.numpy as jnp
 
 from .system import ControlAffine, DynamicalSystem
-
+from .estimation import non_negative_field
 
 class SpringMassDamper(DynamicalSystem):
   """Forced second-order spring-mass-damper system.
@@ -52,3 +52,15 @@ class Sastry9_9(ControlAffine):
   def f(self, x, t=None): return jnp.array([0., x[0] + x[1]**2, x[0] - x[1]])
   def g(self, x, t=None): return jnp.array([jnp.exp(x[1]), jnp.exp(x[1]), 0.])
   def h(self, x, t=None): return x[2]
+
+
+class LotkaVolterra(DynamicalSystem):
+  alpha: float = non_negative_field()
+  beta: float = non_negative_field()
+  gamma: float = non_negative_field()
+  delta: float = non_negative_field()
+
+  def vector_field(self, x, u=None, t=None):
+    x, y = x
+    return jnp.array([self.alpha * x - self.beta * x * y,
+                      self.delta * x * y - self.gamma * y])
