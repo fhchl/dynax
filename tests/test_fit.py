@@ -3,9 +3,8 @@ import jax.numpy as jnp
 import numpy as np
 import numpy.testing as npt
 
-from dynax import DynamicalSystem, ForwardModel, fit_ml
+from dynax import ForwardModel, fit_ml
 from dynax.models import SpringMassDamper
-
 
 tols = dict(rtol=1e-05, atol=1e-08)
 

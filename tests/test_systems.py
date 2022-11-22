@@ -141,7 +141,6 @@ def test_discrete_forward_model():
   npt.assert_allclose(scipy_x, x, **tols)
 
 
-
 if __name__ == "__main__":
   tests = [(name, obj)
            for (name, obj) in locals().items()

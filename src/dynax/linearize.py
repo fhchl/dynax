@@ -1,12 +1,11 @@
-import jax
-import jax.numpy as jnp
-import numpy as np
 import warnings
-
 from collections.abc import Callable
 
-from dynax import LinearSystem, DynamicalSystem
-from dynax import lie_derivative, ControlAffine
+import jax.numpy as jnp
+import numpy as np
+
+from .ad import lie_derivative
+from .system import ControlAffine, LinearSystem
 
 
 def is_controllable(A, B):

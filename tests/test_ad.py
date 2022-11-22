@@ -1,10 +1,10 @@
 import jax
+import jax.numpy as jnp
 import numpy as np
 import numpy.testing as npt
-import jax.numpy as jnp
+from test_linearize import Sastry9_9
 
 from dynax.ad import lie_derivative, lie_derivative_jet, lie_derivatives_jet
-from test_linearize import Sastry9_9
 
 
 def test_lie_derivative():
@@ -58,5 +58,3 @@ from benchmarks import benchmark
 #   # FIXME: problem might be that lie_derivatives only works with scalars?
 #   fun2 = jax.jit(lie_derivative_jet(f, h, n=10))
 #   benchmark(lambda: fun2(jnp.array(np.random.normal(size=3))), iters=10)
-
-
