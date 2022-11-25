@@ -25,6 +25,7 @@ class DynamicalSystem(eqx.Module):
   n_states: int = eqx.static_field(default=None, init=False)
   n_params: int = eqx.static_field(default=None, init=False)
   n_inputs: int = eqx.static_field(default=None, init=False)
+  n_outputs: int = eqx.static_field(default=None, init=False)
 
   # Don't know if it is possible to set vector_field and output
   # in a __init__ method, which would make the API nicer. For
@@ -241,7 +242,8 @@ class ControlAffine(DynamicalSystem):
   def h(self, x, t=None):
     return x
 
-  def vector_field(self, x, u, t=None):
+  def vector_field(self, x, u=None, t=None):
+    if u is None: u = 0
     return self.f(x, t) + self.g(x, t)*u
 
   def output(self, x, u=None, t=None):

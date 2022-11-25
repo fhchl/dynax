@@ -20,7 +20,7 @@ def input_output_linearize(sys: ControlAffine, reldeg: int=None,
                            reference: LinearSystem|str|None=None
                           ) -> Callable[[float, jnp.ndarray], float]:
   """Construct input-output linearizing feedback law."""
-  assert sys.n_inputs == 1, 'only single input systems supported'
+  assert sys.n_inputs == 1 and sys.n_outputs == 1, 'only SISO supported'
   if x0 is None:
     x0 = np.zeros(sys.n_states)
 
