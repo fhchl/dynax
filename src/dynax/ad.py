@@ -15,6 +15,8 @@ def lie_derivative(f, h, n=1):
           L_f^0 h(x) = h(x)
 
   """
+  if n<0:
+    raise ValueError(f"n must be non-negative but is {n}")
   if n==0:
     return h
   else:
