@@ -6,10 +6,10 @@ import jax
 import jax.numpy as jnp
 import numpy as np
 from jax.tree_util import tree_flatten, tree_map, tree_structure
+from jaxtyping import Array, PyTree
 from scipy.optimize import least_squares
 from scipy.optimize._optimize import MemoizeJac
 
-from .custom_types import Array, PyTree
 from .system import (DiscreteForwardModel, DynamicalSystem, ForwardModel,
                      spline_it)
 from .util import value_and_jacfwd
