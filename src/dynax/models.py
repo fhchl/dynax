@@ -39,6 +39,7 @@ class NonlinearDrag(ControlAffine):
   k: float
   n_states = 2
   n_inputs = 1
+  n_outputs = 1
   n_params = 3
   def f(self, x, u=None, t=None):
     x1, x2 = x
@@ -202,21 +203,21 @@ class PolyNonLinSLSL2R2GenCunLiDyn(ControlAffine):
 class PolyNonLinLS(ControlAffine):
   n_inputs = 1
   n_states = 3
-  Bl: float = non_negative_field(default=4.)
-  Re: float = non_negative_field(default=4.)
-  Rm: float = non_negative_field(default=1.)
-  K: float = non_negative_field(default=1e3)
-  L: float = non_negative_field(default=1e-3)
-  M: float = non_negative_field(default=10e-3)
+  Bl: float = non_negative_field(default=3.293860219666026)
+  Re: float = non_negative_field(default=6.951042909533158)
+  Rm: float = non_negative_field(default=0.7237227039672062)
+  K: float = non_negative_field(default=1927.6900850359816)
+  L: float = non_negative_field(default=3.0198137447786782e-05)
+  M: float = non_negative_field(default=0.0026736262193096066)
   Bln: List[float]
   Kn: List[float]
   Ln: List[float]
-  out: List[int] = static_field(default_factory=lambda: [0.])
+  out: List[int] = static_field(default_factory=lambda: [1])
 
-  def __init__(self, poly_x_order=4, out=[1]):
-    self.Bln = [0.]*poly_x_order
-    self.Kn = [0.]*poly_x_order
-    self.Ln = [0.]*poly_x_order
+  def __init__(self, out=[1]):
+    self.Bln = [-1534976847.641551, 3086545.3414503504, -103586.95986556074, 53.36132745159803]
+    self.Kn = [3226388093843.6885, -431643235.42306566, -19460708.731581513, -16921.87605383064]
+    self.Ln = [29040.803548406657, -194.6354429605707, 0.39969456055741825, -0.0003743634072813242]
     self.out = out
     self.n_outputs = len(out)
 

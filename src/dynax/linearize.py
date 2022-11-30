@@ -1,11 +1,28 @@
 import warnings
 from collections.abc import Callable
 
+import jax
 import jax.numpy as jnp
 import numpy as np
 
 from .ad import lie_derivative
 from .system import ControlAffine, LinearSystem
+
+def relative_degree(sys, xs, max_reldeg=10):
+  """Compute relative degree of sys on region xs."""
+  # TODO: when ControlAffine has y = h(x) + i(x)u, include test for n = 0,
+  # i.e. i(x) == 0 for all x in xs.
+  assert sys.n_inputs == 1 and sys.n_outputs == 1, 'only SISO supported'
+  for n in range(1, max_reldeg+1):
+    LgLfn1h = lie_derivative(sys.g, lie_derivative(sys.f, sys.h, n-1))
+    res = jax.vmap(LgLfn1h)(xs)
+    if np.all(res == 0.):
+      continue
+    elif np.all(res != 0.):
+      return n
+    else:
+      raise RuntimeError("sys has ill-defined relative degree.")
+  raise RuntimeError("Could not compute relative degree. Increase max_reldeg.")
 
 
 def is_controllable(A, B):

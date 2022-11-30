@@ -6,7 +6,7 @@ import equinox as eqx
 import jax
 import jax.numpy as jnp
 import numpy as np
-
+from jaxtyping import Array, Float
 from .ad import extended_lie_derivative, lie_derivative
 from .util import _ssmatrix
 
@@ -164,7 +164,6 @@ class FeedbackSystem(DynamicalSystem):
 
 
 class StaticStateFeedbackSystem(DynamicalSystem):
-  """Two systems in parallel."""
   _sys: DynamicalSystem
   _feedbacklaw: Callable
 
@@ -186,9 +185,39 @@ class StaticStateFeedbackSystem(DynamicalSystem):
     y = self._sys.output(x, None, t)
     return y
 
+class DynamicStateFeedbackSystem(DynamicalSystem):
+  _sys: DynamicalSystem
+  _sys2: DynamicalSystem
+  _feedbacklaw: Callable[[Array, Array, Float], Float]
+
+  def __init__(self, sys, sys2, law):
+    """Feedback u(x, z, r)"""
+    self._sys = sys
+    self._sys2 = sys2
+    self._feedbacklaw = staticmethod(law)
+    self.n_params = sys.n_params
+    self.n_states = sys.n_states
+    self.n_inputs = sys.n_inputs
+    self.n_outputs = sys.n_outputs
+
+  def vector_field(self, x, u=None, t=None):
+    if u is None: u = np.zeros(self._sys.n_inputs)
+    x, z = x[:self.n_states], x[self.n_states:]
+    dx = self._sys.vector_field(x, self._feedbacklaw(x, z, u), t)
+    dz = self._sys2.vector_field(z, u, t)
+    return jnp.concatenate((dx, dz))
+
+  def output(self, x, u=None, t=None):
+    y = self._sys.output(x, u, t)
+    return y
+
 
 class LinearSystem(DynamicalSystem):
-  # TODO: could be control-affine?
+  """TODO: could be control-affine? Two blocking problems:
+  - right now, control affine is SISO only
+  - may h depend on u? Needed for D.
+  If so, then one could compute relative degree.
+  """
   A: jnp.ndarray
   B: jnp.ndarray
   C: jnp.ndarray
@@ -212,6 +241,7 @@ class LinearSystem(DynamicalSystem):
     self.n_states = A.shape[0]
     self.n_params = A.size + B.size + C.size + C.size
     self.n_inputs = B.shape[1]
+    self.n_outputs = C.shape[0]
 
   def vector_field(self, x, u=None, t=None):
     x = jnp.atleast_1d(x)
