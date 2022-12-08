@@ -14,23 +14,6 @@ from dynax.models import (NonlinearDrag, PolyNonLinLS,
 jax.config.update("jax_enable_x64", True)
 
 
-def input_output_linearize(sys: ControlAffine, reldeg: int,
-                           reference: LinearSystem):
-  """Construct input-output linearizing feedback law."""
-  assert sys.n_inputs == 1 and sys.n_outputs == 1, 'only SISO supported'
-  assert reference.n_inputs == reference.n_outputs == 1 # reference is SISO
-
-  Lfnh = lie_derivative(sys.f, sys.h, reldeg)
-  LgLfnm1h = lie_derivative(sys.g, lie_derivative(sys.f, sys.h, reldeg-1))
-
-  A, b, c = reference.A, reference.B, reference.C
-  cAn = c.dot(np.linalg.matrix_power(A, reldeg))
-  cAnm1b = c.dot(np.linalg.matrix_power(A, reldeg-1)).dot(b)
-  def feedbacklaw(x, z, v):
-    return ((-Lfnh(x) + cAn.dot(z) + cAnm1b*v) / LgLfnm1h(x)).squeeze()
-
-  return feedbacklaw
-
 def linearizing_diffeomorphism(sys, reldeg):
   def diffeo(x):
     lieds = [lie_derivative(sys.f, sys.y, n) for n in range(reldeg-1)]
@@ -72,7 +55,7 @@ z, y_m = linmodel(init_state, t, u)
 
 # input-output linearized model
 reldeg = relative_degree(sys, x, 5)
-feedbacklaw = input_output_linearize(sys, reldeg, reference=linsys)
+feedbacklaw = input_output_linearize(sys, reldeg, ref=linsys)
 feedbacksys = DynamicStateFeedbackSystem(sys, linsys, feedbacklaw)
 feedbackmodel = ForwardModel(feedbacksys, **solver_opt)
 xz, y_comp = feedbackmodel(np.concatenate((init_state, init_state)), t, u,
