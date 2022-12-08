@@ -4,8 +4,8 @@ import numpy as np
 import numpy.testing as npt
 
 from dynax import (ControlAffine, DynamicalSystem, ForwardModel, LinearSystem,
-                   StaticStateFeedbackSystem)
-from dynax.linearize import feedback_linearize, is_controllable, relative_degree
+                   StaticStateFeedbackSystem, DynamicStateFeedbackSystem)
+from dynax.linearize import is_controllable, relative_degree, input_output_linearize
 from dynax.models import Sastry9_9, NonlinearDrag
 
 tols = dict(rtol=1e-04, atol=1e-06)
@@ -66,58 +66,18 @@ def test_linearize_sastry9_9():
   assert np.array_equal(linsys.D, [[0.]])
 
 
-def test_feedback_linearize_sastry9_9_target_linearized():
+def test_input_output_linearize():
   """Feedback linearized system equals system linearized around x0."""
-  sys = Sastry9_9()
-  feedbacklaw, _ = feedback_linearize(sys, reference="linearized")
-  target_sys = sys.linearize()
-  feedback_sys = StaticStateFeedbackSystem(sys, feedbacklaw)
+  sys = NonlinearDrag(0.1, 0.1, 0.1, 0.1)
+  ref = sys.linearize()
+  xs = np.random.normal(size=(100, sys.n_states))
+  reldeg = relative_degree(sys, xs)
+  feedbacklaw = input_output_linearize(sys, reldeg, ref)
+  feedback_sys = DynamicStateFeedbackSystem(sys, ref, feedbacklaw)
   t = np.linspace(0, 1)
   u = np.sin(t)
-  x0 = jnp.zeros(sys.n_states)
   npt.assert_allclose(
-    ForwardModel(target_sys)(x0, t, u)[1],
-    ForwardModel(feedback_sys)(x0, t, u)[1],
+    ForwardModel(ref)(np.zeros(sys.n_states), t, u)[1],
+    ForwardModel(feedback_sys)(np.zeros(feedback_sys.n_states), t, u)[1],
     **tols
   )
-
-
-# FIXME: this test fails as the feedback linearized system seems to diverge.
-# Highly stiff or am I doing something wrong?
-#@pytest.mark.xfail(reason="known parser issue")
-def test_feedback_linearize_sastry9_9_target_normal_form():
-  """Feedback linearized system gives same output as normal form."""
-  sys = Sastry9_9()
-  feedbacklaw, _ = feedback_linearize(sys, reference="normal_form")
-  target_sys = LinearSystem(
-    np.array([[0, 1, 0],
-              [0, 0, 1],
-              [0, 0, 0]]),
-    np.array([[0, 0, 1]]).T,
-    np.array([[1, 0, 0]]),  # z1 = h(x) = x3
-    np.zeros((1,1))
-  )
-  feedback_sys = StaticStateFeedbackSystem(sys, feedbacklaw)
-
-  t = np.linspace(0, 1)
-  u = np.sin(100*2*np.pi*t)
-  x0 = jnp.zeros(sys.n_states)
-  solver = lambda: dfx.Dopri5()
-  step = lambda: dfx.PIDController(rtol=1e-6, atol=1e-9)
-
-  npt.assert_allclose(
-    ForwardModel(target_sys, solver=solver(), step=step())(x0, t, u)[1],
-    ForwardModel(feedback_sys, solver=solver(), step=step())(x0, t, u)[1],
-    **tols
-  )
-
-
-def test_feedback_linearize():
-  class TestSys(ControlAffine):
-    n_inputs = 1
-    n_states = 1
-    f = lambda self, x, u=None, t=None: -x**3
-    g = lambda self, x, u=None, t=None: 2
-    h = lambda self, x, u, t=None: -x
-  sys = TestSys()
-  compensator, linsys = feedback_linearize(sys)

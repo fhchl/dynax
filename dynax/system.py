@@ -185,6 +185,7 @@ class StaticStateFeedbackSystem(DynamicalSystem):
     y = self._sys.output(x, None, t)
     return y
 
+
 class DynamicStateFeedbackSystem(DynamicalSystem):
   _sys: DynamicalSystem
   _sys2: DynamicalSystem
@@ -195,20 +196,21 @@ class DynamicStateFeedbackSystem(DynamicalSystem):
     self._sys = sys
     self._sys2 = sys2
     self._feedbacklaw = staticmethod(law)
-    self.n_params = sys.n_params
-    self.n_states = sys.n_states
+    self.n_params = sys.n_params + sys2.n_params
+    self.n_states = sys.n_states + sys2.n_states
     self.n_inputs = sys.n_inputs
     self.n_outputs = sys.n_outputs
 
-  def vector_field(self, x, u=None, t=None):
+  def vector_field(self, xz, u=None, t=None):
     if u is None: u = np.zeros(self._sys.n_inputs)
-    x, z = x[:self.n_states], x[self.n_states:]
+    x, z = xz[:self._sys.n_states], xz[self._sys.n_states:]
     v = self._feedbacklaw(x, z, u)
     dx = self._sys.vector_field(x, v, t)
     dz = self._sys2.vector_field(z, u, t)
     return jnp.concatenate((dx, dz))
 
-  def output(self, x, u=None, t=None):
+  def output(self, xz, u=None, t=None):
+    x = xz[:self._sys.n_states]
     y = self._sys.output(x, u, t)
     return y
 
@@ -307,6 +309,7 @@ class ForwardModel(eqx.Module):
     """Solve dynamics for state and output trajectories."""
     t = jnp.asarray(t)
     x0 = jnp.asarray(x0)
+    assert len(x0) == self.system.n_states, f'len(x0)={len(x0)} but sys has {self.system.n_states} states'
     if u is None:
       ufun = lambda t: None
     elif callable(u):

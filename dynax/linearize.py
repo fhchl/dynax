@@ -4,6 +4,7 @@ from collections.abc import Callable
 import jax
 import jax.numpy as jnp
 import numpy as np
+from jaxtyping import Array
 
 from .ad import lie_derivative
 from .system import ControlAffine, LinearSystem
@@ -32,85 +33,23 @@ def is_controllable(A, B):
   return np.linalg.matrix_rank(contrmat) == n
 
 
-def input_output_linearize(sys: ControlAffine, reldeg: int=None,
-                           x0: np.ndarray=None,
-                           reference: LinearSystem|str|None=None
-                          ) -> Callable[[float, jnp.ndarray], float]:
-  """Construct input-output linearizing feedback law."""
-  assert sys.n_inputs == 1 and sys.n_outputs == 1, 'only SISO supported'
-  if x0 is None:
-    x0 = np.zeros(sys.n_states)
+def input_output_linearize(sys: ControlAffine, reldeg: int, ref: LinearSystem
+                          ) -> Callable[[Array, Array, float], float]:
+  """Construct input-output linearizing feedback law.
+
+  Note: relative degree of `ref` must be same or higher than degree of sys.
+  """
+  # TODO: add options for reference `normal_form` or zeros of polynomials
+  assert sys.n_inputs == 1 and sys.n_outputs == 1, 'sys must be SISO'
+  assert ref.n_inputs == ref.n_outputs == 1, 'ref must be SISO'
 
   Lfnh = lie_derivative(sys.f, sys.h, reldeg)
-  LgLfn1h = lie_derivative(sys.g, lie_derivative(sys.f, sys.h, reldeg-1))
+  LgLfnm1h = lie_derivative(sys.g, lie_derivative(sys.f, sys.h, reldeg-1))
+  A, b, c = ref.A, ref.B, ref.C
+  cAn = c.dot(np.linalg.matrix_power(A, reldeg))
+  cAnm1b = c.dot(np.linalg.matrix_power(A, reldeg-1)).dot(b)
 
-  if isinstance(reference, LinearSystem):
-    # Sastry 9.102
-    assert reference.n_inputs == 1  # reference is SISO
-    A, b, c = reference.A, reference.B, reference.C
-    # TODO: what's the relation between relative degree of orig system and order of
-    # target system?
-    n = reference.n_states
-    cAn = c.dot(np.linalg.matrix_power(A, n))
-    cAnm1b = c.dot(np.linalg.matrix_power(A, n-1)).dot(b)
-    def feedbacklaw(x, v):
-      # FIXME: feedbacklaw should only use x and v, what to do about z?
-      # could give reference state z as part of input v
-      z = x
-      return ((-Lfnh(x) + cAn.dot(z) + cAnm1b*v) / LgLfn1h(x)).squeeze()
-  elif reference == "normal_form":
-    # Sastry 9.34
-    def feedbacklaw(x, v):
-      return ((-Lfnh(x) + v) / LgLfn1h(x)).squeeze()
-  else:
-    raise ValueError(f"unknown option reference={reference}")
+  def feedbacklaw(x: Array, z: Array, v: float) -> float:
+    return ((-Lfnh(x) + cAn.dot(z) + cAnm1b*v) / LgLfnm1h(x)).squeeze()
 
   return feedbacklaw
-
-
-def feedback_linearize(sys: ControlAffine, x0: np.ndarray=None, reference="linearized"
-                       ) -> tuple[Callable[[float, jnp.ndarray], float], LinearSystem]:
-  """Contstruct linearizing feedback law."""
-  # feedback_linearization should solve the system of partial differential
-  # equations to find the output, under which the system is
-  # feedback/full-state/state linearizable. Right now, we assume that the
-  # chosen output is already useful for feedback linearization and we assume
-  # that the relative degree is equal to the number of states.
-
-  assert sys.n_inputs == 1, 'only single input systems supported'
-
-  if x0 is None:
-    x0 = np.zeros(sys.n_states)
-
-  # check controllalability around x0, Sastry 9.44
-  linsys = sys.linearize(x0)
-  A, b, n = linsys.A, linsys.B, linsys.A.shape[0]
-  if not is_controllable(A, b):
-    warnings.warn(f"Linearized system not controllable.")
-
-  # TODO: check involutivity of distribution, Sastry 9.42
-
-  Lfnh = lie_derivative(sys.f, sys.h, n)
-  LgLfn1h = lie_derivative(sys.g, lie_derivative(sys.f, sys.h, n-1))
-
-  if reference == "linearized":
-    # Sastry 9.102
-    c = linsys.C
-    cAn = c.dot(np.linalg.matrix_power(A, n))
-    cAnm1b = c.dot(np.linalg.matrix_power(A, n-1)).dot(b)
-    def feedbacklaw(x, v):
-      # FIXME: feedbacklaw should only use x and v, what to do about z?
-      # could give reference state z as part of input v
-      z = x
-      return ((-Lfnh(x) + cAn.dot(z) + cAnm1b*v) / LgLfn1h(x)).squeeze()
-  elif reference == "normal_form":
-    # Sastry 9.34
-    def feedbacklaw(x, v):
-      return ((-Lfnh(x) + v) / LgLfn1h(x)).squeeze()
-  elif reference == "zeros_of_polynomial":
-    # Sastry 9.35
-    pass
-  else:
-    raise ValueError(f"unknown option reference={reference}")
-
-  return feedbacklaw, linsys

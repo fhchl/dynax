@@ -63,6 +63,9 @@ class Sastry9_9(ControlAffine):
 
 
 class LotkaVolterra(DynamicalSystem):
+  n_states = 2
+  n_inputs = 0
+  n_params = 4
   alpha: float = non_negative_field()
   beta: float = non_negative_field()
   gamma: float = non_negative_field()
