@@ -35,7 +35,8 @@ setup(
         'dev': [
             'pytest',
             'tabulate',
-            'absl-py'
+            'absl-py',
+            'coverage'
         ]
     }
 )

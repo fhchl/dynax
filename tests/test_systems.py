@@ -139,11 +139,3 @@ def test_discrete_forward_model():
   scipy_t, scipy_y, scipy_x = dlsim(scipy_sys, u, x0=x0, t=t)
   npt.assert_allclose(scipy_y[:, 0], y, **tols)
   npt.assert_allclose(scipy_x, x, **tols)
-
-
-if __name__ == "__main__":
-  tests = [(name, obj)
-           for (name, obj) in locals().items()
-           if callable(obj) and name.startswith("test_")]
-  for name, test in tests:
-    test()

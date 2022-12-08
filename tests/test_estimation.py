@@ -1,11 +1,10 @@
 import jax
-import jax.numpy as jnp
 import numpy as np
 import numpy.testing as npt
 from diffrax import PIDController
 
 from dynax import ForwardModel, fit_ml
-from dynax.models import SpringMassDamper, LotkaVolterra, NonlinearDrag
+from dynax.models import SpringMassDamper, LotkaVolterra
 from dynax.estimation import csd_matching, transfer_function
 
 tols = dict(rtol=1e-05, atol=1e-08)
@@ -32,10 +31,13 @@ def test_fit_with_bouded_parameters():
   # data
   t = np.linspace(0, 1, 100)
   x0 = [0.5, 0.5]
-  true_model = ForwardModel(LotkaVolterra(alpha=2/3, beta=4/3, gamma=1., delta=1.))
+  solver_opt = dict(step=PIDController(rtol=1e-5, atol=1e-7))
+  true_model = ForwardModel(LotkaVolterra(alpha=2/3, beta=4/3, gamma=1., delta=1.),
+                            **solver_opt)
   x_true, _ = true_model(x0, t)
   # fit
-  init_model = ForwardModel(LotkaVolterra(alpha=1., beta=1., gamma=1., delta=1.))
+  init_model = ForwardModel(LotkaVolterra(alpha=1., beta=1., gamma=1.5, delta=2.),
+                            **solver_opt)
   pred_model = fit_ml(init_model, t, x_true, x0)
   # check result
   x_pred, _ = pred_model(x0, t)

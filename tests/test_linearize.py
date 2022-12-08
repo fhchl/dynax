@@ -5,10 +5,16 @@ import numpy.testing as npt
 
 from dynax import (ControlAffine, DynamicalSystem, ForwardModel, LinearSystem,
                    StaticStateFeedbackSystem)
-from dynax.linearize import feedback_linearize, is_controllable
-from dynax.models import Sastry9_9
+from dynax.linearize import feedback_linearize, is_controllable, relative_degree
+from dynax.models import Sastry9_9, NonlinearDrag
 
 tols = dict(rtol=1e-04, atol=1e-06)
+
+def test_relative_degree():
+  sys = NonlinearDrag(0.1, 0.1, 0.1, 0.1)
+  xs = np.random.normal(size=(100, 2))
+  assert relative_degree(sys, xs) == 2
+
 
 def test_is_controllable():
   n = 3
@@ -18,6 +24,7 @@ def test_is_controllable():
 
   A[1, :] = A[0, :]
   assert not is_controllable(A, B)
+
 
 def test_linearize_lin2lin():
   n, m, p = 3, 2, 1
@@ -32,6 +39,7 @@ def test_linearize_lin2lin():
   assert np.allclose(C, linsys.C)
   assert np.allclose(D, linsys.D)
 
+
 def test_linearize_dyn2lin():
   class TestSys(DynamicalSystem):
     n_states = 1
@@ -45,6 +53,7 @@ def test_linearize_dyn2lin():
   assert np.array_equal(linsys.C, [[3.]])
   assert np.array_equal(linsys.D, [[4.]])
 
+
 def test_linearize_sastry9_9():
   """Linearize should return 2d-arrays. Refererence computed by hand."""
   sys = Sastry9_9()
@@ -55,6 +64,7 @@ def test_linearize_sastry9_9():
   assert np.array_equal(linsys.B, [[1], [1], [0]])
   assert np.array_equal(linsys.C, [[0, 0, 1]])
   assert np.array_equal(linsys.D, [[0.]])
+
 
 def test_feedback_linearize_sastry9_9_target_linearized():
   """Feedback linearized system equals system linearized around x0."""
@@ -70,6 +80,7 @@ def test_feedback_linearize_sastry9_9_target_linearized():
     ForwardModel(feedback_sys)(x0, t, u)[1],
     **tols
   )
+
 
 # FIXME: this test fails as the feedback linearized system seems to diverge.
 # Highly stiff or am I doing something wrong?
@@ -100,6 +111,7 @@ def test_feedback_linearize_sastry9_9_target_normal_form():
     **tols
   )
 
+
 def test_feedback_linearize():
   class TestSys(ControlAffine):
     n_inputs = 1
@@ -109,11 +121,3 @@ def test_feedback_linearize():
     h = lambda self, x, u, t=None: -x
   sys = TestSys()
   compensator, linsys = feedback_linearize(sys)
-
-
-if __name__ == "__main__":
-  tests = [(name, obj)
-           for (name, obj) in locals().items()
-           if callable(obj) and name.startswith("test_")]
-  for name, test in tests:
-    test()
