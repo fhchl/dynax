@@ -10,7 +10,7 @@ from dynax.models import NonlinearDrag
 jax.config.update("jax_enable_x64", True)
 
 # a nonlinear drag model
-sys = NonlinearDrag(0.1, 0.1, 0.1)
+sys = NonlinearDrag(0.1, 0.1, 0.1, 0.1)
 model = ForwardModel(sys)
 t = np.linspace(0, 50, 1000)
 u = np.sin(0.1*2*np.pi*t)
