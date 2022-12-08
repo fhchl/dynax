@@ -203,7 +203,8 @@ class DynamicStateFeedbackSystem(DynamicalSystem):
   def vector_field(self, x, u=None, t=None):
     if u is None: u = np.zeros(self._sys.n_inputs)
     x, z = x[:self.n_states], x[self.n_states:]
-    dx = self._sys.vector_field(x, self._feedbacklaw(x, z, u), t)
+    v = self._feedbacklaw(x, z, u)
+    dx = self._sys.vector_field(x, v, t)
     dz = self._sys2.vector_field(z, u, t)
     return jnp.concatenate((dx, dz))
 
@@ -289,6 +290,7 @@ def spline_it(t, u):
   fun = lambda t: cubic.evaluate(t)
   return fun
 
+from functools import partial
 
 class ForwardModel(eqx.Module):
   """Combines a dynamical system with a solver."""

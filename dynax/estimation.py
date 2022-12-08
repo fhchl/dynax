@@ -1,7 +1,7 @@
 from dataclasses import field, fields
 from typing import Callable, Tuple
 
-import equinox as eqx
+import scipy.signal as sig
 import jax
 import jax.numpy as jnp
 import numpy as np
@@ -32,6 +32,14 @@ def non_negative_field(min_val=0., **kwargs):
   return boxed_field(lower=min_val, upper=np.inf, **kwargs)
 
 
+def _append_flattened(a, b):
+  if isinstance(b, (list, tuple)):
+    a += b
+  elif isinstance(b, float):
+    a.append(b)
+  else:
+    raise ValueError
+
 # TODO: In the best case, this function should return PyTrees of the same form
 #       as `self`. Right now however, the function is NOT recursive, so won't
 #       work on e.g. ForwardModel.
@@ -53,14 +61,14 @@ def build_bounds(self: DynamicalSystem) -> Tuple[PyTree, PyTree]:
       kind, aux = bound
       if kind == "boxed":
         lower, upper = aux
-        lower_bounds.append(tree_map(lambda _: lower, value))
-        upper_bounds.append(tree_map(lambda _: upper, value))
+        _append_flattened(lower_bounds, tree_map(lambda _: lower, value))
+        _append_flattened(upper_bounds, tree_map(lambda _: upper, value))
       else:
         raise ValueError("Unknown bound type {kind}.")
     # dynamic value is unbounded
     else:
-      lower_bounds.append(tree_map(lambda _: -np.inf, value))
-      upper_bounds.append(tree_map(lambda _: np.inf, value))
+      _append_flattened(lower_bounds, tree_map(lambda _: -np.inf, value))
+      _append_flattened(upper_bounds, tree_map(lambda _: np.inf, value))
   treedef = tree_structure(self)
   return (treedef.unflatten(tuple(lower_bounds)),
           treedef.unflatten(tuple(upper_bounds)))
@@ -88,7 +96,7 @@ def fit_ml(model: ForwardModel | DiscreteForwardModel,
 
   def residuals(params):
     model = treedef.unflatten(params)
-    pred_y, _ = model(x0, t=t, u=u)
+    _, pred_y = model(x0, t=t, u=u)
     res = ((y - pred_y)/std_y).reshape(-1)
     return res / np.sqrt(len(res))
 
@@ -99,7 +107,53 @@ def fit_ml(model: ForwardModel | DiscreteForwardModel,
   # - https://lmfit.github.io/lmfit-py/index.html
   # - https://github.com/dipolar-quantum-gases/jaxfit
   # - scipy.optimize.curve_fit
+  # jaxfit and curvefit have an annoying API
   res = least_squares(fun, init_params, bounds=bounds, jac=jac, x_scale='jac',
                       verbose=2)
   params = res.x
   return treedef.unflatten(params)
+
+
+def transfer_function(sys: DynamicalSystem, **kwargs):
+  """Compute transfer-function of linearized system."""
+  linsys = sys.linearize(**kwargs)
+  A, B, C, D = linsys.A, linsys.B, linsys.C, linsys.D
+  def H(s):
+    """Transfer-function at s."""
+    I = np.eye(linsys.n_states)
+    phi_B = jnp.linalg.solve(s*I-A, B)
+    return C.dot(phi_B) + D
+  return H
+
+def csd_matching(sys: DynamicalSystem, x, y, sr, nperseg=1024, reg=0,
+                **kwargs):
+  """Estimate parameters of linearized system by matching cross-spectral densities."""
+  if x.ndim == 1:
+    x = x[:, None]
+  if y.ndim == 1:
+    y = y[:, None]
+  f, S_xx = sig.welch(x[:, None, :], fs=sr, nperseg=nperseg, axis=0)
+  f, S_yx = sig.csd(x[:, None, :], y[:, :, None], fs=sr, nperseg=nperseg, axis=0)
+  s = 2*np.pi*f*1j
+  weight = np.std(S_yx, axis=0) * np.sqrt(len(f))
+  x0, treedef = jax.tree_util.tree_flatten(sys)
+
+  def residuals(params):
+    sys = treedef.unflatten(params)
+    H = transfer_function(sys)
+    hatG_yx = jax.vmap(H)(s)
+    hatS_yx = hatG_yx * S_xx
+    res = (S_yx - hatS_yx) / weight
+    regterm = params / np.array(x0) * reg
+    return jnp.concatenate((
+      jnp.real(res).reshape(-1),
+      jnp.imag(res).reshape(-1),
+      regterm # high param values may lead to stiff ODEs
+    ))
+
+  # TODO: get bounds via fields
+  bounds = (0, np.inf)
+  fun = MemoizeJac(jax.jit(lambda x: value_and_jacfwd(residuals, x)))
+  jac = fun.derivative
+  res = least_squares(fun, x0, jac=jac, x_scale='jac', bounds=bounds, **kwargs)
+  return treedef.unflatten(res.x.tolist())
