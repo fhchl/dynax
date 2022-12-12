@@ -11,9 +11,31 @@ from dynax.models import Sastry9_9, NonlinearDrag
 tols = dict(rtol=1e-04, atol=1e-06)
 
 def test_relative_degree():
-  sys = NonlinearDrag(0.1, 0.1, 0.1, 0.1)
+  class SpringMassDamperWithOutput(ControlAffine):
+    m = 0.1
+    r = 0.1
+    k = 0.1
+    out: int
+    n_states = 2
+    n_inputs = 1
+    n_outputs = 1
+    def __init__(self, out):
+      self.out = out
+    def f(self, x, t=None):
+      x1, x2 = x
+      return jnp.array([x2, (- self.r*x2 - self.k*x1)/self.m])
+    def g(self, x, t=None):
+      return jnp.array([0, 1/self.m])
+    def h(self, x, t=None):
+      return x[self.out]
+
   xs = np.random.normal(size=(100, 2))
+  # output is position
+  sys = SpringMassDamperWithOutput(out=0)
   assert relative_degree(sys, xs) == 2
+  # output is velocity
+  sys = SpringMassDamperWithOutput(out=1)
+  assert relative_degree(sys, xs) == 1
 
 
 def test_is_controllable():

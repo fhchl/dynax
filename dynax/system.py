@@ -196,7 +196,6 @@ class DynamicStateFeedbackSystem(DynamicalSystem):
     self._sys = sys
     self._sys2 = sys2
     self._feedbacklaw = staticmethod(law)
-    self.n_params = sys.n_params + sys2.n_params
     self.n_states = sys.n_states + sys2.n_states
     self.n_inputs = sys.n_inputs
     self.n_outputs = sys.n_outputs
