@@ -36,7 +36,8 @@ setup(
             'pytest',
             'tabulate',
             'absl-py',
-            'coverage'
+            'coverage',
+            'matplotlib'
         ]
     }
 )

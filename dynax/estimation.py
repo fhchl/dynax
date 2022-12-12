@@ -32,7 +32,7 @@ def non_negative_field(min_val=0., **kwargs):
   return boxed_field(lower=min_val, upper=np.inf, **kwargs)
 
 
-def _append_flattened(a, b):
+def _append_flattend(a, b):
   if isinstance(b, (list, tuple)):
     a += b
   elif isinstance(b, float):
@@ -61,14 +61,14 @@ def build_bounds(self: DynamicalSystem) -> Tuple[PyTree, PyTree]:
       kind, aux = bound
       if kind == "boxed":
         lower, upper = aux
-        _append_flattened(lower_bounds, tree_map(lambda _: lower, value))
-        _append_flattened(upper_bounds, tree_map(lambda _: upper, value))
+        _append_flattend(lower_bounds, tree_map(lambda _: lower, value))
+        _append_flattend(upper_bounds, tree_map(lambda _: upper, value))
       else:
         raise ValueError("Unknown bound type {kind}.")
     # dynamic value is unbounded
     else:
-      _append_flattened(lower_bounds, tree_map(lambda _: -np.inf, value))
-      _append_flattened(upper_bounds, tree_map(lambda _: np.inf, value))
+      _append_flattend(lower_bounds, tree_map(lambda _: -np.inf, value))
+      _append_flattend(upper_bounds, tree_map(lambda _: np.inf, value))
   treedef = tree_structure(self)
   return (treedef.unflatten(tuple(lower_bounds)),
           treedef.unflatten(tuple(upper_bounds)))
@@ -78,7 +78,8 @@ def fit_ml(model: ForwardModel | DiscreteForwardModel,
            t: Array,
            y: Array,
            x0: Array,
-           u: Callable[[float], Array] | Array | None = None
+           u: Callable[[float], Array] | Array | None = None,
+           **kwargs
            ) -> ForwardModel | DiscreteForwardModel:
   """Fit forward model via maximum likelihood."""
   t = jnp.asarray(t)
@@ -109,7 +110,7 @@ def fit_ml(model: ForwardModel | DiscreteForwardModel,
   # - scipy.optimize.curve_fit
   # jaxfit and curvefit have an annoying API
   res = least_squares(fun, init_params, bounds=bounds, jac=jac, x_scale='jac',
-                      verbose=2)
+                      **kwargs)
   params = res.x
   return treedef.unflatten(params)
 
@@ -124,6 +125,7 @@ def transfer_function(sys: DynamicalSystem, **kwargs):
     phi_B = jnp.linalg.solve(s*I-A, B)
     return C.dot(phi_B) + D
   return H
+
 
 def csd_matching(sys: DynamicalSystem, x, y, sr, nperseg=1024, reg=0,
                 **kwargs):
@@ -144,16 +146,17 @@ def csd_matching(sys: DynamicalSystem, x, y, sr, nperseg=1024, reg=0,
     hatG_yx = jax.vmap(H)(s)
     hatS_yx = hatG_yx * S_xx
     res = (S_yx - hatS_yx) / weight
-    regterm = params / np.array(x0) * reg
+    regterm = params / np.where(np.asarray(x0) != 0, x0, 1) * reg
     return jnp.concatenate((
       jnp.real(res).reshape(-1),
       jnp.imag(res).reshape(-1),
       regterm # high param values may lead to stiff ODEs
     ))
 
-  # TODO: get bounds via fields
-  bounds = (0, np.inf)
+  bounds = tuple(map(lambda x: tree_flatten(x)[0], build_bounds(sys)))
   fun = MemoizeJac(jax.jit(lambda x: value_and_jacfwd(residuals, x)))
   jac = fun.derivative
   res = least_squares(fun, x0, jac=jac, x_scale='jac', bounds=bounds, **kwargs)
   return treedef.unflatten(res.x.tolist())
+
+
