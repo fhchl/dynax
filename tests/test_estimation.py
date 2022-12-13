@@ -1,11 +1,12 @@
 import jax
+import jax.numpy as jnp
 import numpy as np
 import numpy.testing as npt
-from diffrax import PIDController
+from diffrax import Kvaerno5, PIDController
 
 from dynax import ForwardModel, fit_ml
-from dynax.models import SpringMassDamper, LotkaVolterra
 from dynax.estimation import csd_matching, transfer_function
+from dynax.models import LotkaVolterra, SpringMassDamper
 
 tols = dict(rtol=1e-05, atol=1e-08)
 
@@ -25,6 +26,19 @@ def test_fit_ml():
   npt.assert_allclose(x_pred, x_true, **tols)
   npt.assert_allclose(jax.tree_util.tree_flatten(pred_model)[0],
                       jax.tree_util.tree_flatten(true_model)[0], **tols)
+
+
+def test_can_compute_jacfwd_with_implicit_methods():
+  # don't get catched by https://github.com/patrick-kidger/diffrax/issues/135
+  t = jnp.linspace(0, 1, 10)
+  x0 = jnp.array([1., 0.])
+  solver_opt = dict(solver=Kvaerno5(), step=PIDController(atol=1e-6, rtol=1e-3))
+  def fun(m, r, k, x0=x0, solver_opt=solver_opt, t=t):
+    model = ForwardModel(SpringMassDamper(m, r, k), **solver_opt)
+    x_true, _ = model(x0, t)
+    return x_true
+  jac = jax.jacfwd(fun, argnums=(0, 1, 2))
+  jac(1., 2., 3.)
 
 
 def test_fit_with_bouded_parameters():

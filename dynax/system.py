@@ -327,10 +327,12 @@ class ForwardModel(eqx.Module):
     diffeqsolve_options = dict(saveat=dfx.SaveAt(ts=t), max_steps=50*len(t),
                                adjoint=dfx.NoAdjoint())
     diffeqsolve_options |= diffeqsolve_kwargs
-    vector_field = lambda t, x, _: self.system.vector_field(x, ufun(t), t)
+    vector_field = lambda t, x, self: self.system.vector_field(x, ufun(t), t)
     term = dfx.ODETerm(vector_field)
     x = dfx.diffeqsolve(term, self.solver, t0=t[0], t1=t[-1], dt0=t[1], y0=x0,
                         stepsize_controller=self.step,
+                        # https://github.com/patrick-kidger/diffrax/issues/135
+                        args=self,
                         **diffeqsolve_options).ys
     # Compute output
     y = jax.vmap(self.system.output)(x)
