@@ -11,7 +11,7 @@ from scipy.optimize import least_squares
 from scipy.optimize._optimize import MemoizeJac
 
 from .system import (DiscreteForwardModel, DynamicalSystem, ForwardModel,
-                     spline_it)
+                     spline_it, InterpolationFunction)
 from .util import value_and_jacfwd
 
 
@@ -81,11 +81,11 @@ def fit_ml(model: ForwardModel | DiscreteForwardModel,
            u: Callable[[float], Array] | Array | None = None,
            **kwargs
            ) -> ForwardModel | DiscreteForwardModel:
-  """Fit forward model via maximum likelihood."""
+  """Fit forward model with nonlinear least-squares."""
   t = jnp.asarray(t)
   y = jnp.asarray(y)
   if (isinstance(model, ForwardModel) and u is not None and
-      not isinstance(u, Callable)):
+      not isinstance(u, InterpolationFunction)):
     u = spline_it(t, u)
 
   # TODO: if model or any sub tree has some ndarray leaves, this does not
@@ -127,7 +127,7 @@ def transfer_function(sys: DynamicalSystem, **kwargs):
   return H
 
 
-def csd_matching(sys: DynamicalSystem, x, y, sr, nperseg=1024, reg=0,
+def csd_matching(sys: DynamicalSystem, x, y, sr, nperseg=1024, reg=0, ret_Syx=False,
                 **kwargs):
   """Estimate parameters of linearized system by matching cross-spectral densities."""
   if x.ndim == 1:
@@ -157,6 +157,11 @@ def csd_matching(sys: DynamicalSystem, x, y, sr, nperseg=1024, reg=0,
   fun = MemoizeJac(jax.jit(lambda x: value_and_jacfwd(residuals, x)))
   jac = fun.derivative
   res = least_squares(fun, x0, jac=jac, x_scale='jac', bounds=bounds, **kwargs)
-  return treedef.unflatten(res.x.tolist())
+  fitted_sys = treedef.unflatten(res.x.tolist())
+  if ret_Syx:
+    H = transfer_function(fitted_sys)
+    hatS_yx = jax.vmap(H)(s) * S_xx
+    return sys, (f, hatS_yx, S_yx)
+  return sys
 
 
