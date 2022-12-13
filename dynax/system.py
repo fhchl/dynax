@@ -1,12 +1,13 @@
 from abc import abstractmethod
 from collections.abc import Callable
+from typing import Tuple
 
 import diffrax as dfx
 import equinox as eqx
 import jax
 import jax.numpy as jnp
 import numpy as np
-from jaxtyping import Array, Float
+from jaxtyping import Array, Float, PyTree
 from .ad import extended_lie_derivative, lie_derivative
 from .util import _ssmatrix
 
@@ -282,14 +283,21 @@ class ControlAffine(DynamicalSystem):
     return self.h(x, t)
 
 
+class InterpolationFunction(eqx.Module):
+  path: dfx.CubicInterpolation
+  def __init__(self, ts , us):
+    ts = jnp.asarray(ts)
+    us = jnp.asarray(us)
+    assert len(ts) == us.shape[0], 'time and input must have same number of samples'
+    coeffs = dfx.backward_hermite_coefficients(ts, us)
+    self.path = dfx.CubicInterpolation(ts, coeffs)
+  def __call__(self, t):
+    return self.path.evaluate(t)
+
+
 def spline_it(t, u):
   """Compute interpolating cubic-spline function."""
-  u = jnp.asarray(u)
-  assert len(t) == u.shape[0], 'time and input must have same number of samples'
-  coeffs = dfx.backward_hermite_coefficients(t, u)
-  cubic = dfx.CubicInterpolation(t, coeffs)
-  fun = lambda t: cubic.evaluate(t)
-  return fun
+  return InterpolationFunction(t, u)
 
 from functools import partial
 
