@@ -24,7 +24,6 @@ def _linearize(f, h, x0, u0):
 class DynamicalSystem(eqx.Module):
   # these attributes should be overridden by subclasses
   n_states: int = eqx.static_field(default=None, init=False)
-  n_params: int = eqx.static_field(default=None, init=False)
   n_inputs: int = eqx.static_field(default=None, init=False)
   n_outputs: int = eqx.static_field(default=None, init=False)
 
@@ -52,57 +51,57 @@ class DynamicalSystem(eqx.Module):
     if D.size == 0: D = np.zeros((C.shape[0], self.n_inputs))
     return LinearSystem(A, B, C, D)
 
-  def obs_ident_mat(self, x0, u=None, t=None):
-    """Generalized observability-identifiability matrix for constant input.
+  # def obs_ident_mat(self, x0, u=None, t=None):
+  #   """Generalized observability-identifiability matrix for constant input.
 
-    Villaverde, 2017.
-    """
-    params, treedef = jax.tree_util.tree_flatten(self)
+  #   Villaverde, 2017.
+  #   """
+  #   params, treedef = jax.tree_util.tree_flatten(self)
 
-    def f(x, p):
-      """Vector-field for argumented state vector xp = [x, p]."""
-      model = treedef.unflatten(p)
-      return model.vector_field(x, u, t)
+  #   def f(x, p):
+  #     """Vector-field for argumented state vector xp = [x, p]."""
+  #     model = treedef.unflatten(p)
+  #     return model.vector_field(x, u, t)
 
-    def g(x, p):
-      """Output function for argumented state vector xp = [x, p]."""
-      model = treedef.unflatten(p)
-      return model.output(x, t)
+  #   def g(x, p):
+  #     """Output function for argumented state vector xp = [x, p]."""
+  #     model = treedef.unflatten(p)
+  #     return model.output(x, t)
 
-    params = jnp.array(params)
-    O_i = jnp.vstack(
-      [jnp.hstack(
-        jax.jacfwd(lie_derivative(f, g, n), (0, 1))(x0, params))
-        for n in range(self.n_states+self.n_params)])
+  #   params = jnp.array(params)
+  #   O_i = jnp.vstack(
+  #     [jnp.hstack(
+  #       jax.jacfwd(lie_derivative(f, g, n), (0, 1))(x0, params))
+  #       for n in range(self.n_states+self.n_params)])
 
-    return O_i
+  #   return O_i
 
-  def extended_obs_ident_mat(self, x0, u, t=None):
-    """Generalized observability-identifiability matrix for constant input.
+  # def extended_obs_ident_mat(self, x0, u, t=None):
+  #   """Generalized observability-identifiability matrix for constant input.
 
-    Villaverde, 2017.
-    """
-    params, treedef = jax.tree_util.tree_flatten(self)
+  #   Villaverde, 2017.
+  #   """
+  #   params, treedef = jax.tree_util.tree_flatten(self)
 
-    def f(x, u, p):
-      """Vector-field for argumented state vector xp = [x, p]."""
-      model = treedef.unflatten(p)
-      return model.vector_field(x, u, t)
+  #   def f(x, u, p):
+  #     """Vector-field for argumented state vector xp = [x, p]."""
+  #     model = treedef.unflatten(p)
+  #     return model.vector_field(x, u, t)
 
-    def g(x, p):
-      """Output function for argumented state vector xp = [x, p]."""
-      model = treedef.unflatten(p)
-      return model.output(x, t)
+  #   def g(x, p):
+  #     """Output function for argumented state vector xp = [x, p]."""
+  #     model = treedef.unflatten(p)
+  #     return model.output(x, t)
 
-    params = jnp.array(params)
-    u = jnp.array(u)
-    lies = [extended_lie_derivative(f, g, n) for n in range(self.n_states+self.n_params)]
-    grad_of_outputs = [jnp.hstack(jax.jacfwd(l, (0, 2))(x0, u, params)) for l in lies]
-    O_i = jnp.vstack(grad_of_outputs)
-    return O_i
+  #   params = jnp.array(params)
+  #   u = jnp.array(u)
+  #   lies = [extended_lie_derivative(f, g, n) for n in range(self.n_states+self.n_params)]
+  #   grad_of_outputs = [jnp.hstack(jax.jacfwd(l, (0, 2))(x0, u, params)) for l in lies]
+  #   O_i = jnp.vstack(grad_of_outputs)
+  #   return O_i
 
-  def test_observability():
-    pass
+  # def test_observability():
+  #   pass
 
 # TODO: have output_internals, that makes methods return tuple (x, pytree_interal_states_x)
 
@@ -114,7 +113,6 @@ class SeriesSystem(DynamicalSystem):
   def __init__(self, sys1, sys2):
     self._sys1 = sys1
     self._sys2 = sys2
-    self.n_params = sys1.n_params + sys2.n_params
     self.n_states = sys1.n_states + sys2.n_states
     self.n_inputs = sys1.n_inputs
 
@@ -143,7 +141,6 @@ class FeedbackSystem(DynamicalSystem):
     """sys1.output must not depend on input."""
     self._sys1 = sys1
     self._sys2 = sys2
-    self.n_params = sys1.n_params + sys2.n_params
     self.n_states = sys1.n_states + sys2.n_states
     self.n_inputs = sys1.n_inputs
 
@@ -172,7 +169,6 @@ class StaticStateFeedbackSystem(DynamicalSystem):
     """sys1.output must not depend on input."""
     self._sys = sys
     self._feedbacklaw = staticmethod(law)
-    self.n_params = sys.n_params
     self.n_states = sys.n_states
     self.n_inputs = sys.n_inputs
 
@@ -242,7 +238,6 @@ class LinearSystem(DynamicalSystem):
     self.C = C
     self.D = D
     self.n_states = A.shape[0]
-    self.n_params = A.size + B.size + C.size + C.size
     self.n_inputs = B.shape[1]
     self.n_outputs = C.shape[0]
 
@@ -312,11 +307,13 @@ class ForwardModel(eqx.Module):
     self.solver = solver if solver is not None else dfx.Dopri5()
     self.step = step if step is not None else dfx.ConstantStepSize()
 
+  @partial(jax.jit, static_argnames="diffeqsolve_kwargs")
   def __call__(self, x0, t, u=None, squeeze=True, **diffeqsolve_kwargs):
     """Solve dynamics for state and output trajectories."""
     t = jnp.asarray(t)
     x0 = jnp.asarray(x0)
-    assert len(x0) == self.system.n_states, f'len(x0)={len(x0)} but sys has {self.system.n_states} states'
+    assert len(x0) == self.system.n_states, \
+      f"len(x0)={len(x0)} but sys has {self.system.n_states} states"
     if u is None:
       ufun = lambda t: None
     elif callable(u):
