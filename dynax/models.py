@@ -100,11 +100,6 @@ class SpringMassWithBoucWenHysteresis(DynamicalSystem):
                       (f - self.r*du - F)/self.m,
                       du * (A - psi * jnp.power(jnp.abs(z), self.n))])
 
-from dataclasses import field
-
-def fac(*args, **kwargs):
-  2+2
-  pass
 
 class PolyNonLinSLSL2R2GenCunLiDyn(ControlAffine):
   """The full model."""
