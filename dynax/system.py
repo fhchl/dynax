@@ -302,12 +302,11 @@ class ForwardModel(eqx.Module):
   solver: dfx.AbstractAdaptiveSolver = eqx.static_field()
   step: dfx.AbstractStepSizeController = eqx.static_field()
 
-  def __init__(self, system, solver=None, step=None):
+  def __init__(self, system, solver=dfx.Dopri5(), step=dfx.ConstantStepSize()):
     self.system = system
-    self.solver = solver if solver is not None else dfx.Dopri5()
-    self.step = step if step is not None else dfx.ConstantStepSize()
+    self.solver = solver
+    self.step = step
 
-  @partial(jax.jit, static_argnames="diffeqsolve_kwargs")
   def __call__(self, x0, t, u=None, squeeze=True, **diffeqsolve_kwargs):
     """Solve dynamics for state and output trajectories."""
     t = jnp.asarray(t)
