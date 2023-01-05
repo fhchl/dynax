@@ -161,7 +161,7 @@ def csd_matching(sys: DynamicalSystem, x, y, sr, nperseg=1024, reg=0, ret_Syx=Fa
   if ret_Syx:
     H = transfer_function(fitted_sys)
     hatS_yx = jax.vmap(H)(s) * S_xx
-    return sys, (f, hatS_yx, S_yx)
-  return sys
+    return fitted_sys, (f, hatS_yx, S_yx)
+  return fitted_sys
 
 
