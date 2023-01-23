@@ -14,7 +14,7 @@ solver_opt = dict(solver=dfx.Kvaerno5(), step=dfx.PIDController(rtol=1e-5, atol=
 sys = NonlinearDrag(1, 1, 0.2, 1)
 model = ForwardModel(sys, **solver_opt)
 t = np.linspace(0, 50, 1000)
-u = np.sin(0.1*2*np.pi*t)
+u = 10*np.sin(0.1*2*np.pi*t)
 x0 = [0., 0.]
 x, _ = model(x0, t, u)
 reldeg = relative_degree(sys, x)
