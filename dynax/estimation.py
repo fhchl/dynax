@@ -74,7 +74,13 @@ def build_bounds(self: DynamicalSystem) -> Tuple[PyTree, PyTree]:
           treedef.unflatten(tuple(upper_bounds)))
 
 
-def fit_ml(model: ForwardModel | DiscreteForwardModel,
+def fit_ml(*args, **kwargs):
+  import warnings
+  warnings.warn("fit_ml is depiciated. Use fit_least_squares instead.")
+  return fit_least_squares(*args, **kwargs)
+
+
+def fit_least_squares(model: ForwardModel | DiscreteForwardModel,
            t: Array,
            y: Array,
            x0: Array,

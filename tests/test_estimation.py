@@ -4,7 +4,7 @@ import numpy as np
 import numpy.testing as npt
 from diffrax import Kvaerno5, PIDController
 
-from dynax import ForwardModel, fit_ml
+from dynax import ForwardModel, fit_least_squares
 from dynax.estimation import csd_matching, transfer_function
 from dynax.models import LotkaVolterra, SpringMassDamper
 
@@ -20,7 +20,7 @@ def test_fit_ml():
   x_true, _ = true_model(x0, t, u)
   # fit
   init_model = ForwardModel(SpringMassDamper(1., 1., 1.))
-  pred_model = fit_ml(init_model, t, x_true, x0, u)
+  pred_model = fit_least_squares(init_model, t, x_true, x0, u)
   # check result
   x_pred, _ = pred_model(x0, t, u)
   npt.assert_allclose(x_pred, x_true, **tols)
@@ -52,7 +52,7 @@ def test_fit_with_bouded_parameters():
   # fit
   init_model = ForwardModel(LotkaVolterra(alpha=1., beta=1., gamma=1.5, delta=2.),
                             **solver_opt)
-  pred_model = fit_ml(init_model, t, x_true, x0)
+  pred_model = fit_least_squares(init_model, t, x_true, x0)
   # check result
   x_pred, _ = pred_model(x0, t)
   npt.assert_allclose(x_pred, x_true, **tols)
