@@ -8,8 +8,9 @@ from dynax import ForwardModel, DynamicStateFeedbackSystem
 from dynax.models import NonlinearDrag
 
 jax.config.update("jax_enable_x64", True)
+solver_opt = dict(solver=dfx.Kvaerno5(),
+                  step=dfx.PIDController(rtol=1e-5, atol=1e-7))
 
-solver_opt = dict(solver=dfx.Kvaerno5(), step=dfx.PIDController(rtol=1e-5, atol=1e-7))
 # a nonlinear drag model
 sys = NonlinearDrag(1, 1, 0.2, 1)
 model = ForwardModel(sys, **solver_opt)
