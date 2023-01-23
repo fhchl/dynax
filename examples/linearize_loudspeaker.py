@@ -8,7 +8,7 @@ from dynax import (ControlAffine, DynamicStateFeedbackSystem, ForwardModel,
                    LinearSystem)
 from dynax.ad import lie_derivative
 from dynax.linearize import input_output_linearize, relative_degree
-from dynax.models import (NonlinearDrag, PolyNonLinLS,
+from dynax.example_models import (NonlinearDrag, PolyNonLinLS,
                           PolyNonLinSLSL2R2GenCunLiDyn)
 
 jax.config.update("jax_enable_x64", True)

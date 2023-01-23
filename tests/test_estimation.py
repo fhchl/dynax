@@ -6,12 +6,12 @@ from diffrax import Kvaerno5, PIDController
 
 from dynax import ForwardModel, fit_least_squares
 from dynax.estimation import csd_matching, transfer_function
-from dynax.models import LotkaVolterra, SpringMassDamper
+from dynax.example_models import LotkaVolterra, SpringMassDamper
 
 tols = dict(rtol=1e-05, atol=1e-08)
 
 
-def test_fit_ml():
+def test_fit_least_squares():
   # data
   t = np.linspace(0, 1, 100)
   u = np.sin(1*2*np.pi*t)

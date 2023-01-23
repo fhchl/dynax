@@ -1,14 +1,12 @@
 from abc import abstractmethod
 from collections.abc import Callable
-from typing import Tuple
 
 import diffrax as dfx
 import equinox as eqx
 import jax
 import jax.numpy as jnp
 import numpy as np
-from jaxtyping import Array, Float, PyTree
-from .ad import extended_lie_derivative, lie_derivative
+from jaxtyping import Array, Float
 from .util import _ssmatrix
 
 
@@ -22,6 +20,12 @@ def _linearize(f, h, x0, u0):
 
 
 class DynamicalSystem(eqx.Module):
+  """A continous-time dynamical system.
+
+  ..math:: \dot x = vector_field(x, u, t)
+                y = output(x, u, t)
+
+  """
   # these attributes should be overridden by subclasses
   n_states: int = eqx.static_field(default=None, init=False)
   n_inputs: int = eqx.static_field(default=None, init=False)
@@ -35,14 +39,18 @@ class DynamicalSystem(eqx.Module):
   # compiler doesn't support staticmethods.
   @abstractmethod
   def vector_field(self, x, u=None, t=None):
+    """Compute state derivative."""
     pass
 
   def output(self, x, u=None, t=None):
-    """Return state by default."""
+    """Compute output.
+
+    Returns state by default.
+    """
     return x
 
   def linearize(self, x0=None, u0=None, t=None):
-    """Linearize around point."""
+    """Compute the approximate linearized system around a point."""
     if x0 is None: x0 = np.zeros(self.n_states)
     if u0 is None: u0 = np.zeros(self.n_inputs)
     A, B, C, D = _linearize(self.vector_field, self.output, x0, u0)
@@ -212,11 +220,17 @@ class DynamicStateFeedbackSystem(DynamicalSystem):
 
 
 class LinearSystem(DynamicalSystem):
-  """TODO: could be control-affine? Two blocking problems:
-  - right now, control affine is SISO only
-  - may h depend on u? Needed for D.
-  If so, then one could compute relative degree.
+  """A linear, time-invariant dynamical system.
+
+  ..math:: \dot x = Ax + Bu
+                y = Cx + Du
+
   """
+  # TODO: could be subclass of control-affine? Two blocking problems:
+  # - right now, control affine is SISO only for io-linearization
+  # - may h depend on u? Needed for D. If so, then one could compute
+  #   relative degree.
+
   A: jnp.ndarray
   B: jnp.ndarray
   C: jnp.ndarray
@@ -259,6 +273,12 @@ class LinearSystem(DynamicalSystem):
 
 
 class ControlAffine(DynamicalSystem):
+  """A control-affine dynamical system.
+
+  ..math = \dot x = f(x) + g(x)u
+                y = h(x)
+
+  """
   @abstractmethod
   def f(self, x, t=None):
     pass
@@ -279,6 +299,7 @@ class ControlAffine(DynamicalSystem):
 
 
 class InterpolationFunction(eqx.Module):
+  """Interpolating cubic-spline function."""
   path: dfx.CubicInterpolation
   def __init__(self, ts , us):
     ts = jnp.asarray(ts)
@@ -294,7 +315,6 @@ def spline_it(t, u):
   """Compute interpolating cubic-spline function."""
   return InterpolationFunction(t, u)
 
-from functools import partial
 
 class ForwardModel(eqx.Module):
   """Combines a dynamical system with a solver."""
@@ -308,7 +328,7 @@ class ForwardModel(eqx.Module):
     self.step = step
 
   def __call__(self, x0, t, u=None, squeeze=True, **diffeqsolve_kwargs):
-    """Solve dynamics for state and output trajectories."""
+    """Solve initial value problem for state and output trajectories."""
     t = jnp.asarray(t)
     x0 = jnp.asarray(x0)
     assert len(x0) == self.system.n_states, \
@@ -369,8 +389,8 @@ class DiscreteForwardModel(eqx.Module):
 
     # Compute output
     y = jax.vmap(self.system.output)(x)
-    # Remove singleton dimensions
     if squeeze:
+      # Remove singleton dimensions
       x = x.squeeze()
       y = y.squeeze()
     return x, y

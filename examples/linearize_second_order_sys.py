@@ -5,7 +5,7 @@ import diffrax as dfx
 
 from dynax.linearize import input_output_linearize, relative_degree
 from dynax import ForwardModel, DynamicStateFeedbackSystem
-from dynax.models import NonlinearDrag
+from dynax.example_models import NonlinearDrag
 
 jax.config.update("jax_enable_x64", True)
 solver_opt = dict(solver=dfx.Kvaerno5(),
