@@ -21,7 +21,6 @@ class SpringMassDamper(DynamicalSystem):
   k: float
   n_states = 2
   n_inputs = 1
-  n_params = 3
   def vector_field(self, x, u=None, t=None):
     u = u.squeeze() if u is not None else 0
     x1, x2 = x
@@ -45,7 +44,7 @@ class NonlinearDrag(ControlAffine):
   def f(self, x, u=None, t=None):
     x1, x2 = x
     return jnp.array(
-      [x2, (- self.r * x2 - self.r2 * jnp.abs(x2) + x2 - self.k * x1)/self.m])
+      [x2, (- self.r*x2 - self.r2*jnp.abs(x2)*x2 - self.k * x1)/self.m])
   def g(self, x, u=None, t=None):
     return jnp.array([0., 1./self.m])
   def h(self, x, u=None, t=None):
