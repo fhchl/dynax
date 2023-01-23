@@ -133,25 +133,25 @@ def transfer_function(sys: DynamicalSystem, **kwargs):
   return H
 
 
-def csd_matching(sys: DynamicalSystem, x, y, sr, nperseg=1024, reg=0, ret_Syx=False,
+def csd_matching(sys: DynamicalSystem, u, y, sr, nperseg=1024, reg=0, ret_Syx=False,
                 **kwargs):
   """Estimate parameters of linearized system by matching cross-spectral densities."""
-  if x.ndim == 1:
-    x = x[:, None]
+  if u.ndim == 1:
+    u = u[:, None]
   if y.ndim == 1:
     y = y[:, None]
-  f, S_xx = sig.welch(x[:, None, :], fs=sr, nperseg=nperseg, axis=0)
-  f, S_yx = sig.csd(x[:, None, :], y[:, :, None], fs=sr, nperseg=nperseg, axis=0)
+  f, S_uu = sig.welch(u[:, None, :], fs=sr, nperseg=nperseg, axis=0)
+  f, S_yu = sig.csd(u[:, None, :], y[:, :, None], fs=sr, nperseg=nperseg, axis=0)
   s = 2*np.pi*f*1j
-  weight = np.std(S_yx, axis=0) * np.sqrt(len(f))
+  weight = np.std(S_yu, axis=0) * np.sqrt(len(f))
   x0, treedef = jax.tree_util.tree_flatten(sys)
 
   def residuals(params):
     sys = treedef.unflatten(params)
     H = transfer_function(sys)
     hatG_yx = jax.vmap(H)(s)
-    hatS_yx = hatG_yx * S_xx
-    res = (S_yx - hatS_yx) / weight
+    hatS_yu = hatG_yx * S_uu
+    res = (S_yu - hatS_yu) / weight
     regterm = params / np.where(np.asarray(x0) != 0, x0, 1) * reg
     return jnp.concatenate((
       jnp.real(res).reshape(-1),
@@ -166,8 +166,8 @@ def csd_matching(sys: DynamicalSystem, x, y, sr, nperseg=1024, reg=0, ret_Syx=Fa
   fitted_sys = treedef.unflatten(res.x.tolist())
   if ret_Syx:
     H = transfer_function(fitted_sys)
-    hatS_yx = jax.vmap(H)(s) * S_xx
-    return fitted_sys, (f, hatS_yx, S_yx)
+    hatS_yu = jax.vmap(H)(s) * S_uu
+    return fitted_sys, (f, hatS_yu, S_yu)
   return fitted_sys
 
 
