@@ -6,7 +6,7 @@ import numpy.testing as npt
 from dynax import (ControlAffine, DynamicalSystem, ForwardModel, LinearSystem,
                    StaticStateFeedbackSystem, DynamicStateFeedbackSystem)
 from dynax.linearize import is_controllable, relative_degree, input_output_linearize
-from dynax.models import Sastry9_9, NonlinearDrag
+from dynax.example_models import Sastry9_9, NonlinearDrag
 
 tols = dict(rtol=1e-04, atol=1e-06)
 

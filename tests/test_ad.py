@@ -2,8 +2,7 @@ import jax
 import jax.numpy as jnp
 import numpy as np
 import numpy.testing as npt
-from test_linearize import Sastry9_9
-
+from dynax.example_models import Sastry9_9
 from dynax.ad import lie_derivative, lie_derivative_jet, lie_derivatives_jet
 
 
