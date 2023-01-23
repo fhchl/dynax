@@ -14,7 +14,7 @@ setup(
     name="dynax",
     version="0.0.1dev1",
     url="https://github.com/fhchl/dynax",
-    description="Dynamical styems in JAX.",
+    description="Dynamical systems in JAX.",
     long_description=readme,
     long_description_content_type="text/markdown",
     packages=find_packages(),
