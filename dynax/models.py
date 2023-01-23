@@ -40,7 +40,6 @@ class NonlinearDrag(ControlAffine):
   n_states = 2
   n_inputs = 1
   n_outputs = 1
-  n_params = 4
   def f(self, x, u=None, t=None):
     x1, x2 = x
     return jnp.array(
@@ -55,7 +54,6 @@ class Sastry9_9(ControlAffine):
   """Sastry Example 9.9"""
   n_states = 3
   n_inputs = 1
-  n_params = 0
   def f(self, x, t=None): return jnp.array([0., x[0] + x[1]**2, x[0] - x[1]])
   def g(self, x, t=None): return jnp.array([jnp.exp(x[1]), jnp.exp(x[1]), 0.])
   def h(self, x, t=None): return x[2]
@@ -64,7 +62,6 @@ class Sastry9_9(ControlAffine):
 class LotkaVolterra(DynamicalSystem):
   n_states = 2
   n_inputs = 0
-  n_params = 4
   alpha: float = non_negative_field()
   beta: float = non_negative_field()
   gamma: float = non_negative_field()
@@ -135,7 +132,6 @@ class PolyNonLinSLSL2R2GenCunLiDyn(ControlAffine):
     self.Kn = [3226388093843.6885, -431643235.42306566, -19460708.731581513, -16921.87605383064]
     self.Ln = [29040.803548406657, -194.6354429605707, 0.39969456055741825, -0.0003743634072813242]
     self.Li = [0.000995183661999823, 0.0010163108959166816]
-    self.n_params = 3*4 + 2 + 10
     self.out = out
     self.n_outputs = len(out)
 
