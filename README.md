@@ -1,4 +1,6 @@
-# Dynax - dynamical systems in JAX
+# Dynax
+
+_"Dynamical systems in JAX"_
 
 __This is WIP!__
 
@@ -6,7 +8,7 @@ This package combines [JAX](https://github.com/google/jax), [Diffrax](https://gi
 
 ## Installing
 
-Requires a recent version of JAX. On windows, you can use the unofficial builds [here](https://github.com/cloudhan/jax-windows-builder) to install jaxlib like this:
+Requires a recent version of JAX. On Windows, use WSL or the unofficial builds [here](https://github.com/cloudhan/jax-windows-builder) to install jaxlib, e.g. like this:
 
     pip install --find-links https://whls.blob.core.windows.net/unstable/index.html jaxlib==0.3.24 jax==0.3.24
 
