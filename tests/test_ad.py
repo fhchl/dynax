@@ -43,7 +43,6 @@ def test_lie_derivative2():
     npt.assert_allclose(lie_derivative_jet(g, lie_derivative_jet(f, h, n=2))(x),
                         -(1+2*x2)*np.exp(x2), rtol=1e-5)
 
-from benchmarks import benchmark
 
 # def test_lie_derivative_speed():
 #   sys = Sastry9_9()
