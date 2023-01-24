@@ -2,10 +2,9 @@ import functools
 
 import jax
 import jax.numpy as jnp
-import numpy as np
 
 
-def _ssmatrix(data, axis=1):
+def ssmatrix(data, axis=1):
     """Convert argument to a (possibly empty) 2D state space matrix.
 
     The axis keyword argument makes it convenient to specify that if the input
@@ -29,11 +28,10 @@ def _ssmatrix(data, axis=1):
     shape = arr.shape
 
     # Change the shape of the array into a 2D array
-    if (ndim > 2):
+    if ndim > 2:
         raise ValueError("state-space matrix must be 2-dimensional")
 
-    elif (ndim == 2 and shape == (1, 0)) or \
-         (ndim == 1 and shape == (0, )):
+    elif (ndim == 2 and shape == (1, 0)) or (ndim == 1 and shape == (0,)):
         # Passed an empty matrix or empty vector; change shape to (0, 0)
         shape = (0, 0)
 
@@ -48,24 +46,26 @@ def _ssmatrix(data, axis=1):
     #  Create the actual object used to store the result
     return arr.reshape(shape)
 
-def value_and_jacfwd(f, x):
-  """Create a function that evaluates both fun and its foward-mode jacobian.
 
-  Only works on ndarrays, not pytrees.
-  Source: https://github.com/google/jax/pull/762#issuecomment-1002267121
-  """
-  pushfwd = functools.partial(jax.jvp, f, (x,))
-  basis = jnp.eye(x.size, dtype=x.dtype)
-  y, jac = jax.vmap(pushfwd, out_axes=(None, 1))((basis,))
-  return y, jac
+def value_and_jacfwd(f, x):
+    """Create a function that evaluates both fun and its foward-mode jacobian.
+
+    Only works on ndarrays, not pytrees.
+    Source: https://github.com/google/jax/pull/762#issuecomment-1002267121
+    """
+    pushfwd = functools.partial(jax.jvp, f, (x,))
+    basis = jnp.eye(x.size, dtype=x.dtype)
+    y, jac = jax.vmap(pushfwd, out_axes=(None, 1))((basis,))
+    return y, jac
+
 
 def value_and_jacrev(f, x):
-  """Create a function that evaluates both fun and its reverse-mode jacobian.
+    """Create a function that evaluates both fun and its reverse-mode jacobian.
 
-  Only works on ndarrays, not pytrees.
-  Source: https://github.com/google/jax/pull/762#issuecomment-1002267121
-  """
-  y, pullback = jax.vjp(f, x)
-  basis = jnp.eye(y.size, dtype=y.dtype)
-  jac = jax.vmap(pullback)(basis)
-  return y, jac
+    Only works on ndarrays, not pytrees.
+    Source: https://github.com/google/jax/pull/762#issuecomment-1002267121
+    """
+    y, pullback = jax.vjp(f, x)
+    basis = jnp.eye(y.size, dtype=y.dtype)
+    jac = jax.vmap(pullback)(basis)
+    return y, jac
