@@ -5,7 +5,6 @@ import jax
 import jax.numpy as jnp
 import numpy as np
 import scipy.signal as sig
-import scipy.signal as sig
 from jax.tree_util import tree_flatten, tree_map, tree_structure
 from jaxtyping import Array, PyTree
 from scipy.optimize import least_squares
