@@ -5,18 +5,14 @@ import jax
 import jax.numpy as jnp
 import numpy as np
 import scipy.signal as sig
+import scipy.signal as sig
 from jax.tree_util import tree_flatten, tree_map, tree_structure
 from jaxtyping import Array, PyTree
 from scipy.optimize import least_squares
 from scipy.optimize._optimize import MemoizeJac
 
-from .system import (
-    DiscreteForwardModel,
-    DynamicalSystem,
-    ForwardModel,
-    InterpolationFunction,
-    spline_it,
-)
+from .interpolation import InterpolationFunction, spline_it
+from .system import DiscreteForwardModel, DynamicalSystem, ForwardModel
 from .util import value_and_jacfwd
 
 
