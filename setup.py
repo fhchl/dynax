@@ -32,5 +32,7 @@ setup(
         "diffrax>=0.2",
         "equinox>=0.9",
     ],
-    extras_require={"dev": ["pytest", "coverage", "matplotlib", "sphinx"]},
+    extras_require={
+        "dev": ["pytest", "coverage", "matplotlib", "sphinx", "sphinxcontrib-bibtex"]
+    },
 )

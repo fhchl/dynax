@@ -10,17 +10,15 @@ def ssmatrix(data, axis=1):
     The axis keyword argument makes it convenient to specify that if the input
     is a vector, it is a row (axis=1) or column (axis=0) vector.
 
-    Parameters
-    ----------
-    data : array, list, or string
-        Input data defining the contents of the 2D array
-    axis : 0 or 1
-        If input data is 1D, which axis to use for return object.  The default
-        is 1, corresponding to a row matrix.
+    Parameters:
+        data (array, list, or string):
+            Input data defining the contents of the 2D array
+        axis (0 or 1):
+            If input data is 1D, which axis to use for return object.  The default
+            is 1, corresponding to a row matrix.
 
-    Returns
-    -------
-    arr : 2D array, with shape (0, 0) if a is empty
+    Returns:
+        arr (2D array): with shape (0, 0) if a is empty
 
     """
     arr = jnp.array(data, dtype=float)

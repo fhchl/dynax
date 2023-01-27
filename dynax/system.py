@@ -1,19 +1,19 @@
+"""Classes for representing dynamical systems."""
+
 from abc import abstractmethod
 from collections.abc import Callable
 
-import diffrax as dfx
 import equinox as eqx
 import jax
 import jax.numpy as jnp
 import numpy as np
 from jaxtyping import Array, Float
 
-from .interpolation import spline_it
 from .util import ssmatrix
 
 
 def _linearize(f, h, x0, u0):
-    """Linearize dx=f(x,u), y=h(x,u) around equilibrium point."""
+    """Linearize dx=f(x,u), y=h(x,u) around x0, u0."""
     A = jax.jacfwd(f, argnums=0)(x0, u0)
     B = jax.jacfwd(f, argnums=1)(x0, u0)
     C = jax.jacfwd(h, argnums=0)(x0, u0)
@@ -22,12 +22,14 @@ def _linearize(f, h, x0, u0):
 
 
 class DynamicalSystem(eqx.Module):
-    """A continous-time dynamical system.
+    r"""A continous-time dynamical system.
+
+    Represents a differential equation system with output of the form:
 
     .. math::
 
-        ẋ &= vector_field(x, u, t)
-        y &= output(x, u, t)
+        ẋ &= f(x, u, t) \\
+        y &= h(x, u, t)
 
     """
 
@@ -48,10 +50,7 @@ class DynamicalSystem(eqx.Module):
         pass
 
     def output(self, x, u=None, t=None):
-        """Compute output.
-
-        Returns state by default.
-        """
+        """Compute output."""
         return x
 
     def linearize(self, x0=None, u0=None, t=None):
@@ -127,119 +126,10 @@ class DynamicalSystem(eqx.Module):
 #       (x, pytree_interal_states_x)
 
 
-class SeriesSystem(DynamicalSystem):
-    """Two systems in series."""
-
-    _sys1: DynamicalSystem
-    _sys2: DynamicalSystem
-
-    def __init__(self, sys1, sys2):
-        self._sys1 = sys1
-        self._sys2 = sys2
-        self.n_states = sys1.n_states + sys2.n_states
-        self.n_inputs = sys1.n_inputs
-
-    def vector_field(self, x, u=None, t=None):
-        x1 = x[: self._sys1.n_states]
-        x2 = x[self._sys1.n_states :]
-        y1 = self._sys1.output(x1, u, t)
-        dx1 = self._sys1.vector_field(x1, u, t)
-        dx2 = self._sys2.vector_field(x2, y1, t)
-        return jnp.concatenate((jnp.atleast_1d(dx1), jnp.atleast_1d(dx2)))
-
-    def output(self, x, u=None, t=None):
-        x1 = x[: self._sys1.n_states]
-        x2 = x[self._sys1.n_states :]
-        y1 = self._sys1.output(x1, u, t)
-        y2 = self._sys2.output(x2, y1, t)
-        return y2
-
-
-class FeedbackSystem(DynamicalSystem):
-    """Two systems in parallel."""
-
-    _sys1: DynamicalSystem
-    _sys2: DynamicalSystem
-
-    def __init__(self, sys1, sys2):
-        """sys1.output must not depend on input."""
-        self._sys1 = sys1
-        self._sys2 = sys2
-        self.n_states = sys1.n_states + sys2.n_states
-        self.n_inputs = sys1.n_inputs
-
-    def vector_field(self, x, u=None, t=None):
-        if u is None:
-            u = np.zeros(self._sys1.n_inputs)
-        x1 = x[: self._sys1.n_states]
-        x2 = x[self._sys1.n_states :]
-        y1 = self._sys1.output(x1, None, t)
-        y2 = self._sys2.output(x2, y1, t)
-        dx1 = self._sys1.vector_field(x1, u + y2, t)
-        dx2 = self._sys2.vector_field(x2, y1, t)
-        dx = jnp.concatenate((jnp.atleast_1d(dx1), jnp.atleast_1d(dx2)))
-        return dx
-
-    def output(self, x, u=None, t=None):
-        x1 = x[: self._sys1.n_states]
-        y = self._sys1.output(x1, None, t)
-        return y
-
-
-class StaticStateFeedbackSystem(DynamicalSystem):
-    _sys: DynamicalSystem
-    _feedbacklaw: Callable
-
-    def __init__(self, sys, law):
-        """sys1.output must not depend on input."""
-        self._sys = sys
-        self._feedbacklaw = staticmethod(law)
-        self.n_states = sys.n_states
-        self.n_inputs = sys.n_inputs
-
-    def vector_field(self, x, u=None, t=None):
-        if u is None:
-            u = np.zeros(self._sys.n_inputs)
-        v = self._feedbacklaw(x, u)  # NOTE: how to extract the modified input v?
-        dx = self._sys.vector_field(x, v, t)
-        return dx
-
-    def output(self, x, u=None, t=None):
-        y = self._sys.output(x, None, t)
-        return y
-
-
-class DynamicStateFeedbackSystem(DynamicalSystem):
-    _sys: DynamicalSystem
-    _sys2: DynamicalSystem
-    _feedbacklaw: Callable[[Array, Array, Float], Float]
-
-    def __init__(self, sys, sys2, law):
-        """Feedback u(x, z, r)"""
-        self._sys = sys
-        self._sys2 = sys2
-        self._feedbacklaw = staticmethod(law)
-        self.n_states = sys.n_states + sys2.n_states
-        self.n_inputs = sys.n_inputs
-        self.n_outputs = sys.n_outputs
-
-    def vector_field(self, xz, u=None, t=None):
-        if u is None:
-            u = np.zeros(self._sys.n_inputs)
-        x, z = xz[: self._sys.n_states], xz[self._sys.n_states :]
-        v = self._feedbacklaw(x, z, u)
-        dx = self._sys.vector_field(x, v, t)
-        dz = self._sys2.vector_field(z, u, t)
-        return jnp.concatenate((dx, dz))
-
-    def output(self, xz, u=None, t=None):
-        x = xz[: self._sys.n_states]
-        y = self._sys.output(x, u, t)
-        return y
-
-
 class LinearSystem(DynamicalSystem):
-    """A linear, time-invariant dynamical system.
+    r"""A linear, time-invariant dynamical system.
+
+    Represents a linear ODE system with output of the form:
 
     .. math::
 
@@ -324,91 +214,116 @@ class ControlAffine(DynamicalSystem):
         return self.h(x, t)
 
 
-class Flow(eqx.Module):
-    """Evolution function for continous-time dynamical system."""
+class SeriesSystem(DynamicalSystem):
+    """Two systems in series."""
 
-    system: DynamicalSystem
-    solver: dfx.AbstractAdaptiveSolver = eqx.static_field()
-    step: dfx.AbstractStepSizeController = eqx.static_field()
+    _sys1: DynamicalSystem
+    _sys2: DynamicalSystem
 
-    def __init__(self, system, solver=dfx.Dopri5(), step=dfx.ConstantStepSize()):
-        self.system = system
-        self.solver = solver
-        self.step = step
+    def __init__(self, sys1, sys2):
+        self._sys1 = sys1
+        self._sys2 = sys2
+        self.n_states = sys1.n_states + sys2.n_states
+        self.n_inputs = sys1.n_inputs
 
-    def __call__(self, x0, t, u=None, squeeze=True, **diffeqsolve_kwargs):
-        """Solve initial value problem for state and output trajectories."""
-        t = jnp.asarray(t)
-        x0 = jnp.asarray(x0)
-        assert (
-            len(x0) == self.system.n_states
-        ), f"len(x0)={len(x0)} but sys has {self.system.n_states} states"
+    def vector_field(self, x, u=None, t=None):
+        x1 = x[: self._sys1.n_states]
+        x2 = x[self._sys1.n_states :]
+        y1 = self._sys1.output(x1, u, t)
+        dx1 = self._sys1.vector_field(x1, u, t)
+        dx2 = self._sys2.vector_field(x2, y1, t)
+        return jnp.concatenate((jnp.atleast_1d(dx1), jnp.atleast_1d(dx2)))
+
+    def output(self, x, u=None, t=None):
+        x1 = x[: self._sys1.n_states]
+        x2 = x[self._sys1.n_states :]
+        y1 = self._sys1.output(x1, u, t)
+        y2 = self._sys2.output(x2, y1, t)
+        return y2
+
+
+class FeedbackSystem(DynamicalSystem):
+    """Two systems connected via feedback."""
+
+    _sys1: DynamicalSystem
+    _sys2: DynamicalSystem
+
+    def __init__(self, sys1, sys2):
+        """sys1.output must not depend on input."""
+        self._sys1 = sys1
+        self._sys2 = sys2
+        self.n_states = sys1.n_states + sys2.n_states
+        self.n_inputs = sys1.n_inputs
+
+    def vector_field(self, x, u=None, t=None):
         if u is None:
-            ufun = lambda t: None
-        elif callable(u):
-            ufun = u
-        else:  # u is array_like of shape (time, inputs)
-            ufun = spline_it(t, u)
-        # Solve ODE
-        diffeqsolve_options = dict(
-            saveat=dfx.SaveAt(ts=t), max_steps=50 * len(t), adjoint=dfx.NoAdjoint()
-        )
-        diffeqsolve_options |= diffeqsolve_kwargs
-        vector_field = lambda t, x, self: self.system.vector_field(x, ufun(t), t)
-        term = dfx.ODETerm(vector_field)
-        x = dfx.diffeqsolve(
-            term,
-            self.solver,
-            t0=t[0],
-            t1=t[-1],
-            dt0=t[1],
-            y0=x0,
-            stepsize_controller=self.step,
-            args=self,  # https://github.com/patrick-kidger/diffrax/issues/135
-            **diffeqsolve_options,
-        ).ys
-        # Compute output
-        y = jax.vmap(self.system.output)(x)
-        # Remove singleton dimensions
-        if squeeze:
-            x = x.squeeze()
-            y = y.squeeze()
-        return x, y
+            u = np.zeros(self._sys1.n_inputs)
+        x1 = x[: self._sys1.n_states]
+        x2 = x[self._sys1.n_states :]
+        y1 = self._sys1.output(x1, None, t)
+        y2 = self._sys2.output(x2, y1, t)
+        dx1 = self._sys1.vector_field(x1, u + y2, t)
+        dx2 = self._sys2.vector_field(x2, y1, t)
+        dx = jnp.concatenate((jnp.atleast_1d(dx1), jnp.atleast_1d(dx2)))
+        return dx
+
+    def output(self, x, u=None, t=None):
+        x1 = x[: self._sys1.n_states]
+        y = self._sys1.output(x1, None, t)
+        return y
 
 
-class Map(eqx.Module):
-    """Flow map for evolving discrete-time dynamical system."""
+class StaticStateFeedbackSystem(DynamicalSystem):
+    """System with static state-feedback law."""
 
-    system: DynamicalSystem
+    _sys: DynamicalSystem
+    _feedbacklaw: Callable
 
-    def __call__(self, x0, num_steps=None, t=None, u=None, squeeze=True):
-        """Solve discrete map."""
-        x0 = jnp.asarray(x0)
-        if num_steps is None:
-            if t is not None:
-                num_steps = len(t)
-            elif u is not None:
-                num_steps = len(u)
-            else:
-                raise ValueError("must specify one of num_steps, t or u")
+    def __init__(self, sys, law):
+        """sys1.output must not depend on input."""
+        self._sys = sys
+        self._feedbacklaw = staticmethod(law)
+        self.n_states = sys.n_states
+        self.n_inputs = sys.n_inputs
 
-        if t is None:
-            t = np.zeros(num_steps)
+    def vector_field(self, x, u=None, t=None):
         if u is None:
-            u = np.zeros(num_steps)
-        inputs = np.stack((t, u), axis=1)
+            u = np.zeros(self._sys.n_inputs)
+        v = self._feedbacklaw(x, u)  # NOTE: how to extract the modified input v?
+        dx = self._sys.vector_field(x, v, t)
+        return dx
 
-        def scan_fun(state, input):
-            t, u = input
-            next_state = self.system.vector_field(state, u, t)
-            return next_state, state
+    def output(self, x, u=None, t=None):
+        y = self._sys.output(x, None, t)
+        return y
 
-        _, x = jax.lax.scan(scan_fun, x0, inputs, length=num_steps)
 
-        # Compute output
-        y = jax.vmap(self.system.output)(x)
-        if squeeze:
-            # Remove singleton dimensions
-            x = x.squeeze()
-            y = y.squeeze()
-        return x, y
+class DynamicStateFeedbackSystem(DynamicalSystem):
+    """System with dynamic state-feedback law $u(x, z, r)$."""
+
+    _sys: DynamicalSystem
+    _sys2: DynamicalSystem
+    _feedbacklaw: Callable[[Array, Array, Float], Float]
+
+    def __init__(self, sys, sys2, law):
+        """Feedback u(x, z, r)"""
+        self._sys = sys
+        self._sys2 = sys2
+        self._feedbacklaw = staticmethod(law)
+        self.n_states = sys.n_states + sys2.n_states
+        self.n_inputs = sys.n_inputs
+        self.n_outputs = sys.n_outputs
+
+    def vector_field(self, xz, u=None, t=None):
+        if u is None:
+            u = np.zeros(self._sys.n_inputs)
+        x, z = xz[: self._sys.n_states], xz[self._sys.n_states :]
+        v = self._feedbacklaw(x, z, u)
+        dx = self._sys.vector_field(x, v, t)
+        dz = self._sys2.vector_field(z, u, t)
+        return jnp.concatenate((dx, dz))
+
+    def output(self, xz, u=None, t=None):
+        x = xz[: self._sys.n_states]
+        y = self._sys.output(x, u, t)
+        return y

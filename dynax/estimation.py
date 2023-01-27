@@ -1,3 +1,5 @@
+"""Functions for estimating parameters of dynamical systems."""
+
 from dataclasses import field, fields
 from typing import Callable, Tuple
 
@@ -10,8 +12,9 @@ from jaxtyping import Array, PyTree
 from scipy.optimize import least_squares
 from scipy.optimize._optimize import MemoizeJac
 
+from .evolution import Flow, Map
 from .interpolation import InterpolationFunction, spline_it
-from .system import DynamicalSystem, Flow, Map
+from .system import DynamicalSystem
 from .util import value_and_jacfwd
 
 

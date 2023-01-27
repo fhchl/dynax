@@ -32,7 +32,7 @@ class NonlinearDrag(ControlAffine):
     n_inputs = 1
     n_outputs = 1
 
-    # Define the dyanmical system via the methods f, g, and h
+    # Define the dynamical system via the methods f, g, and h
     def f(self, x, u=None, t=None):
         x1, x2 = x
         return jnp.array(
@@ -79,7 +79,7 @@ pred_model = fit_least_squares(
 print("fitted system:", pred_model.system)
 
 # check the results
-x_pred, y_train = pred_model(initial_x, t_train, u_train)
+x_pred, y_pred = pred_model(initial_x, t_train, u_train)
 assert np.allclose(x_train, x_pred)
 
 plt.plot(t_train, x_train, "--", label="target")
