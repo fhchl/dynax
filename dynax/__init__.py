@@ -4,12 +4,12 @@ from .estimation import fit_csd_matching, fit_least_squares
 from .interpolation import spline_it
 from .system import (
     ControlAffine,
-    DiscreteForwardModel,
     DynamicalSystem,
     DynamicStateFeedbackSystem,
     FeedbackSystem,
-    ForwardModel,
+    Flow,
     LinearSystem,
+    Map,
     SeriesSystem,
     StaticStateFeedbackSystem,
 )

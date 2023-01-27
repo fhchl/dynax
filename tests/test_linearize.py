@@ -5,7 +5,7 @@ from dynax import (
     ControlAffine,
     DynamicalSystem,
     DynamicStateFeedbackSystem,
-    ForwardModel,
+    Flow,
     LinearSystem,
 )
 from dynax.example_models import NonlinearDrag, Sastry9_9
@@ -107,7 +107,7 @@ def test_input_output_linearize():
     t = np.linspace(0, 1)
     u = np.sin(t)
     npt.assert_allclose(
-        ForwardModel(ref)(np.zeros(sys.n_states), t, u)[1],
-        ForwardModel(feedback_sys)(np.zeros(feedback_sys.n_states), t, u)[1],
+        Flow(ref)(np.zeros(sys.n_states), t, u)[1],
+        Flow(feedback_sys)(np.zeros(feedback_sys.n_states), t, u)[1],
         **tols
     )

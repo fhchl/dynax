@@ -3,7 +3,7 @@ import jax
 import jax.numpy as jnp
 import matplotlib.pyplot as plt
 import numpy as np
-from dynax import DynamicStateFeedbackSystem, ForwardModel
+from dynax import DynamicStateFeedbackSystem, Flow
 from dynax.ad import lie_derivative
 from dynax.example_models import (
     NonlinearDrag,
@@ -49,21 +49,21 @@ init_state = np.zeros(sys.n_states)
 
 # forward model = ODE + solver
 solver_opt = dict(solver=dfx.Kvaerno5(), step=dfx.PIDController(rtol=1e-8, atol=1e-12))
-model = ForwardModel(sys, **solver_opt)
+model = Flow(sys, **solver_opt)
 
 # uncompensated response
 x, y = model(init_state, t, u)
 
 # linearize model around x=0
 linsys = sys.linearize()
-linmodel = ForwardModel(linsys, **solver_opt)
+linmodel = Flow(linsys, **solver_opt)
 z, y_m = linmodel(init_state, t, u)
 
 # input-output linearized model
 reldeg = relative_degree(sys, x, 5)
 feedbacklaw = input_output_linearize(sys, reldeg, ref=linsys)
 feedbacksys = DynamicStateFeedbackSystem(sys, linsys, feedbacklaw)
-feedbackmodel = ForwardModel(feedbacksys, **solver_opt)
+feedbackmodel = Flow(feedbacksys, **solver_opt)
 xz, y_comp = feedbackmodel(
     np.concatenate((init_state, init_state)), t, u, max_steps=1000000
 )

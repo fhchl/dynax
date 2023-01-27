@@ -3,7 +3,7 @@ import jax.numpy as jnp
 import numpy as np
 import numpy.testing as npt
 from diffrax import Kvaerno5, PIDController
-from dynax import fit_least_squares, ForwardModel
+from dynax import fit_least_squares, Flow
 from dynax.estimation import fit_csd_matching, transfer_function
 from dynax.example_models import LotkaVolterra, SpringMassDamper
 
@@ -16,10 +16,10 @@ def test_fit_least_squares():
     t = np.linspace(0, 1, 100)
     u = np.sin(1 * 2 * np.pi * t)
     x0 = [1.0, 0.0]
-    true_model = ForwardModel(SpringMassDamper(1.0, 2.0, 3.0))
+    true_model = Flow(SpringMassDamper(1.0, 2.0, 3.0))
     x_true, _ = true_model(x0, t, u)
     # fit
-    init_model = ForwardModel(SpringMassDamper(1.0, 1.0, 1.0))
+    init_model = Flow(SpringMassDamper(1.0, 1.0, 1.0))
     pred_model = fit_least_squares(init_model, t, x_true, x0, u)
     # check result
     x_pred, _ = pred_model(x0, t, u)
@@ -38,7 +38,7 @@ def test_can_compute_jacfwd_with_implicit_methods():
     solver_opt = dict(solver=Kvaerno5(), step=PIDController(atol=1e-6, rtol=1e-3))
 
     def fun(m, r, k, x0=x0, solver_opt=solver_opt, t=t):
-        model = ForwardModel(SpringMassDamper(m, r, k), **solver_opt)
+        model = Flow(SpringMassDamper(m, r, k), **solver_opt)
         x_true, _ = model(x0, t)
         return x_true
 
@@ -51,12 +51,12 @@ def test_fit_with_bouded_parameters():
     t = np.linspace(0, 1, 100)
     x0 = [0.5, 0.5]
     solver_opt = dict(step=PIDController(rtol=1e-5, atol=1e-7))
-    true_model = ForwardModel(
+    true_model = Flow(
         LotkaVolterra(alpha=2 / 3, beta=4 / 3, gamma=1.0, delta=1.0), **solver_opt
     )
     x_true, _ = true_model(x0, t)
     # fit
-    init_model = ForwardModel(
+    init_model = Flow(
         LotkaVolterra(alpha=1.0, beta=1.0, gamma=1.5, delta=2.0), **solver_opt
     )
     pred_model = fit_least_squares(init_model, t, x_true, x0)
@@ -84,7 +84,7 @@ def test_csd_matching():
     np.random.seed(123)
     # model
     sys = SpringMassDamper(1.0, 1.0, 1.0)
-    model = ForwardModel(sys, step=PIDController(rtol=1e-4, atol=1e-6))
+    model = Flow(sys, step=PIDController(rtol=1e-4, atol=1e-6))
     x0 = np.zeros(sys.n_states)
     # input
     duration = 1000

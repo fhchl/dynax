@@ -11,7 +11,7 @@ from scipy.optimize import least_squares
 from scipy.optimize._optimize import MemoizeJac
 
 from .interpolation import InterpolationFunction, spline_it
-from .system import DiscreteForwardModel, DynamicalSystem, ForwardModel
+from .system import DynamicalSystem, Flow, Map
 from .util import value_and_jacfwd
 
 
@@ -85,18 +85,18 @@ def fit_ml(*args, **kwargs):
 
 
 def fit_least_squares(
-    model: ForwardModel | DiscreteForwardModel,
+    model: Flow | Map,
     t: Array,
     y: Array,
     x0: Array,
     u: Callable[[float], Array] | Array | None = None,
     **kwargs,
-) -> ForwardModel | DiscreteForwardModel:
+) -> Flow | Map:
     """Fit forward model with nonlinear least-squares."""
     t = jnp.asarray(t)
     y = jnp.asarray(y)
     if (
-        isinstance(model, ForwardModel)
+        isinstance(model, Flow)
         and u is not None
         and not isinstance(u, InterpolationFunction)
     ):

@@ -3,7 +3,7 @@
 import jax.numpy as jnp
 import matplotlib.pyplot as plt
 import numpy as np
-from dynax import ControlAffine, fit_csd_matching, fit_least_squares, ForwardModel
+from dynax import ControlAffine, fit_csd_matching, fit_least_squares, Flow
 
 
 # Define a dynamical system of the form
@@ -49,7 +49,7 @@ class NonlinearDrag(ControlAffine):
 # initiate a dynamical system representing the some "true" parameters
 true_system = NonlinearDrag(m=1.0, r=2.0, r2=0.1, k=4.0)
 # combine ODE system with ODE solver (Dopri5 and constant stepsize by default)
-true_model = ForwardModel(true_system)
+true_model = Flow(true_system)
 print("true system:", true_system)
 
 # some training data using the true model. This could be your measurement data.
@@ -71,7 +71,7 @@ initial_sys = fit_csd_matching(initial_sys, u_train, y_train, samplerate, nperse
 print("linear params fitted:", initial_sys)
 
 # Combine the ODE with an ODE solver
-init_model = ForwardModel(initial_sys)
+init_model = Flow(initial_sys)
 # Fit all parameters with previously estimated parameters as a starting guess.
 pred_model = fit_least_squares(
     model=init_model, t=t_train, y=y_train, x0=initial_x, u=u_train, verbose=0
