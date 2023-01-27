@@ -2,14 +2,7 @@ import diffrax as dfx
 import jax.numpy as jnp
 import numpy as np
 import numpy.testing as npt
-from dynax import (
-    DiscreteForwardModel,
-    DynamicalSystem,
-    FeedbackSystem,
-    ForwardModel,
-    LinearSystem,
-    SeriesSystem,
-)
+from dynax import DynamicalSystem, FeedbackSystem, Flow, LinearSystem, Map, SeriesSystem
 from scipy.signal import dlsim, dlti
 
 
@@ -99,7 +92,7 @@ def test_forward_model_crit_damp():
 
     x0 = jnp.array([1, 0])  # x(t=0)=1, dx(t=0)=0
     t = np.linspace(0, 1)
-    model = ForwardModel(sys, step=dfx.PIDController(rtol=1e-7, atol=1e-9))
+    model = Flow(sys, step=dfx.PIDController(rtol=1e-7, atol=1e-9))
     x_pred = model(x0, t)[1]
     x_true = x(t, *x0)
     assert np.allclose(x_true, x_pred)
@@ -125,7 +118,7 @@ def test_forward_model_lin_sys():
     x0 = jnp.array([1, 0])  # x(t=0)=1, dx(t=0)=0
     t = np.linspace(0, 1)
     u = np.ones_like(t) * uconst
-    model = ForwardModel(sys, step=dfx.PIDController(rtol=1e-7, atol=1e-9))
+    model = Flow(sys, step=dfx.PIDController(rtol=1e-7, atol=1e-9))
     x_pred = model(x0, t, u)[1]
     x_true = x(t, *x0, uconst)
     assert np.allclose(x_true, x_pred)
@@ -143,7 +136,7 @@ def test_discrete_forward_model():
     D = jnp.zeros((1, 1))
     # test just input
     sys = LinearSystem(A, B, C, D)
-    model = DiscreteForwardModel(sys)
+    model = Map(sys)
     x, y = model(x0, u=u)  # ours
     scipy_sys = dlti(A, B, C, D)
     _, scipy_y, scipy_x = dlsim(scipy_sys, u, x0=x0)

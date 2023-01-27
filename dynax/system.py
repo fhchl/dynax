@@ -24,7 +24,7 @@ def _linearize(f, h, x0, u0):
 class DynamicalSystem(eqx.Module):
     """A continous-time dynamical system.
 
-    ..math::
+    .. math::
 
         ẋ &= vector_field(x, u, t)
         y &= output(x, u, t)
@@ -324,8 +324,8 @@ class ControlAffine(DynamicalSystem):
         return self.h(x, t)
 
 
-class ForwardModel(eqx.Module):
-    """Combines a dynamical system with a solver."""
+class Flow(eqx.Module):
+    """Evolution function for continous-time dynamical system."""
 
     system: DynamicalSystem
     solver: dfx.AbstractAdaptiveSolver = eqx.static_field()
@@ -364,8 +364,7 @@ class ForwardModel(eqx.Module):
             dt0=t[1],
             y0=x0,
             stepsize_controller=self.step,
-            # https://github.com/patrick-kidger/diffrax/issues/135
-            args=self,
+            args=self,  # https://github.com/patrick-kidger/diffrax/issues/135
             **diffeqsolve_options,
         ).ys
         # Compute output
@@ -377,8 +376,8 @@ class ForwardModel(eqx.Module):
         return x, y
 
 
-class DiscreteForwardModel(eqx.Module):
-    """Compute flow map for discrete dynamical system."""
+class Map(eqx.Module):
+    """Flow map for evolving discrete-time dynamical system."""
 
     system: DynamicalSystem
 
