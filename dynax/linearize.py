@@ -1,15 +1,17 @@
+"""Functions related to feedback linearization of nonlinear systems."""
+
 from collections.abc import Callable
 
 import jax
 import numpy as np
 from jaxtyping import Array
 
-from .ad import lie_derivative
+from .derivative import lie_derivative
 from .system import ControlAffine, LinearSystem
 
 
-def relative_degree(sys, xs, max_reldeg=10):
-    """Compute relative degree of sys on region xs."""
+def relative_degree(sys, xs, max_reldeg=10) -> int:
+    """Estimate relative degree of system on region xs."""
     # TODO: when ControlAffine has y = h(x) + i(x)u, include test for n = 0,
     # i.e. i(x) == 0 for all x in xs.
     assert sys.n_inputs == 1 and sys.n_outputs == 1, "only SISO supported"
@@ -22,10 +24,10 @@ def relative_degree(sys, xs, max_reldeg=10):
             return n
         else:
             raise RuntimeError("sys has ill-defined relative degree.")
-    raise RuntimeError("Could not compute relative degree. Increase max_reldeg.")
+    raise RuntimeError("Could not estimate relative degree. Increase max_reldeg.")
 
 
-def is_controllable(A, B):
+def is_controllable(A, B) -> bool:
     """Test controllability of linear system."""
     n = A.shape[0]
     contrmat = np.hstack([np.linalg.matrix_power(A, ni).dot(B) for ni in range(n)])
@@ -37,7 +39,10 @@ def input_output_linearize(
 ) -> Callable[[Array, Array, float], float]:
     """Construct input-output linearizing feedback law.
 
-    Note: relative degree of `ref` must be same or higher than degree of sys.
+    Note:
+        Relative degree of `ref` must be same or higher than degree of `sys`.
+        Only single-input-single-output systems are currently supported.
+
     """
     # TODO: add options for reference `normal_form` or zeros of polynomials
     assert sys.n_inputs == 1 and sys.n_outputs == 1, "sys must be SISO"

@@ -1,19 +1,19 @@
-import jax
+# TODO: leave out or make clear somewhere
+import jax as _jax
 
+from .derivative import lie_derivative
 from .estimation import fit_csd_matching, fit_least_squares
+from .evolution import Flow, Map
 from .interpolation import spline_it
 from .system import (
     ControlAffine,
     DynamicalSystem,
     DynamicStateFeedbackSystem,
     FeedbackSystem,
-    Flow,
     LinearSystem,
-    Map,
     SeriesSystem,
     StaticStateFeedbackSystem,
 )
 
 
-# TODO: leave out or make clear somewhere
-jax.config.update("jax_enable_x64", True)
+_jax.config.update("jax_enable_x64", True)

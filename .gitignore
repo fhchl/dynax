@@ -5,3 +5,5 @@ experiments
 .coverage
 htmlcov
 build
+docs/_build
+docs/generated

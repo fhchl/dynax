@@ -1,3 +1,5 @@
+"""Varioius functions for computing lie derivatives."""
+
 from functools import lru_cache
 
 import jax
@@ -9,10 +11,14 @@ from jax.experimental.jet import jet
 
 @lru_cache
 def lie_derivative(f, h, n=1):
-    """Return n-th derivative of h along f.
+    r"""Return n-th directional derivative of h along f.
 
-    ..math: L_f^n h(x) = (\nabla L_f^{n-1} h)(x)^T f(x)
-            L_f^0 h(x) = h(x)
+    The Lie derivative is recursively defined as
+
+    .. math::
+
+        L_f^0 h(x) &= h(x) \\
+        L_f^n h(x) &= (\nabla_x L_f^{n-1} h)(x)^T f(x)
 
     """
     if n < 0:
@@ -25,9 +31,10 @@ def lie_derivative(f, h, n=1):
 
 
 def lie_derivatives_jet(f, h, n=1):
-    """Return iterative Lie derivatives up to order n.
+    """Compute Lie derivatives using Taylor-mode differentiation.
 
-    @robenackComputationLieDerivatives2005, sec 5
+    See :cite:p:`robenackComputationLieDerivatives2005`.
+
     """
     fac = scipy.special.factorial(np.arange(n + 1))
 
@@ -50,16 +57,18 @@ def lie_derivatives_jet(f, h, n=1):
 
 
 def lie_derivative_jet(f, h, n=1):
-    """Return n-th order Lie derivative of h along f."""
+    """Compute :py:func:`dynax.ad.lie_derivative` using `jax.jet`."""
     return lambda x: lie_derivatives_jet(f, h, n)(x)[-1]
 
 
 @lru_cache
 def extended_lie_derivative(f, h, n=1):
-    """Return n-th derivative of h along f.
+    r"""Return n-th derivative of h along f.
 
-    ..math: L_f^n h(x, t) = (\nabla_x L_f^{n-1} h)(x, t)^T f(x, u, t)
-            L_f^0 h(x, t) = h(x, t)
+    .. math::
+
+        L_f^n h(x, t) = (\nabla_x L_f^{n-1} h)(x, t)^T f(x, u, t) \\
+        L_f^0 h(x, t) = h(x, t)
 
     """
     if n == 0:

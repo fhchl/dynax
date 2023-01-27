@@ -4,7 +4,7 @@ import jax.numpy as jnp
 import matplotlib.pyplot as plt
 import numpy as np
 from dynax import DynamicStateFeedbackSystem, Flow
-from dynax.ad import lie_derivative
+from dynax.derivative import lie_derivative
 from dynax.example_models import (
     NonlinearDrag,
     PolyNonLinLS,

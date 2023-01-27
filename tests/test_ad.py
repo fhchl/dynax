@@ -1,6 +1,6 @@
 import numpy as np
 import numpy.testing as npt
-from dynax.ad import lie_derivative, lie_derivative_jet, lie_derivatives_jet
+from dynax.derivative import lie_derivative, lie_derivative_jet, lie_derivatives_jet
 from dynax.example_models import Sastry9_9
 
 
