@@ -24,11 +24,15 @@ class Flow(AbstractEvolution):
     system: DynamicalSystem
     solver: dfx.AbstractAdaptiveSolver = eqx.static_field()
     step: dfx.AbstractStepSizeController = eqx.static_field()
+    dt0: float = eqx.static_field()
 
-    def __init__(self, system, solver=dfx.Dopri5(), step=dfx.ConstantStepSize()):
+    def __init__(
+        self, system, solver=dfx.Dopri5(), step=dfx.ConstantStepSize(), dt0=None
+    ):
         self.system = system
         self.solver = solver
         self.step = step
+        self.dt0 = dt0
 
     def __call__(self, x0, t, u=None, squeeze=True, **diffeqsolve_kwargs):
         """Solve initial value problem for state and output trajectories."""
@@ -44,22 +48,24 @@ class Flow(AbstractEvolution):
         else:  # u is array_like of shape (time, inputs)
             ufun = spline_it(t, u)
         # Solve ODE
-        diffeqsolve_options = dict(
-            saveat=dfx.SaveAt(ts=t), max_steps=50 * len(t), adjoint=dfx.NoAdjoint()
+        diffeqsolve_default_options = dict(
+            solver=self.solver,
+            stepsize_controller=self.step,
+            saveat=dfx.SaveAt(ts=t),
+            max_steps=50 * len(t),
+            adjoint=dfx.NoAdjoint(),
+            dt0=self.dt0 if self.dt0 is not None else t[1],
         )
-        diffeqsolve_options |= diffeqsolve_kwargs
+        diffeqsolve_default_options |= diffeqsolve_kwargs
         vector_field = lambda t, x, self: self.system.vector_field(x, ufun(t), t)
         term = dfx.ODETerm(vector_field)
         x = dfx.diffeqsolve(
             term,
-            self.solver,
             t0=t[0],
             t1=t[-1],
-            dt0=t[1],
             y0=x0,
-            stepsize_controller=self.step,
             args=self,  # https://github.com/patrick-kidger/diffrax/issues/135
-            **diffeqsolve_options,
+            **diffeqsolve_default_options,
         ).ys
         # Compute output
         y = jax.vmap(self.system.output)(x)

@@ -1,7 +1,7 @@
 """Functions for estimating parameters of dynamical systems."""
 
 from dataclasses import field, fields
-from typing import Callable, Tuple
+from typing import Callable, Optional, Tuple, TypeVar
 
 import jax
 import jax.numpy as jnp
@@ -12,7 +12,7 @@ from jaxtyping import Array, PyTree
 from scipy.optimize import least_squares
 from scipy.optimize._optimize import MemoizeJac
 
-from .evolution import Flow, Map
+from .evolution import AbstractEvolution, Flow
 from .interpolation import InterpolationFunction, spline_it
 from .system import DynamicalSystem
 from .util import value_and_jacfwd
@@ -87,14 +87,17 @@ def fit_ml(*args, **kwargs):
     return fit_least_squares(*args, **kwargs)
 
 
+Evolution = TypeVar("Evolution", bound=AbstractEvolution)
+
+
 def fit_least_squares(
-    model: Flow | Map,
+    model: Evolution,
     t: Array,
     y: Array,
     x0: Array,
-    u: Callable[[float], Array] | Array | None = None,
+    u: Optional[Callable[[float], Array] | Array] = None,
     **kwargs,
-) -> Flow | Map:
+) -> Evolution:
     """Fit forward model with nonlinear least-squares."""
     t = jnp.asarray(t)
     y = jnp.asarray(y)
@@ -131,6 +134,120 @@ def fit_least_squares(
     )
     params = res.x
     return treedef.unflatten(params)
+
+
+def _moving_window(a: jnp.ndarray, size: int, stride: int):
+    start_idx = jnp.arange(0, len(a) - size + 1, stride)[:, None]
+    inner_idx = jnp.arange(size)[None, :]
+    return a[start_idx + inner_idx]
+
+
+def fit_multiple_shooting(
+    model: AbstractEvolution,
+    t: Array,
+    y: Array,
+    x0: Array,
+    u: Optional[Callable[[float], Array] | Array] = None,
+    num_shots: int = 1,
+    continuity_penalty: float = 0,
+    **kwargs,
+) -> Tuple[AbstractEvolution, Array, Array, Array]:
+    t = jnp.asarray(t)
+    y = jnp.asarray(y)
+    x0 = jnp.asarray(x0)
+
+    if u is None:
+        msg = (
+            f"t, y must have same number of samples, but have shapes "
+            f"{t.shape}, {y.shape}"
+        )
+        assert t.shape[0] == y.shape[0], msg
+    else:
+        u = jnp.asarray(u)
+        msg = (
+            f"t, y, u must have same number of samples, but have shapes "
+            f"{t.shape}, {y.shape} and {u.shape}"
+        )
+        assert t.shape[0] == y.shape[0] == u.shape[0], msg
+
+    # Compute number of samples per segment. Remove samples at end if total
+    # number is not divisible by num_shots.
+    num_samples = len(t)
+    num_samples_per_segment = int(np.floor((num_samples + (num_shots - 1)) / num_shots))
+    leftover_samples = num_samples - (num_samples_per_segment * num_shots)
+    if leftover_samples:
+        print("Warning: removing last ", leftover_samples, "samples.")
+    num_samples -= leftover_samples
+    t = t[:num_samples]
+    y = y[:num_samples]
+
+    # Divide signals into segments.
+    ts = _moving_window(t, num_samples_per_segment, num_samples_per_segment - 1)
+    ys = _moving_window(y, num_samples_per_segment, num_samples_per_segment - 1)
+    us = None
+    x0s = np.broadcast_to(x0, (num_shots, len(x0))).copy()
+    x0s = np.concatenate((x0[None], np.zeros((num_shots - 1, len(x0)))))
+
+    if u is not None:
+        u = u[:num_samples]
+        us = _moving_window(u, num_samples_per_segment, num_samples_per_segment - 1)
+
+    # Each segment's time starts at 0.
+    ts0 = ts - ts[:, :1]
+
+    def pack(x0s, model):
+        # remove initial condition which is fixed not a parameter
+        x0s = x0s[1:]
+        x0s_shape = x0s.shape
+        flat, treedef = tree_flatten((x0s.flatten().tolist(), model))
+        return flat, treedef, x0s_shape
+
+    def unpack(flat, treedef, x0s_shape):
+        x0s_list, model = treedef.unflatten(flat)
+        x0s = jnp.array(x0s_list).reshape(x0s_shape)
+        # add initial condition
+        x0s = jnp.concatenate((x0[None], x0s), axis=0)
+        return x0s, model
+
+    # prepare optimization
+    init_params, treedef, x0s_shape = pack(x0s, model)
+    std_y = np.std(y, axis=0)
+    parameter_bounds = tuple(
+        map(lambda x: tree_flatten(x)[0], build_bounds(model.system))
+    )
+    state_bounds = (
+        (num_shots - 1) * len(x0) * [-np.inf],
+        (num_shots - 1) * len(x0) * [np.inf],
+    )
+    bounds = (
+        state_bounds[0] + parameter_bounds[0],
+        state_bounds[1] + parameter_bounds[1],
+    )
+
+    def residuals(params):
+        x0s, model = unpack(params, treedef, x0s_shape)
+        xs_pred, ys_pred = jax.vmap(model)(x0s, t=ts0, u=us)
+        # output residual
+        res_y = ((ys - ys_pred) / std_y).reshape(-1)
+        res_y = res_y / np.sqrt(len(res_y))
+        # continuity residual
+        std_x = jnp.std(xs_pred, axis=(0, 1))
+        res_x0 = ((x0s[1:] - xs_pred[:-1, -1]) / std_x).reshape(-1)
+        res_x0 = res_x0 / np.sqrt(len(res_x0))
+        return jnp.concatenate((res_y, continuity_penalty * res_x0))
+
+    # compute primal and sensitivties in one forward pass
+    fun = MemoizeJac(jax.jit(lambda x: value_and_jacfwd(residuals, x)))
+    jac = fun.derivative
+    res = least_squares(
+        fun, init_params, bounds=bounds, jac=jac, x_scale="jac", **kwargs
+    )
+    x0s, model = unpack(res.x, treedef, x0s_shape)
+
+    if u is None:
+        return model, x0s, ts0
+    else:
+        return model, x0s, ts0, us
 
 
 def transfer_function(sys: DynamicalSystem, **kwargs):
