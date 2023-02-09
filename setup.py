@@ -33,6 +33,13 @@ setup(
         "equinox>=0.9",
     ],
     extras_require={
-        "dev": ["pytest", "coverage", "matplotlib", "sphinx", "sphinxcontrib-bibtex"]
+        "dev": [
+            "pytest",
+            "coverage",
+            "matplotlib",
+            "sphinx",
+            "sphinxcontrib-bibtex",
+            "sphinx_rtd_theme",
+        ]
     },
 )

@@ -4,7 +4,7 @@ import numpy as np
 import numpy.testing as npt
 from diffrax import Kvaerno5, PIDController
 from dynax import fit_least_squares, Flow
-from dynax.estimation import fit_csd_matching, transfer_function
+from dynax.estimation import fit_csd_matching, fit_multiple_shooting, transfer_function
 from dynax.example_models import LotkaVolterra, SpringMassDamper
 
 
@@ -60,6 +60,55 @@ def test_fit_with_bouded_parameters():
         LotkaVolterra(alpha=1.0, beta=1.0, gamma=1.5, delta=2.0), **solver_opt
     )
     pred_model = fit_least_squares(init_model, t, x_true, x0)
+    # check result
+    x_pred, _ = pred_model(x0, t)
+    npt.assert_allclose(x_pred, x_true, **tols)
+    npt.assert_allclose(
+        jax.tree_util.tree_flatten(pred_model)[0],
+        jax.tree_util.tree_flatten(true_model)[0],
+        **tols
+    )
+
+
+def test_fit_multiple_shooting_with_input():
+    # data
+    t = np.linspace(0, 1, 100)
+    u = np.sin(1 * 2 * np.pi * t)
+    x0 = [1.0, 0.0]
+    true_model = Flow(SpringMassDamper(1.0, 2.0, 3.0))
+    x_true, _ = true_model(x0, t, u)
+    # fit
+    init_model = Flow(SpringMassDamper(1.0, 1.0, 1.0))
+    pred_model = fit_multiple_shooting(
+        init_model, t, x_true, x0, u, continuity_penalty=2
+    )[0]
+    # check result
+    x_pred, _ = pred_model(x0, t, u)
+    npt.assert_allclose(x_pred, x_true, **tols)
+    npt.assert_allclose(
+        jax.tree_util.tree_flatten(pred_model)[0],
+        jax.tree_util.tree_flatten(true_model)[0],
+        **tols
+    )
+
+
+def test_fit_multiple_shooting_without_input():
+    tols = dict(rtol=1e-04, atol=1e-4)
+    # data
+    t = np.linspace(0, 1, 100)
+    x0 = [0.5, 0.5]
+    solver_opt = dict(step=PIDController(rtol=1e-5, atol=1e-7))
+    true_model = Flow(
+        LotkaVolterra(alpha=2 / 3, beta=4 / 3, gamma=1.0, delta=1.0), **solver_opt
+    )
+    x_true, _ = true_model(x0, t)
+    # fit
+    init_model = Flow(
+        LotkaVolterra(alpha=1.0, beta=1.0, gamma=1.5, delta=2.0), **solver_opt
+    )
+    pred_model = fit_multiple_shooting(
+        init_model, t, x_true, x0, num_shots=3, continuity_penalty=2
+    )[0]
     # check result
     x_pred, _ = pred_model(x0, t)
     npt.assert_allclose(x_pred, x_true, **tols)
