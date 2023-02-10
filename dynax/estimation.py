@@ -72,7 +72,7 @@ def fit_least_squares(
     y: Array,
     x0: Array,
     u: Optional[Array] = None,
-    batched = False,
+    batched: bool = False,
     **kwargs,
 ) -> Evolution:
     """Fit forward model with nonlinear least-squares.
@@ -103,12 +103,10 @@ def fit_least_squares(
         if u is not None:
             u = u[None]
 
-    std_y = np.std(y, axis=(0, 1))
-
     # use ravel instead of flatten as we also want to flatten all ndarrays
     init_params, unravel = ravel_pytree(model)
     bounds = _get_bounds(model)
-    std_y = np.std(y, axis=0)
+    std_y = np.std(y, axis=1, keepdims=True)
 
     def residuals(params):
         model = unravel(params)
