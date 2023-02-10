@@ -24,13 +24,13 @@ def test_fit_least_squares():
     u = np.sin(1 * 2 * np.pi * t)
     x0 = [1.0, 0.0]
     true_model = Flow(SpringMassDamper(1.0, 2.0, 3.0))
-    x_true, _ = true_model(x0, t, u)
+    _, y_true = true_model(x0, t, u)
     # fit
     init_model = Flow(SpringMassDamper(1.0, 1.0, 1.0))
-    pred_model = fit_least_squares(init_model, t, x_true, x0, u)
+    pred_model = fit_least_squares(init_model, t, y_true, x0, u)
     # check result
-    x_pred, _ = pred_model(x0, t, u)
-    npt.assert_allclose(x_pred, x_true, **tols)
+    _, y_pred = pred_model(x0, t, u)
+    npt.assert_allclose(y_pred, y_true, **tols)
     npt.assert_allclose(
         jax.tree_util.tree_flatten(pred_model)[0],
         jax.tree_util.tree_flatten(true_model)[0],
@@ -41,9 +41,13 @@ def test_fit_least_squares():
 def test_fit_least_squares_single_output():
     # data
     t = np.linspace(0, 2, 200)
-    u = np.sin(1 * 2 * np.pi * t)
+    u = (
+        np.sin(1 * 2 * np.pi * t)
+        + np.sin(0.1 * 2 * np.pi * t)
+        + np.sin(10 * 2 * np.pi * t)
+    )
     x0 = [1.0, 0.0]
-    true_model = Flow(NonlinearDrag(1.0, 1.0, 1.0, 1.0))
+    true_model = Flow(NonlinearDrag(1.0, 2.0, 3.0, 4.0))
     _, y_true = true_model(x0, t, u)
     # fit
     init_model = Flow(NonlinearDrag(1.0, 1.0, 1.0, 1.0))
@@ -51,6 +55,35 @@ def test_fit_least_squares_single_output():
     # check result
     _, y_pred = pred_model(x0, t, u)
     npt.assert_allclose(y_pred, y_true, **tols)
+    npt.assert_allclose(
+        jax.tree_util.tree_flatten(pred_model)[0],
+        jax.tree_util.tree_flatten(true_model)[0],
+        **tols
+    )
+
+
+def test_fit_least_squares_on_batch():
+    # data
+    t = np.linspace(0, 2, 200)
+    us = np.stack(
+        (
+            np.sin(1 * 2 * np.pi * t),
+            np.sin(0.1 * 2 * np.pi * t),
+            np.sin(10 * 2 * np.pi * t),
+        ),
+        axis=0,
+    )
+    x0 = np.array([1.0, 0.0])
+    x0s = np.repeat(x0[None], us.shape[0], axis=0)
+    ts = np.repeat(t[None], us.shape[0], axis=0)
+    true_model = Flow(NonlinearDrag(1.0, 2.0, 3.0, 4.0))
+    _, ys = jax.vmap(true_model)(x0s, ts, us)
+    # fit
+    init_model = Flow(NonlinearDrag(1.0, 1.0, 1.0, 1.0))
+    pred_model = fit_least_squares(init_model, ts, ys, x0s, us, batched=True)
+    # check result
+    _, ys_pred = jax.vmap(pred_model)(x0s, ts, us)
+    npt.assert_allclose(ys_pred, ys, **tols)
     npt.assert_allclose(
         jax.tree_util.tree_flatten(pred_model)[0],
         jax.tree_util.tree_flatten(true_model)[0],
