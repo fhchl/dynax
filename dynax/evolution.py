@@ -1,5 +1,5 @@
 from abc import abstractmethod
-from typing import Optional
+from typing import Optional, Union, Callable
 
 import diffrax as dfx
 import equinox as eqx
@@ -41,7 +41,7 @@ class Flow(AbstractEvolution):
         self,
         x0: ArrayLike,
         t: ArrayLike,
-        u: Optional[ArrayLike] = None,
+        u: Optional[Union[ArrayLike, Callable[[float], float]]] = None,
         ucoeffs: Optional[ArrayLike] = None,
         squeeze=True,
         **diffeqsolve_kwargs,

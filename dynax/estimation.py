@@ -14,8 +14,7 @@ from jaxtyping import Array
 from scipy.optimize import least_squares
 from scipy.optimize._optimize import MemoizeJac
 
-from .evolution import AbstractEvolution, Flow
-from .interpolation import InterpolationFunction, spline_it
+from .evolution import AbstractEvolution
 from .system import DynamicalSystem
 from .util import value_and_jacfwd
 
@@ -72,7 +71,8 @@ def fit_least_squares(
     t: Array,
     y: Array,
     x0: Array,
-    u: Union[Callable[[float], Array], Array, None] = None,
+    u: Optional[Array] = None,
+    batched = False,
     **kwargs,
 ) -> Evolution:
     """Fit forward model with nonlinear least-squares.
@@ -90,13 +90,20 @@ def fit_least_squares(
     """
     # these should be numpy arrays instead?
     t = jnp.asarray(t)
-    y = jnp.asarray(y).squeeze()
-    if (
-        isinstance(model, Flow)
-        and u is not None
-        and not isinstance(u, InterpolationFunction)
-    ):
-        u = spline_it(t, u)
+    y = jnp.asarray(y)
+    x0 = jnp.asarray(x0)
+    if u is not None:
+        u = jnp.asarray(u)
+
+    if not batched:
+        # add singleton batch dimension
+        t = t[None]
+        y = y[None]
+        x0 = x0[None]
+        if u is not None:
+            u = u[None]
+
+    std_y = np.std(y, axis=(0, 1))
 
     # use ravel instead of flatten as we also want to flatten all ndarrays
     init_params, unravel = ravel_pytree(model)
@@ -105,7 +112,7 @@ def fit_least_squares(
 
     def residuals(params):
         model = unravel(params)
-        _, pred_y = model(x0, t=t, u=u)
+        _, pred_y = jax.vmap(model)(x0, t=t, u=u)
         res = ((y - pred_y) / std_y).reshape(-1)
         return res / np.sqrt(len(res))
 
