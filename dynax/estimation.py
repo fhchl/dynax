@@ -1,7 +1,7 @@
 """Functions for estimating parameters of dynamical systems."""
 
 from dataclasses import field, fields
-from typing import Callable, Optional, Tuple, TypeVar
+from typing import Callable, Tuple, TypeVar
 
 import jax
 import jax.numpy as jnp
@@ -19,7 +19,7 @@ from .util import value_and_jacfwd
 
 
 def boxed_field(lower: float, upper: float, **kwargs):
-    """Mark a dataclass field as having a box-constrained value."""
+    """Mark a parameter as box-constrained."""
     try:
         metadata = dict(kwargs["metadata"])
     except KeyError:
@@ -31,7 +31,7 @@ def boxed_field(lower: float, upper: float, **kwargs):
 
 
 def non_negative_field(min_val=0.0, **kwargs):
-    """Mark a dataclass field as having a non-negative value."""
+    """Mark a parameter as non-negative."""
     return boxed_field(lower=min_val, upper=np.inf, **kwargs)
 
 
@@ -47,7 +47,7 @@ def _append_flattend(a, b):
 # TODO: In the best case, this function should return PyTrees of the same form
 #       as `self`. Right now however, the function is NOT recursive, so won't
 #       work on e.g. ForwardModel.
-def build_bounds(self: DynamicalSystem) -> Tuple[PyTree, PyTree]:
+def _build_bounds(self: DynamicalSystem) -> Tuple[PyTree, PyTree]:
     """Build PyTrees of lower and upper bounds."""
     lower_bounds = []
     upper_bounds = []
@@ -80,25 +80,30 @@ def build_bounds(self: DynamicalSystem) -> Tuple[PyTree, PyTree]:
     )
 
 
-def fit_ml(*args, **kwargs):
-    import warnings
-
-    warnings.warn("fit_ml is depiciated. Use fit_least_squares instead.")
-    return fit_least_squares(*args, **kwargs)
-
-
 Evolution = TypeVar("Evolution", bound=AbstractEvolution)
 
 
 def fit_least_squares(
-    model: Evolution,
+    model: AbstractEvolution,
     t: Array,
     y: Array,
     x0: Array,
-    u: Optional[Callable[[float], Array] | Array] = None,
+    u: Callable[[float], Array] | Array | None = None,
     **kwargs,
 ) -> Evolution:
-    """Fit forward model with nonlinear least-squares."""
+    """Fit forward model with nonlinear least-squares.
+
+    Args:
+        model: the forward model to fit
+        t: times at which `y` is given
+        y: target outputs of system
+        x0: initial state
+        u: a function that computes the input signal or an array input samples
+            at times `t`
+        kwargs: optional parameters for `scipy.optimize.least_squares`
+    Returns:
+        A copy of `model` with the fitted parameters.
+    """
     t = jnp.asarray(t)
     y = jnp.asarray(y)
     if (
@@ -113,7 +118,7 @@ def fit_least_squares(
     # Same problem appears for the bounds.
     init_params, treedef = tree_flatten(model)
     std_y = np.std(y, axis=0)
-    bounds = tuple(map(lambda x: tree_flatten(x)[0], build_bounds(model.system)))
+    bounds = tuple(map(lambda x: tree_flatten(x)[0], _build_bounds(model.system)))
 
     def residuals(params):
         model = treedef.unflatten(params)
@@ -147,11 +152,29 @@ def fit_multiple_shooting(
     t: Array,
     y: Array,
     x0: Array,
-    u: Optional[Callable[[float], Array] | Array] = None,
+    u: Callable[[float], Array] | Array | None = None,
     num_shots: int = 1,
-    continuity_penalty: float = 0,
+    continuity_penalty: float = 0.0,
     **kwargs,
-) -> Tuple[AbstractEvolution, Array, Array, Array]:
+):
+    """Fit forward model with multiple shooting and nonlinear least-squares.
+
+    Args:
+        model: the forward model to fit
+        t: times at which `y` is given
+        y: target outputs of system
+        x0: initial state
+        u: a function that computes the input signal or an array input samples
+            at times `t`
+        num_shots: number of shots the training problem is divided into
+        continuity_penalty: weights the penalty for discontinuities of the
+            solution along shot boundaries
+        kwargs: optional parameters for `scipy.optimize.least_squares`
+    Returns:
+        If `u` is `None`, returns a tuple `(model, x0s, ts0)`, where `model` is
+        the model with fitten parameters, `x0s` is an array of initial states
+        for each shot, and `ts0`
+    """
     t = jnp.asarray(t)
     y = jnp.asarray(y)
     x0 = jnp.asarray(x0)
@@ -213,7 +236,7 @@ def fit_multiple_shooting(
     init_params, treedef, x0s_shape = pack(x0s, model)
     std_y = np.std(y, axis=0)
     parameter_bounds = tuple(
-        map(lambda x: tree_flatten(x)[0], build_bounds(model.system))
+        map(lambda x: tree_flatten(x)[0], _build_bounds(model.system))
     )
     state_bounds = (
         (num_shots - 1) * len(x0) * [-np.inf],
@@ -293,7 +316,7 @@ def fit_csd_matching(
             )
         )
 
-    bounds = tuple(map(lambda x: tree_flatten(x)[0], build_bounds(sys)))
+    bounds = tuple(map(lambda x: tree_flatten(x)[0], _build_bounds(sys)))
     fun = MemoizeJac(jax.jit(lambda x: value_and_jacfwd(residuals, x)))
     jac = fun.derivative
     res = least_squares(fun, x0, jac=jac, x_scale="jac", bounds=bounds, **kwargs)

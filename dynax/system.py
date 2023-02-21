@@ -12,19 +12,17 @@ from jaxtyping import Array, Float
 from .util import ssmatrix
 
 
-def _linearize(f, h, x0, u0):
+def _linearize(f, h, x0, u0, t):
     """Linearize dx=f(x,u), y=h(x,u) around x0, u0."""
-    A = jax.jacfwd(f, argnums=0)(x0, u0)
-    B = jax.jacfwd(f, argnums=1)(x0, u0)
-    C = jax.jacfwd(h, argnums=0)(x0, u0)
-    D = jax.jacfwd(h, argnums=1)(x0, u0)
+    A = jax.jacfwd(f, argnums=0)(x0, u0, t)
+    B = jax.jacfwd(f, argnums=1)(x0, u0, t)
+    C = jax.jacfwd(h, argnums=0)(x0, u0, t)
+    D = jax.jacfwd(h, argnums=1)(x0, u0, t)
     return A, B, C, D
 
 
 class DynamicalSystem(eqx.Module):
     r"""A continous-time dynamical system.
-
-    Represents a differential equation system with output of the form:
 
     .. math::
 
@@ -53,13 +51,13 @@ class DynamicalSystem(eqx.Module):
         """Compute output."""
         return x
 
-    def linearize(self, x0=None, u0=None, t=None):
+    def linearize(self, x0=None, u0=None, t=None) -> "LinearSystem":
         """Compute the approximate linearized system around a point."""
         if x0 is None:
             x0 = np.zeros(self.n_states)
         if u0 is None:
             u0 = np.zeros(self.n_inputs)
-        A, B, C, D = _linearize(self.vector_field, self.output, x0, u0)
+        A, B, C, D = _linearize(self.vector_field, self.output, x0, u0, t)
         # jax creates empty arrays
         if B.size == 0:
             B = np.zeros((self.n_states, self.n_inputs))
@@ -129,8 +127,6 @@ class DynamicalSystem(eqx.Module):
 class LinearSystem(DynamicalSystem):
     r"""A linear, time-invariant dynamical system.
 
-    Represents a linear ODE system with output of the form:
-
     .. math::
 
         ẋ &= Ax + Bu \\
@@ -148,7 +144,12 @@ class LinearSystem(DynamicalSystem):
     C: jnp.ndarray
     D: jnp.ndarray
 
-    def __init__(self, A, B, C, D):
+    def __init__(self, A: Array, B: Array, C: Array, D: Array):
+        """
+        Args:
+            A, B, C, D: system matrices of proper dimensions
+
+        """
         A = ssmatrix(A)
         C = ssmatrix(C)
         B = ssmatrix(B)
@@ -185,7 +186,7 @@ class LinearSystem(DynamicalSystem):
 
 
 class ControlAffine(DynamicalSystem):
-    """A control-affine dynamical system.
+    r"""A control-affine dynamical system.
 
     .. math::
 
@@ -220,7 +221,13 @@ class SeriesSystem(DynamicalSystem):
     _sys1: DynamicalSystem
     _sys2: DynamicalSystem
 
-    def __init__(self, sys1, sys2):
+    def __init__(self, sys1: DynamicalSystem, sys2: DynamicalSystem):
+        """
+        Args:
+            sys1: system with n outputs
+            sys2: system with n inputs
+        """
+        assert sys1.n_outputs == sys2.n_inputs, "in- and outputs don't match"
         self._sys1 = sys1
         self._sys2 = sys2
         self.n_states = sys1.n_states + sys2.n_states
@@ -245,71 +252,107 @@ class SeriesSystem(DynamicalSystem):
 class FeedbackSystem(DynamicalSystem):
     """Two systems connected via feedback."""
 
-    _sys1: DynamicalSystem
-    _sys2: DynamicalSystem
+    _sys: DynamicalSystem
+    _fbsys: DynamicalSystem
 
-    def __init__(self, sys1, sys2):
-        """sys1.output must not depend on input."""
-        self._sys1 = sys1
-        self._sys2 = sys2
-        self.n_states = sys1.n_states + sys2.n_states
-        self.n_inputs = sys1.n_inputs
+    def __init__(self, sys: DynamicalSystem, fbsys: DynamicalSystem):
+        """
+        Args:
+            sys: system in forward path
+            fbsys: system in feedback path
+
+        """
+        self._sys = sys
+        self._fbsys = fbsys
+        self.n_states = sys.n_states + fbsys.n_states
+        self.n_inputs = sys.n_inputs
 
     def vector_field(self, x, u=None, t=None):
         if u is None:
-            u = np.zeros(self._sys1.n_inputs)
-        x1 = x[: self._sys1.n_states]
-        x2 = x[self._sys1.n_states :]
-        y1 = self._sys1.output(x1, None, t)
-        y2 = self._sys2.output(x2, y1, t)
-        dx1 = self._sys1.vector_field(x1, u + y2, t)
-        dx2 = self._sys2.vector_field(x2, y1, t)
+            u = np.zeros(self._sys.n_inputs)
+        x1 = x[: self._sys.n_states]
+        x2 = x[self._sys.n_states :]
+        y1 = self._sys.output(x1, None, t)
+        y2 = self._fbsys.output(x2, y1, t)
+        dx1 = self._sys.vector_field(x1, u + y2, t)
+        dx2 = self._fbsys.vector_field(x2, y1, t)
         dx = jnp.concatenate((jnp.atleast_1d(dx1), jnp.atleast_1d(dx2)))
         return dx
 
     def output(self, x, u=None, t=None):
-        x1 = x[: self._sys1.n_states]
-        y = self._sys1.output(x1, None, t)
+        x1 = x[: self._sys.n_states]
+        y = self._sys.output(x1, None, t)
         return y
 
 
 class StaticStateFeedbackSystem(DynamicalSystem):
-    """System with static state-feedback law."""
+    r"""System with static state-feedback.
+
+    .. math::
+
+        ẋ &= f(x, v(x, u), t) \\
+        y &= h(x, u, t)
+
+    """
 
     _sys: DynamicalSystem
     _feedbacklaw: Callable
 
-    def __init__(self, sys, law):
-        """sys1.output must not depend on input."""
+    def __init__(self, sys: DynamicalSystem, v: Callable[[Array, Array], Array]):
+        """
+        Args:
+            sys: system with vector field `f` and output `h`
+            v: static feedback law `v`
+
+        """
         self._sys = sys
-        self._feedbacklaw = staticmethod(law)
+        self._feedbacklaw = staticmethod(v)
         self.n_states = sys.n_states
         self.n_inputs = sys.n_inputs
 
     def vector_field(self, x, u=None, t=None):
         if u is None:
             u = np.zeros(self._sys.n_inputs)
-        v = self._feedbacklaw(x, u)  # NOTE: how to extract the modified input v?
+        v = self._feedbacklaw(x, u)
         dx = self._sys.vector_field(x, v, t)
         return dx
 
     def output(self, x, u=None, t=None):
-        y = self._sys.output(x, None, t)
+        y = self._sys.output(x, u, t)
         return y
 
 
 class DynamicStateFeedbackSystem(DynamicalSystem):
-    """System with dynamic state-feedback law $u(x, z, r)$."""
+    r"""System with dynamic state-feedback.
+
+    .. math::
+
+        ẋ &= f_1(x, v(x, z, u), t) \\
+        ż &= f_2(z, r, t) \\
+        y &= h(x, u, t)
+
+    """
 
     _sys: DynamicalSystem
     _sys2: DynamicalSystem
     _feedbacklaw: Callable[[Array, Array, Float], Float]
 
-    def __init__(self, sys, sys2, law):
-        """Feedback u(x, z, r)"""
+    def __init__(
+        self,
+        sys: DynamicalSystem,
+        sys2: DynamicalSystem,
+        v: Callable[[Array, Array, Array], Array],
+    ):
+        r"""
+        Args:
+            sys: system with vector field :math:`f_1` and output :math:`h`
+            sys2: system with vector field :math:`f_2`
+            v: dynamic feedback law :math:`v`
+
+        """
         self._sys = sys
         self._sys2 = sys2
-        self._feedbacklaw = staticmethod(law)
+        self._feedbacklaw = staticmethod(v)
         self.n_states = sys.n_states + sys2.n_states
         self.n_inputs = sys.n_inputs
         self.n_outputs = sys.n_outputs
