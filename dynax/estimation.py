@@ -41,12 +41,12 @@ def _append_flattend(a, b):
     elif isinstance(b, float):
         a.append(b)
     else:
-        raise ValueError
+        raise ValueError(f"b is neither list, tuple, nor float but {type(b)}")
 
 
 # TODO: In the best case, this function should return PyTrees of the same form
 #       as `self`. Right now however, the function is NOT recursive, so won't
-#       work on e.g. ForwardModel.
+#       work on e.g. Flow.
 def _build_bounds(self: DynamicalSystem) -> Tuple[PyTree, PyTree]:
     """Build PyTrees of lower and upper bounds."""
     lower_bounds = []
