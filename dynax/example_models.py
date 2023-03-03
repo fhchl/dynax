@@ -164,54 +164,28 @@ class PolyNonLinSLSL2R2GenCunLiDyn(ControlAffine):
     out: List[int] = static_field(default_factory=lambda: [1])
 
     def __init__(self, out=[1]):
-        self.Bl = 3.293860219666026
-        self.Re = 6.951042909533158
-        self.Rm = 0.7237227039672062
-        self.K = 1927.6900850359816
-        self.L = 3.0198137447786782e-05
-        self.M = 0.0026736262193096066
-        self.L20 = 0.0002482116897900503
-        self.R20 = 2.5460367443216683
-        self.K2 = 205.3268589910077
-        self.K2divR2 = 192.45813523048824
-        self.Bln = [
-            -1534976847.641551,
-            3086545.3414503504,
-            -103586.95986556074,
-            53.36132745159803,
+        self.Bl = 1.0
+        self.Re = 1.0
+        self.Rm = 1.0
+        self.K = 1e3
+        self.L = 1e-3
+        self.M = 1e-3
+        self.L20 = 1e-3
+        self.R20 = 1
+        self.K2 = 1e3
+        self.K2divR2 = 1e3
+        self.Bln = [0.0, 0.0, 0.0, 0.0]
+        self.Kn = [0.0, 0.0, 0.0, 0.0]
+        self.Ln = [0.0, 0.0, 0.0, 0.0]
+        self.Li = [
+            0.0,
+            0.0,
         ]
-        self.Kn = [
-            3226388093843.6885,
-            -431643235.42306566,
-            -19460708.731581513,
-            -16921.87605383064,
-        ]
-        self.Ln = [
-            29040.803548406657,
-            -194.6354429605707,
-            0.39969456055741825,
-            -0.0003743634072813242,
-        ]
-        self.Li = [0.000995183661999823, 0.0010163108959166816]
         self.out = out
         self.n_outputs = len(out)
 
     def __post_init__(self):
         super().__init__()
-
-    def tf(self, f):
-        tree, treedef = tree_flatten(self)
-        Bl, Re, Rm, K, L, M, L2, R2, K2, K2divR2 = tree[:10]
-        Rm2 = K2 / K2divR2
-        s = 1j * 2 * jnp.pi * f
-        sZm = (
-            s**2 * M + Rm * s + K + s * Rm2 * K2 / (K2 + s * Rm2)
-        )  # derivative of mech. impedance
-        Ze = Re + s * L + R2 * L2 * s / (R2 + L2 * s)  # electrical impedance
-        D = Bl / (sZm * Ze + Bl**2 * s)
-        V = s * D
-        I = (1 - Bl * s * D) / Ze  # noqa: E741
-        return jnp.stack((I, D, V), axis=-1)
 
     def _Bl(self, d):
         """Displacement dependend force-factor."""
@@ -245,14 +219,15 @@ class PolyNonLinSLSL2R2GenCunLiDyn(ControlAffine):
         L2_d = L20 * L_d / L0
         L2_i = L20 * L_i / L0
         # standard linear solid
-        # NOTE: how to scale these parameters? Like L2R2?
         K2 = self.K2
         K2divR2 = self.K2divR2  # K₂/R₂
         # state evolution
         di = (-(Re + R2) * i + R2 * i2 - (Bl + L_d * i) * v) / (L + i * L_i)
         dd = v
         dv = ((Bl + 0.5 * (L_d * i + L2_d * i2)) * i - Rm * v - K * d - K2 * d2) / M
-        di2 = (R2 * (i - i2) - L2_d * i2 * v) / (L2 + i * L2_i)
+        # di2 = (R2 * (i - i2) - L2_d * i2 * v) / (L2 + i * L2_i)
+        # FIXME: above should be
+        di2 = (R2 * (i - i2) - i2 * (L2_d * v + L2_i * di)) / L2
         dd2 = v - K2divR2 * d2  # ẋ₂  = ẋ - K₂/R₂ ẋ
         return jnp.array([di, dd, dv, di2, dd2])
 
