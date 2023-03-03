@@ -1,14 +1,15 @@
 """Functions for estimating parameters of dynamical systems."""
 
 from dataclasses import field, fields
-from typing import Callable, Tuple, TypeVar
+from typing import Callable, TypeVar
 
+import equinox as eqx
 import jax
 import jax.numpy as jnp
 import numpy as np
 import scipy.signal as sig
-from jax.tree_util import tree_flatten, tree_map, tree_structure
-from jaxtyping import Array, PyTree
+from jax.flatten_util import ravel_pytree
+from jaxtyping import Array
 from scipy.optimize import least_squares
 from scipy.optimize._optimize import MemoizeJac
 
@@ -30,54 +31,36 @@ def boxed_field(lower: float, upper: float, **kwargs):
     return field(**kwargs)
 
 
-def non_negative_field(min_val=0.0, **kwargs):
+def non_negative_field(min_val: float = 0.0, **kwargs):
     """Mark a parameter as non-negative."""
     return boxed_field(lower=min_val, upper=np.inf, **kwargs)
 
 
-def _append_flattend(a, b):
-    if isinstance(b, (list, tuple)):
-        a += b
-    elif isinstance(b, float):
-        a.append(b)
-    else:
-        raise ValueError(f"b is neither list, tuple, nor float but {type(b)}")
-
-
-# TODO: In the best case, this function should return PyTrees of the same form
-#       as `self`. Right now however, the function is NOT recursive, so won't
-#       work on e.g. Flow.
-def _build_bounds(self: DynamicalSystem) -> Tuple[PyTree, PyTree]:
-    """Build PyTrees of lower and upper bounds."""
+def _get_bounds(module: eqx.Module) -> tuple[list, list]:
+    """Build flattened lists of lower and upper bounds."""
     lower_bounds = []
     upper_bounds = []
-    for field_ in fields(self):
+    for field_ in fields(module):
         name = field_.name
-        try:
-            value = self.__dict__[name]
-        except KeyError:
+        value = module.__dict__.get(name, None)
+        if value is None:
             continue
-        # static parameters have no bounds
-        if field_.metadata.get("static", False):
+        elif field_.metadata.get("static", False):
             continue
-        # dynamic value has bounds
-        elif bound := field_.metadata.get("constrained", False):
-            kind, aux = bound
-            if kind == "boxed":
-                lower, upper = aux
-                _append_flattend(lower_bounds, tree_map(lambda _: lower, value))
-                _append_flattend(upper_bounds, tree_map(lambda _: upper, value))
-            else:
-                raise ValueError("Unknown bound type {kind}.")
-        # dynamic value is unbounded
+        elif isinstance(value, eqx.Module):
+            lbs, ubs = _get_bounds(value)
+            lower_bounds.extend(lbs)
+            upper_bounds.extend(ubs)
+        elif constraint := field_.metadata.get("constrained", False):
+            _, (lb, ub) = constraint
+            size = np.asarray(value).size
+            lower_bounds.extend([lb] * size)
+            upper_bounds.extend([ub] * size)
         else:
-            _append_flattend(lower_bounds, tree_map(lambda _: -np.inf, value))
-            _append_flattend(upper_bounds, tree_map(lambda _: np.inf, value))
-    treedef = tree_structure(self)
-    return (
-        treedef.unflatten(tuple(lower_bounds)),
-        treedef.unflatten(tuple(upper_bounds)),
-    )
+            size = np.asarray(value).size
+            lower_bounds.extend([-np.inf] * size)
+            upper_bounds.extend([np.inf] * size)
+    return lower_bounds, upper_bounds
 
 
 Evolution = TypeVar("Evolution", bound=AbstractEvolution)
@@ -113,15 +96,13 @@ def fit_least_squares(
     ):
         u = spline_it(t, u)
 
-    # TODO: if model or any sub tree has some ndarray leaves, this does not
-    # completely flatten the arrays. But a flat array is needed for `least_squares`.
-    # Same problem appears for the bounds.
-    init_params, treedef = tree_flatten(model)
+    # use ravel instead of flatten as we also want to flatten all ndarrays
+    init_params, unravel = ravel_pytree(model)
+    bounds = _get_bounds(model)
     std_y = np.std(y, axis=0)
-    bounds = tuple(map(lambda x: tree_flatten(x)[0], _build_bounds(model.system)))
 
     def residuals(params):
-        model = treedef.unflatten(params)
+        model = unravel(params)
         _, pred_y = model(x0, t=t, u=u)
         res = ((y - pred_y) / std_y).reshape(-1)
         return res / np.sqrt(len(res))
@@ -129,16 +110,11 @@ def fit_least_squares(
     # compute primal and sensitivties in one forward pass
     fun = MemoizeJac(jax.jit(lambda x: value_and_jacfwd(residuals, x)))
     jac = fun.derivative
-    # use instead:
-    # - https://lmfit.github.io/lmfit-py/index.html
-    # - https://github.com/dipolar-quantum-gases/jaxfit
-    # - scipy.optimize.curve_fit
-    # jaxfit and curvefit have an annoying API
     res = least_squares(
         fun, init_params, bounds=bounds, jac=jac, x_scale="jac", **kwargs
     )
     params = res.x
-    return treedef.unflatten(params)
+    return unravel(params)
 
 
 def _moving_window(a: jnp.ndarray, size: int, stride: int):
@@ -222,11 +198,11 @@ def fit_multiple_shooting(
         # remove initial condition which is fixed not a parameter
         x0s = x0s[1:]
         x0s_shape = x0s.shape
-        flat, treedef = tree_flatten((x0s.flatten().tolist(), model))
-        return flat, treedef, x0s_shape
+        flat, unravel = ravel_pytree((x0s.flatten().tolist(), model))
+        return flat, unravel, x0s_shape
 
-    def unpack(flat, treedef, x0s_shape):
-        x0s_list, model = treedef.unflatten(flat)
+    def unpack(flat, unravel, x0s_shape):
+        x0s_list, model = unravel(flat)
         x0s = jnp.array(x0s_list).reshape(x0s_shape)
         # add initial condition
         x0s = jnp.concatenate((x0[None], x0s), axis=0)
@@ -235,9 +211,7 @@ def fit_multiple_shooting(
     # prepare optimization
     init_params, treedef, x0s_shape = pack(x0s, model)
     std_y = np.std(y, axis=0)
-    parameter_bounds = tuple(
-        map(lambda x: tree_flatten(x)[0], _build_bounds(model.system))
-    )
+    parameter_bounds = _get_bounds(model)
     state_bounds = (
         (num_shots - 1) * len(x0) * [-np.inf],
         (num_shots - 1) * len(x0) * [np.inf],
@@ -299,10 +273,10 @@ def fit_csd_matching(
     f, S_yu = sig.csd(u[:, None, :], y[:, :, None], fs=sr, nperseg=nperseg, axis=0)
     s = 2 * np.pi * f * 1j
     weight = np.std(S_yu, axis=0) * np.sqrt(len(f))
-    x0, treedef = jax.tree_util.tree_flatten(sys)
+    x0, unravel = ravel_pytree(sys)
 
     def residuals(params):
-        sys = treedef.unflatten(params)
+        sys = unravel(params)
         H = transfer_function(sys)
         hatG_yx = jax.vmap(H)(s)
         hatS_yu = hatG_yx * S_uu
@@ -316,11 +290,11 @@ def fit_csd_matching(
             )
         )
 
-    bounds = tuple(map(lambda x: tree_flatten(x)[0], _build_bounds(sys)))
+    bounds = _get_bounds(sys)
     fun = MemoizeJac(jax.jit(lambda x: value_and_jacfwd(residuals, x)))
     jac = fun.derivative
     res = least_squares(fun, x0, jac=jac, x_scale="jac", bounds=bounds, **kwargs)
-    fitted_sys = treedef.unflatten(res.x.tolist())
+    fitted_sys = unravel(res.x)
     if ret_Syx:
         H = transfer_function(fitted_sys)
         hatS_yu = jax.vmap(H)(s) * S_uu
