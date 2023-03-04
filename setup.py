@@ -26,11 +26,12 @@ setup(
     python_requires=">=3.9",
     install_requires=[
         "numpy>=1.20",
-        "jax>=0.3.24",
-        "jaxlib>=0.3.24",
+        "scipy>=1.9",
+        "jax>=0.3,<0.4",
+        "jaxlib>=0.3,<0.4",
+        "diffrax>=0.2,<0.3",
+        "equinox>=0.9,<0.10",
         "jaxtyping>=0.2",
-        "diffrax>=0.2",
-        "equinox>=0.9",
     ],
     extras_require={
         "dev": [
