@@ -10,6 +10,13 @@ from .interpolation import spline_it
 from .system import DynamicalSystem
 
 
+try:
+    # removed in diffrax v0.3
+    DefaultAdjoint = dfx.NoAdjoint
+except AttributeError:
+    DefaultAdjoint = dfx.RecursiveCheckpointAdjoint
+
+
 class AbstractEvolution(eqx.Module):
     """Abstract base-class for evolutions."""
 
@@ -53,7 +60,7 @@ class Flow(AbstractEvolution):
             stepsize_controller=self.step,
             saveat=dfx.SaveAt(ts=t),
             max_steps=50 * len(t),
-            adjoint=dfx.NoAdjoint(),
+            adjoint=DefaultAdjoint(),
             dt0=self.dt0 if self.dt0 is not None else t[1],
         )
         diffeqsolve_default_options |= diffeqsolve_kwargs
