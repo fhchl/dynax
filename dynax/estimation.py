@@ -1,7 +1,7 @@
 """Functions for estimating parameters of dynamical systems."""
 
 from dataclasses import field, fields
-from typing import Callable, TypeVar
+from typing import Callable, Optional, TypeVar, Union
 
 import equinox as eqx
 import jax
@@ -71,7 +71,7 @@ def fit_least_squares(
     t: Array,
     y: Array,
     x0: Array,
-    u: Callable[[float], Array] | Array | None = None,
+    u: Union[Callable[[float], Array], Array, None] = None,
     **kwargs,
 ) -> Evolution:
     """Fit forward model with nonlinear least-squares.
@@ -128,7 +128,7 @@ def fit_multiple_shooting(
     t: Array,
     y: Array,
     x0: Array,
-    u: Callable[[float], Array] | Array | None = None,
+    u: Optional[Union[Callable[[float], Array], Array]] = None,
     num_shots: int = 1,
     continuity_penalty: float = 0.0,
     **kwargs,
