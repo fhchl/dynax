@@ -3,6 +3,7 @@
 from dataclasses import field, fields
 from typing import Callable, Optional, TypeVar, Union
 
+import diffrax as dfx
 import equinox as eqx
 import jax
 import jax.numpy as jnp
@@ -183,13 +184,15 @@ def fit_multiple_shooting(
     # Divide signals into segments.
     ts = _moving_window(t, num_samples_per_segment, num_samples_per_segment - 1)
     ys = _moving_window(y, num_samples_per_segment, num_samples_per_segment - 1)
-    us = None
     x0s = np.broadcast_to(x0, (num_shots, len(x0))).copy()
     x0s = np.concatenate((x0[None], np.zeros((num_shots - 1, len(x0)))))
 
+    ucoeffs = None
     if u is not None:
-        u = u[:num_samples]
-        us = _moving_window(u, num_samples_per_segment, num_samples_per_segment - 1)
+        us = u[:num_samples]
+        us = _moving_window(us, num_samples_per_segment, num_samples_per_segment - 1)
+        compute_coeffs = lambda t, u: jnp.stack(dfx.backward_hermite_coefficients(t, u))
+        ucoeffs = jax.vmap(compute_coeffs)(ts, us)
 
     # Each segment's time starts at 0.
     ts0 = ts - ts[:, :1]
@@ -223,7 +226,22 @@ def fit_multiple_shooting(
 
     def residuals(params):
         x0s, model = unpack(params, treedef, x0s_shape)
-        xs_pred, ys_pred = jax.vmap(model)(x0s, t=ts0, u=us)
+        # TODO: for dfx.NoAdjoint using diffrax<v0.3 computing jacobians through
+        # vmap is very slow.
+        # pmap needs exact number of devices:
+        # xs_pred, ys_pred = jax.pmap(model)(x0s, t=ts0, ucoeffs=ucoeffs)
+        # vmap is slow:
+        xs_pred, ys_pred = jax.vmap(model)(x0s, t=ts0, ucoeffs=ucoeffs)
+        # xmap needs axies names and seems complicated:
+        # in_axes = [['shots', ...], ['shots', ...], ['shots', ...]]
+        # out_axes = ['shots', ...]
+        # m = lambda x, t, u: model(x, t=t, ucoeffs=u)
+        # xs_pred, ys_pred = xmap(m, in_axes=in_axes, out_axes=[...])(x0s, ts0, ucoeffs)
+        # just use serial map:
+        # m = lambda x, t, u: model(x, t=t, ucoeffs=u)
+        # xs_pred, ys_pred = zip(*list(map(m, x0s, ts0, ucoeffs)))
+        # xs_pred = jnp.stack(xs_pred)
+        # ys_pred = jnp.stack(ys_pred)
         # output residual
         res_y = ((ys - ys_pred) / std_y).reshape(-1)
         res_y = res_y / np.sqrt(len(res_y))
@@ -242,9 +260,9 @@ def fit_multiple_shooting(
     x0s, model = unpack(res.x, treedef, x0s_shape)
 
     if u is None:
-        return model, x0s, ts0
+        return model, x0s, ts, ts0
     else:
-        return model, x0s, ts0, us
+        return model, x0s, ts, ts0, us
 
 
 def transfer_function(sys: DynamicalSystem, **kwargs):

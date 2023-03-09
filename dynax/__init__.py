@@ -2,7 +2,7 @@
 import jax as _jax
 
 from .derivative import lie_derivative
-from .estimation import fit_csd_matching, fit_least_squares
+from .estimation import fit_csd_matching, fit_least_squares, fit_multiple_shooting
 from .evolution import Flow, Map
 from .interpolation import spline_it
 from .system import (

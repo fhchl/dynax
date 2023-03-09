@@ -15,7 +15,7 @@ from dynax.example_models import LotkaVolterra, SpringMassDamper
 from jax.flatten_util import ravel_pytree
 
 
-tols = dict(rtol=1e-05, atol=1e-08)
+tols = dict(rtol=1e-05, atol=1e-06)
 
 
 def test_fit_least_squares():
@@ -116,10 +116,11 @@ def test_fit_with_bounded_parameters_and_ndarrays():
     )
 
 
-@pytest.mark.skip(reason="Currently never holds")
-def test_fit_multiple_shooting_with_input():
+@pytest.mark.parametrize("num_shots", [1, 2, 3])
+def test_fit_multiple_shooting_with_input(num_shots):
     # data
-    t = np.linspace(0, 1, 96000)
+    # TODO: test this with 100000 points when upgrading to diffrax > v0.2
+    t = np.linspace(0, 10, 960)
     u = np.sin(1 * 2 * np.pi * t)
     x0 = [1.0, 0.0]
     true_model = Flow(SpringMassDamper(1.0, 2.0, 3.0))
@@ -127,7 +128,14 @@ def test_fit_multiple_shooting_with_input():
     # fit
     init_model = Flow(SpringMassDamper(1.0, 1.0, 1.0))
     pred_model = fit_multiple_shooting(
-        init_model, t, x_true, x0, u, continuity_penalty=2
+        init_model,
+        t,
+        x_true,
+        x0,
+        u,
+        continuity_penalty=2,
+        num_shots=num_shots,
+        verbose=2,
     )[0]
     # check result
     x_pred, _ = pred_model(x0, t, u)
@@ -139,7 +147,8 @@ def test_fit_multiple_shooting_with_input():
     )
 
 
-def test_fit_multiple_shooting_without_input():
+@pytest.mark.parametrize("num_shots", [1, 2, 3])
+def test_fit_multiple_shooting_without_input(num_shots):
     tols = dict(rtol=1e-04, atol=1e-4)
     # data
     t = np.linspace(0, 1, 96000)
@@ -154,7 +163,7 @@ def test_fit_multiple_shooting_without_input():
         LotkaVolterra(alpha=1.0, beta=1.0, gamma=1.5, delta=2.0), **solver_opt
     )
     pred_model = fit_multiple_shooting(
-        init_model, t, x_true, x0, num_shots=3, continuity_penalty=2
+        init_model, t, x_true, x0, num_shots=num_shots, continuity_penalty=2
     )[0]
     # check result
     x_pred, _ = pred_model(x0, t)
