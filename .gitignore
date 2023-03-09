@@ -7,3 +7,4 @@ htmlcov
 build
 docs/_build
 docs/generated
+*.pytest_cache

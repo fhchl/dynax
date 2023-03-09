@@ -1,20 +1,22 @@
 from abc import abstractmethod
+from typing import Optional
 
 import diffrax as dfx
 import equinox as eqx
 import jax
 import jax.numpy as jnp
 import numpy as np
+from numpy.typing import ArrayLike
 
 from .interpolation import spline_it
 from .system import DynamicalSystem
 
 
 try:
-    # removed in diffrax v0.3
+    # TODO: remove when upgrading to diffrax > v0.2
     DefaultAdjoint = dfx.NoAdjoint
 except AttributeError:
-    DefaultAdjoint = dfx.RecursiveCheckpointAdjoint
+    DefaultAdjoint = dfx.DirectAdjoint
 
 
 class AbstractEvolution(eqx.Module):
@@ -29,31 +31,38 @@ class Flow(AbstractEvolution):
     """Evolution function for continous-time dynamical system."""
 
     system: DynamicalSystem
-    solver: dfx.AbstractAdaptiveSolver = eqx.static_field()
-    step: dfx.AbstractStepSizeController = eqx.static_field()
-    dt0: float = eqx.static_field()
+    solver: dfx.AbstractAdaptiveSolver = eqx.static_field(default_factory=dfx.Dopri5)
+    step: dfx.AbstractStepSizeController = eqx.static_field(
+        default_factory=dfx.ConstantStepSize
+    )
+    dt0: Optional[float] = eqx.static_field(default=None)
 
-    def __init__(
-        self, system, solver=dfx.Dopri5(), step=dfx.ConstantStepSize(), dt0=None
+    def __call__(
+        self,
+        x0: ArrayLike,
+        t: ArrayLike,
+        u: Optional[ArrayLike] = None,
+        ucoeffs: Optional[ArrayLike] = None,
+        squeeze=True,
+        **diffeqsolve_kwargs,
     ):
-        self.system = system
-        self.solver = solver
-        self.step = step
-        self.dt0 = dt0
-
-    def __call__(self, x0, t, u=None, squeeze=True, **diffeqsolve_kwargs):
         """Solve initial value problem for state and output trajectories."""
         t = jnp.asarray(t)
         x0 = jnp.asarray(x0)
         assert (
             len(x0) == self.system.n_states
         ), f"len(x0)={len(x0)} but sys has {self.system.n_states} states"
-        if u is None:
+
+        if u is None and ucoeffs is None:
             ufun = lambda t: None
+        elif ucoeffs is not None:
+            path = dfx.CubicInterpolation(t, ucoeffs)
+            ufun = path.evaluate
         elif callable(u):
             ufun = u
-        else:  # u is array_like of shape (time, inputs)
+        else:
             ufun = spline_it(t, u)
+
         # Solve ODE
         diffeqsolve_default_options = dict(
             solver=self.solver,
@@ -74,12 +83,15 @@ class Flow(AbstractEvolution):
             args=self,  # https://github.com/patrick-kidger/diffrax/issues/135
             **diffeqsolve_default_options,
         ).ys
+
         # Compute output
         y = jax.vmap(self.system.output)(x)
+
         # Remove singleton dimensions
         if squeeze:
             x = x.squeeze()
             y = y.squeeze()
+
         return x, y
 
 
@@ -88,7 +100,14 @@ class Map(AbstractEvolution):
 
     system: DynamicalSystem
 
-    def __call__(self, x0, num_steps=None, t=None, u=None, squeeze=True):
+    def __call__(
+        self,
+        x0: ArrayLike,
+        num_steps: Optional[int] = None,
+        t: Optional[ArrayLike] = None,
+        u: Optional[ArrayLike] = None,
+        squeeze: bool = True,
+    ):
         """Solve discrete map."""
         x0 = jnp.asarray(x0)
         if num_steps is None:
