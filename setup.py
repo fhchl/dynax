@@ -41,6 +41,7 @@ setup(
             "sphinx",
             "sphinxcontrib-bibtex",
             "sphinx_rtd_theme",
+            "pre-commit",
         ]
     },
 )
