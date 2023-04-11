@@ -88,8 +88,9 @@ def fit_least_squares(
     Returns:
         A copy of `model` with the fitted parameters.
     """
+    # these should be numpy arrays instead?
     t = jnp.asarray(t)
-    y = jnp.asarray(y)
+    y = jnp.asarray(y).squeeze()
     if (
         isinstance(model, Flow)
         and u is not None
