@@ -11,7 +11,7 @@ from dynax.estimation import (
     non_negative_field,
     transfer_function,
 )
-from dynax.example_models import LotkaVolterra, SpringMassDamper
+from dynax.example_models import LotkaVolterra, NonlinearDrag, SpringMassDamper
 from jax.flatten_util import ravel_pytree
 
 
@@ -31,6 +31,26 @@ def test_fit_least_squares():
     # check result
     x_pred, _ = pred_model(x0, t, u)
     npt.assert_allclose(x_pred, x_true, **tols)
+    npt.assert_allclose(
+        jax.tree_util.tree_flatten(pred_model)[0],
+        jax.tree_util.tree_flatten(true_model)[0],
+        **tols
+    )
+
+
+def test_fit_least_squares_single_output():
+    # data
+    t = np.linspace(0, 2, 200)
+    u = np.sin(1 * 2 * np.pi * t)
+    x0 = [1.0, 0.0]
+    true_model = Flow(NonlinearDrag(1.0, 1.0, 1.0, 1.0))
+    _, y_true = true_model(x0, t, u)
+    # fit
+    init_model = Flow(NonlinearDrag(1.0, 1.0, 1.0, 1.0))
+    pred_model = fit_least_squares(init_model, t, y_true, x0, u)
+    # check result
+    _, y_pred = pred_model(x0, t, u)
+    npt.assert_allclose(y_pred, y_true, **tols)
     npt.assert_allclose(
         jax.tree_util.tree_flatten(pred_model)[0],
         jax.tree_util.tree_flatten(true_model)[0],
