@@ -149,9 +149,10 @@ def fit_multiple_shooting(
             solution along shot boundaries
         kwargs: optional parameters for `scipy.optimize.least_squares`
     Returns:
-        If `u` is `None`, returns a tuple `(model, x0s, ts0)`, where `model` is
-        the model with fitten parameters, `x0s` is an array of initial states
-        for each shot, and `ts0`
+        If `u` is not `None`, returns a tuple `(model, x0s, ts, us)`, where
+        `model` is the model with fitten parameters and `x0s`, `ts`, `us` are
+        the initial is an array of initial states, times, and inputs for each
+        shot. Else, return only `(model, x0s, ts, us)`.
     """
     t = jnp.asarray(t)
     y = jnp.asarray(y)
