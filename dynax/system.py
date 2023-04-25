@@ -42,7 +42,6 @@ class DynamicalSystem(eqx.Module):
     # As a an attribute, it can't be assigned to during init.
     # As a eqx.static_field, it is not supported by jax, as the JIT
     # compiler doesn't support staticmethods.
-    @abstractmethod
     def vector_field(self, x, u=None, t=None):
         """Compute state derivative."""
         pass
@@ -352,7 +351,7 @@ class DynamicStateFeedbackSystem(DynamicalSystem):
         """
         self._sys = sys
         self._sys2 = sys2
-        self._feedbacklaw = staticmethod(v)
+        self._feedbacklaw = v
         self.n_states = sys.n_states + sys2.n_states
         self.n_inputs = sys.n_inputs
         self.n_outputs = sys.n_outputs
