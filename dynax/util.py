@@ -67,3 +67,11 @@ def value_and_jacrev(f, x):
     basis = jnp.eye(y.size, dtype=y.dtype)
     jac = jax.vmap(pullback)(basis)
     return y, jac
+
+
+def nrmse(target, prediction, axis=0):
+    """Compute normalized mean-squared error."""
+    return jnp.sqrt(
+        jnp.mean(jnp.abs(target - prediction) ** 2, axis=axis)
+        / jnp.mean(jnp.abs(target) ** 2, axis=axis)
+    )
