@@ -320,5 +320,5 @@ def fit_csd_matching(
     if ret_Syx:
         H = transfer_function(fitted_sys)
         hatS_yu = jax.vmap(H)(s) * S_uu
-        return fitted_sys, (f, hatS_yu, S_yu)
+        return fitted_sys, (f, hatS_yu, S_yu, S_uu)
     return fitted_sys
