@@ -267,7 +267,7 @@ def fit_multiple_shooting(
         return model, x0s, ts, ts0, us
 
 
-def transfer_function(sys: DynamicalSystem, **kwargs):
+def transfer_function(sys: DynamicalSystem, to_states=False, **kwargs):
     """Compute transfer-function of linearized system."""
     linsys = sys.linearize(**kwargs)
     A, B, C, D = linsys.A, linsys.B, linsys.C, linsys.D
@@ -276,6 +276,8 @@ def transfer_function(sys: DynamicalSystem, **kwargs):
         """Transfer-function at s."""
         identity = np.eye(linsys.n_states)
         phi_B = jnp.linalg.solve(s * identity - A, B)
+        if to_states:
+            return phi_B
         return C.dot(phi_B) + D
 
     return H
