@@ -31,7 +31,7 @@ setup(
         "jaxlib>=0.3,<0.4",
         "diffrax>=0.2,<0.3",
         "equinox>=0.9,<0.10",
-        "jaxtyping>=0.2",
+        "jaxtyping>=0.2,<0.2.13",
     ],
     extras_require={
         "dev": [
