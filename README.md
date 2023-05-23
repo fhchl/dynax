@@ -2,6 +2,8 @@
 
 _"Dynamical systems in JAX"_
 
+[![Run tests](https://github.com/fhchl/dynax/actions/workflows/run_tests.yml/badge.svg)](https://github.com/fhchl/dynax/actions/workflows/run_tests.yml)
+
 __This is WIP!__
 
 This package combines [JAX](https://github.com/google/jax), [Diffrax](https://github.com/patrick-kidger/diffrax), and [Equinox](https://github.com/patrick-kidger/equinox) for straight-forward simulation, fitting and linearization of dynamical systems. See [example](examples) and [test](tests) folders for some documentation.
@@ -12,12 +14,16 @@ Requires a recent version of JAX. On Windows, use WSL or the unofficial builds [
 
     pip install --find-links https://whls.blob.core.windows.net/unstable/index.html jaxlib==0.3.24 jax==0.3.24
 
+With the correct version of JAX installed, do either of
+
+    pip install .[jax03]
+    pip install .[jax04]
 
 ## Testing
 
 Install with
 
-    pip install -e .[dev]
+    pip install -e .[dev,jax04]
 
 and run
 
