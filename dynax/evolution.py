@@ -1,5 +1,5 @@
 from abc import abstractmethod
-from typing import Optional, Union, Callable
+from typing import Callable, Optional
 
 import diffrax as dfx
 import equinox as eqx
@@ -41,7 +41,8 @@ class Flow(AbstractEvolution):
         self,
         x0: ArrayLike,
         t: ArrayLike,
-        u: Optional[Union[ArrayLike, Callable[[float], float]]] = None,
+        u: Optional[ArrayLike] = None,
+        ufun: Optional[Callable[[float], float]] = None,
         ucoeffs: Optional[ArrayLike] = None,
         squeeze=True,
         **diffeqsolve_kwargs,
@@ -53,7 +54,7 @@ class Flow(AbstractEvolution):
             len(x0) == self.system.n_states
         ), f"len(x0)={len(x0)} but sys has {self.system.n_states} states"
 
-        if u is None and ucoeffs is None:
+        if u is None and ufun is None and ucoeffs is None:
             ufun = lambda t: None
         elif ucoeffs is not None:
             path = dfx.CubicInterpolation(t, ucoeffs)
@@ -61,6 +62,8 @@ class Flow(AbstractEvolution):
         elif callable(u):
             ufun = u
         else:
+            msg = "t and u must have matching first dimensions"
+            assert len(t) == u.shape[0], msg
             ufun = spline_it(t, u)
 
         # Solve ODE
