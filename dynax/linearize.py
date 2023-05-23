@@ -48,7 +48,7 @@ def input_output_linearize(
     reldeg: int,
     ref: LinearSystem,
     output: Optional[int] = None,
-    asymptotic: Sequence | None = None,
+    asymptotic: Optional[Sequence] = None,
 ) -> Callable[[Array, Array, float], float]:
     """Construct input-output linearizing feedback law.
 
