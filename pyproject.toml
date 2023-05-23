@@ -1,0 +1,57 @@
+[project]
+name = "dynax"
+version = "0.0.1dev1"
+description = "Dynamical systems with JAX!"
+readme = "README.md"
+requires-python =">=3.9"
+license = {file = "LICENSE"}
+authors = [
+  {name = "Franz M. Heuchel", email = "franz.heuchel@pm.me"},
+]
+keywords = ["jax", "dynamical-systems", "system-identification", "linearization"]
+urls = {repository = "https://github.com/fhchl/dynax"}
+dependencies = [
+    "numpy>=1.20",
+    "scipy>=1.9",
+    "jax>=0.3,<0.4",
+    "jaxlib>=0.3,<0.4",
+    "diffrax>=0.2,<0.3",
+    "equinox>=0.9,<0.10",
+    "jaxtyping>=0.2,<0.2.13",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest",
+    "coverage",
+    "matplotlib",
+    "sphinx",
+    "sphinxcontrib-bibtex",
+    "sphinx_rtd_theme",
+    "pre-commit",
+]
+
+[tool.pytest.ini_options]
+addopts = "--pdbcls=IPython.terminal.debugger:Pdb"
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.ruff]
+select = ["E", "F", "I001", "B"]
+ignore = ["E402", "E721", "E731", "E741", "F722"]
+ignore-init-module-imports = true
+fixable = ["I001", "F401"]
+line-length = 88
+
+[tool.ruff.isort]
+combine-as-imports = true
+lines-after-imports = 2
+extra-standard-library = ["typing_extensions"]
+order-by-type = false
+
+[tool.pyright]
+reportIncompatibleMethodOverride = true
+include = ["equinox", "tests"]
+
