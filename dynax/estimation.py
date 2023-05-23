@@ -11,6 +11,7 @@ import numpy as np
 import scipy.signal as sig
 from jax.flatten_util import ravel_pytree
 from jaxtyping import Array
+from numpy.typing import NDArray
 from scipy.optimize import least_squares
 from scipy.optimize._optimize import MemoizeJac
 
@@ -67,7 +68,7 @@ Evolution = TypeVar("Evolution", bound=AbstractEvolution)
 
 
 def fit_least_squares(
-    model: AbstractEvolution,
+    model: Evolution,
     t: Array,
     y: Array,
     x0: Array,
@@ -131,7 +132,7 @@ def _moving_window(a: jnp.ndarray, size: int, stride: int):
 
 
 def fit_multiple_shooting(
-    model: AbstractEvolution,
+    model: Evolution,
     t: Array,
     y: Array,
     x0: Array,
@@ -139,7 +140,10 @@ def fit_multiple_shooting(
     num_shots: int = 1,
     continuity_penalty: float = 0.0,
     **kwargs,
-):
+) -> Union[
+    tuple[Evolution, NDArray, NDArray, NDArray],
+    tuple[Evolution, NDArray, NDArray, NDArray, NDArray],
+]:
     """Fit forward model with multiple shooting and nonlinear least-squares.
 
     Args:
@@ -188,6 +192,7 @@ def fit_multiple_shooting(
     t = t[:num_samples]
     y = y[:num_samples]
 
+    # FIXME: use numpy for everything that is not jitted
     # Divide signals into segments.
     ts = _moving_window(t, num_samples_per_segment, num_samples_per_segment - 1)
     ys = _moving_window(y, num_samples_per_segment, num_samples_per_segment - 1)
@@ -266,9 +271,14 @@ def fit_multiple_shooting(
     )
     x0s, model = unpack(res.x, treedef, x0s_shape)
 
+    x0s = np.asarray(x0s)
+    ts = np.asarray(ts)
+    ts0 = np.asarray(ts0)
+
     if u is None:
         return model, x0s, ts, ts0
     else:
+        us = np.asarray(us)
         return model, x0s, ts, ts0, us
 
 
@@ -290,7 +300,9 @@ def transfer_function(sys: DynamicalSystem, to_states=False, **kwargs):
 
 def fit_csd_matching(
     sys: DynamicalSystem, u, y, sr, nperseg=1024, reg=0, ret_Syx=False, **kwargs
-):
+) -> Union[
+    DynamicalSystem, tuple[DynamicalSystem, tuple[NDArray, NDArray, NDArray, NDArray]]
+]:
     """Estimate parameters of linearized system by matching cross-spectral densities."""
     if u.ndim == 1:
         u = u[:, None]

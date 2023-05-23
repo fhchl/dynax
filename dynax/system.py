@@ -1,6 +1,5 @@
 """Classes for representing dynamical systems."""
 
-from abc import abstractmethod
 from collections.abc import Callable
 
 import equinox as eqx
@@ -44,7 +43,7 @@ class DynamicalSystem(eqx.Module):
     # compiler doesn't support staticmethods.
     def vector_field(self, x, u=None, t=None):
         """Compute state derivative."""
-        pass
+        raise NotImplementedError
 
     def output(self, x, u=None, t=None):
         """Compute output."""
@@ -194,13 +193,11 @@ class ControlAffine(DynamicalSystem):
 
     """
 
-    @abstractmethod
     def f(self, x, t=None):
-        pass
+        raise NotImplementedError
 
-    @abstractmethod
     def g(self, x, t=None):
-        pass
+        raise NotImplementedError
 
     def h(self, x, t=None):
         return x
