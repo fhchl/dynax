@@ -82,35 +82,35 @@ def fit_least_squares(
         t: times at which `y` is given
         y: target outputs of system
         x0: initial state
-        u: a function that computes the input signal or an array input samples
-            at times `t`
+        u: optional system input
         kwargs: optional parameters for `scipy.optimize.least_squares`
     Returns:
         A copy of `model` with the fitted parameters.
     """
-    # these should be numpy arrays instead?
     t = jnp.asarray(t)
     y = jnp.asarray(y)
     x0 = jnp.asarray(x0)
-    if u is not None:
-        u = jnp.asarray(u)
 
-    if not batched:
-        # add singleton batch dimension
-        t = t[None]
-        y = y[None]
-        x0 = x0[None]
-        if u is not None:
-            u = u[None]
+    if batched:
+        std_y = np.std(y, axis=1, keepdims=True)
+        calc_coeffs = jax.vmap(dfx.backward_hermite_coefficients)
+    else:
+        std_y = np.std(y, axis=0, keepdims=True)
+        calc_coeffs = dfx.backward_hermite_coefficients
+
+    ucoeffs = None
+    if u is not None:
+        ucoeffs = calc_coeffs(t, jnp.asarray(u))
 
     # use ravel instead of flatten as we also want to flatten all ndarrays
     init_params, unravel = ravel_pytree(model)
     bounds = _get_bounds(model)
-    std_y = np.std(y, axis=1, keepdims=True)
 
     def residuals(params):
         model = unravel(params)
-        _, pred_y = jax.vmap(model)(x0, t=t, u=u)
+        if batched:
+            model = jax.vmap(model)
+        _, pred_y = model(x0, t=t, ucoeffs=ucoeffs)
         res = ((y - pred_y) / std_y).reshape(-1)
         return res / np.sqrt(len(res))
 
