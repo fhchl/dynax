@@ -1,6 +1,7 @@
 import jax.numpy as jnp
 import numpy as np
 import numpy.testing as npt
+
 from dynax import (
     ControlAffine,
     DynamicalSystem,
@@ -110,7 +111,7 @@ def test_input_output_linearize_single_output():
     npt.assert_allclose(
         Flow(ref)(np.zeros(sys.n_states), t, u)[1],
         Flow(feedback_sys)(np.zeros(feedback_sys.n_states), t, u)[1],
-        **tols
+        **tols,
     )
 
 

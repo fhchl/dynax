@@ -4,6 +4,8 @@ import numpy as np
 import numpy.testing as npt
 import pytest
 from diffrax import Kvaerno5, PIDController
+from jax.flatten_util import ravel_pytree
+
 from dynax import DynamicalSystem, fit_least_squares, Flow
 from dynax.estimation import (
     fit_csd_matching,
@@ -12,7 +14,6 @@ from dynax.estimation import (
     transfer_function,
 )
 from dynax.example_models import LotkaVolterra, NonlinearDrag, SpringMassDamper
-from jax.flatten_util import ravel_pytree
 
 
 tols = dict(rtol=1e-05, atol=1e-06)
@@ -34,7 +35,7 @@ def test_fit_least_squares():
     npt.assert_allclose(
         jax.tree_util.tree_flatten(pred_model)[0],
         jax.tree_util.tree_flatten(true_model)[0],
-        **tols
+        **tols,
     )
 
 
@@ -58,7 +59,7 @@ def test_fit_least_squares_single_output():
     npt.assert_allclose(
         jax.tree_util.tree_flatten(pred_model)[0],
         jax.tree_util.tree_flatten(true_model)[0],
-        **tols
+        **tols,
     )
 
 
@@ -87,7 +88,7 @@ def test_fit_least_squares_on_batch():
     npt.assert_allclose(
         jax.tree_util.tree_flatten(pred_model)[0],
         jax.tree_util.tree_flatten(true_model)[0],
-        **tols
+        **tols,
     )
 
 
@@ -126,7 +127,7 @@ def test_fit_with_bounded_parameters():
     npt.assert_allclose(
         jax.tree_util.tree_flatten(pred_model)[0],
         jax.tree_util.tree_flatten(true_model)[0],
-        **tols
+        **tols,
     )
 
 
@@ -152,13 +153,13 @@ def test_fit_with_bounded_parameters_and_ndarrays():
     solver_opt = dict(step=PIDController(rtol=1e-5, atol=1e-7))
     true_model = Flow(
         LotkaVolterra(alpha=2 / 3, beta=4 / 3, delta_gamma=jnp.array([1.0, 1.0])),
-        **solver_opt
+        **solver_opt,
     )
     x_true, _ = true_model(x0, t)
     # fit
     init_model = Flow(
         LotkaVolterra(alpha=1.0, beta=1.0, delta_gamma=jnp.array([1.5, 2])),
-        **solver_opt
+        **solver_opt,
     )
     pred_model = fit_least_squares(init_model, t, x_true, x0)
     # check result
@@ -196,7 +197,7 @@ def test_fit_multiple_shooting_with_input(num_shots):
     npt.assert_allclose(
         jax.tree_util.tree_flatten(pred_model)[0],
         jax.tree_util.tree_flatten(true_model)[0],
-        **tols
+        **tols,
     )
 
 
@@ -224,7 +225,7 @@ def test_fit_multiple_shooting_without_input(num_shots):
     npt.assert_allclose(
         jax.tree_util.tree_flatten(pred_model)[0],
         jax.tree_util.tree_flatten(true_model)[0],
-        **tols
+        **tols,
     )
 
 

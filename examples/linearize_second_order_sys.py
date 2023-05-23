@@ -2,6 +2,7 @@ import diffrax as dfx
 import jax
 import matplotlib.pyplot as plt
 import numpy as np
+
 from dynax import DynamicStateFeedbackSystem, Flow
 from dynax.example_models import NonlinearDrag
 from dynax.linearize import input_output_linearize, relative_degree

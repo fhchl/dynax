@@ -8,3 +8,6 @@ build
 docs/_build
 docs/generated
 *.pytest_cache
+.pytype
+.ruff_cache
+.mypy_cache

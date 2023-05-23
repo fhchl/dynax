@@ -3,6 +3,7 @@
 import jax.numpy as jnp
 import matplotlib.pyplot as plt
 import numpy as np
+
 from dynax import ControlAffine, fit_csd_matching, fit_least_squares, Flow
 
 

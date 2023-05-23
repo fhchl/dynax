@@ -5,6 +5,7 @@ import jax
 import jax.numpy as jnp
 import matplotlib.pyplot as plt
 import numpy as np
+
 from dynax import ControlAffine, fit_multiple_shooting, Flow
 
 

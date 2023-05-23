@@ -2,8 +2,9 @@ import diffrax as dfx
 import jax.numpy as jnp
 import numpy as np
 import numpy.testing as npt
-from dynax import DynamicalSystem, FeedbackSystem, Flow, LinearSystem, Map, SeriesSystem
 from scipy.signal import dlsim, dlti
+
+from dynax import DynamicalSystem, FeedbackSystem, Flow, LinearSystem, Map, SeriesSystem
 
 
 tols = dict(rtol=1e-04, atol=1e-06)

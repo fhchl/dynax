@@ -1,5 +1,6 @@
 import numpy as np
 import numpy.testing as npt
+
 from dynax.derivative import lie_derivative, lie_derivative_jet, lie_derivatives_jet
 from dynax.example_models import Sastry9_9
 
@@ -41,7 +42,7 @@ def test_lie_derivative2():
         npt.assert_allclose(
             lie_derivatives_jet(f, h, n=3)(x),
             [h(x), x1 - x2, -x1 - x2**2, -2 * x2 * (x1 + x2**2)],
-            **tol
+            **tol,
         )
         npt.assert_allclose(lie_derivative_jet(g, h, n=1)(x), 0, **tol)
         npt.assert_allclose(lie_derivative_jet(g, lie_derivative_jet(f, h, n=1))(x), 0)
