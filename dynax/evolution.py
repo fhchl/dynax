@@ -1,4 +1,3 @@
-from abc import abstractmethod
 from typing import Callable, Optional
 
 import diffrax as dfx
@@ -22,8 +21,7 @@ except AttributeError:
 class AbstractEvolution(eqx.Module):
     """Abstract base-class for evolutions."""
 
-    @abstractmethod
-    def __call__(self, x0, t, **kwargs):
+    def __call__(self, x0, *args, **kwargs):
         raise NotImplementedError
 
 
@@ -61,10 +59,13 @@ class Flow(AbstractEvolution):
             ufun = path.evaluate
         elif callable(u):
             ufun = u
-        else:
+        elif u is not None:
             msg = "t and u must have matching first dimensions"
+            u = jnp.asarray(u)
             assert len(t) == u.shape[0], msg
             ufun = spline_it(t, u)
+        else:
+            raise ValueError("Must specify one of u, ufun, ucoeffs.")
 
         # Solve ODE
         diffeqsolve_default_options = dict(
@@ -115,8 +116,10 @@ class Map(AbstractEvolution):
         x0 = jnp.asarray(x0)
         if num_steps is None:
             if t is not None:
+                t = jnp.asarray(t)
                 num_steps = len(t)
             elif u is not None:
+                u = jnp.asarray(u)
                 num_steps = len(u)
             else:
                 raise ValueError("must specify one of num_steps, t or u")
