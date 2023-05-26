@@ -1,4 +1,4 @@
-import importlib
+import importlib.metadata
 
 import jax as jax
 from equinox import static_field as static_field
@@ -28,7 +28,7 @@ from .system import (
 print("Setting jax_enable_x64 to True.")
 jax.config.update("jax_enable_x64", True)
 
-__version__ = importlib.metadata.version("equinox")
+__version__ = importlib.metadata.version("dynax")
 
 __all__ = [
     input_output_linearize,
