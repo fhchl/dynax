@@ -10,8 +10,8 @@ import jax.numpy as jnp
 import numpy as np
 import scipy.signal as sig
 from jax.flatten_util import ravel_pytree
-from jaxtyping import Array, ArrayLike
-from numpy.typing import NDArray
+from jaxtyping import Array
+from numpy.typing import ArrayLike, NDArray
 from scipy.optimize import least_squares
 from scipy.optimize._optimize import MemoizeJac
 
