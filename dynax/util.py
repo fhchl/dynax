@@ -69,9 +69,16 @@ def value_and_jacrev(f, x):
     return y, jac
 
 
-def nrmse(target, prediction, axis=0):
+def mse(target, prediction, axis=0):
+    """Compute mean-squared error."""
+    return jnp.mean(jnp.abs(target - prediction) ** 2, axis=axis)
+
+
+def nmse(target, prediction, axis=0):
     """Compute normalized mean-squared error."""
-    return jnp.sqrt(
-        jnp.mean(jnp.abs(target - prediction) ** 2, axis=axis)
-        / jnp.mean(jnp.abs(target) ** 2, axis=axis)
-    )
+    return mse(target, prediction, axis) / jnp.mean(jnp.abs(target) ** 2, axis=axis)
+
+
+def nrmse(target, prediction, axis=0):
+    """Compute normalized root mean-squared error."""
+    return jnp.sqrt(nmse(target, prediction, axis))

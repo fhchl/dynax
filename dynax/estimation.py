@@ -10,7 +10,7 @@ import jax.numpy as jnp
 import numpy as np
 import scipy.signal as sig
 from jax.flatten_util import ravel_pytree
-from jaxtyping import Array
+from jaxtyping import Array, ArrayLike
 from numpy.typing import NDArray
 from scipy.optimize import least_squares
 from scipy.optimize._optimize import MemoizeJac
@@ -102,6 +102,8 @@ def fit_least_squares(
     ucoeffs = None
     if u is not None:
         ucoeffs = calc_coeffs(t, jnp.asarray(u))
+
+    # NOTE: least_squares wrapper also implemented at `jaxopt.ScipyLeastSquares`
 
     # use ravel instead of flatten as we also want to flatten all ndarrays
     init_params, unravel = ravel_pytree(model)
@@ -298,18 +300,26 @@ def transfer_function(sys: DynamicalSystem, to_states=False, **kwargs):
     return H
 
 
+def estimate_spectra(
+    u: ArrayLike, y: ArrayLike, sr: int, nperseg: int
+) -> tuple[NDArray, NDArray, NDArray]:
+    """Estimate cross and autopectral densities."""
+    if u.ndim == 1:
+        u = u[:, None]
+    if y.ndim == 1:
+        y = y[:, None]
+    f, S_yu = sig.csd(u[:, None, :], y[:, :, None], fs=sr, nperseg=nperseg, axis=0)
+    _, S_uu = sig.welch(u[:, None, :], fs=sr, nperseg=nperseg, axis=0)
+    return f, S_yu, S_uu
+
+
 def fit_csd_matching(
     sys: DynamicalSystem, u, y, sr, nperseg=1024, reg=0, ret_Syx=False, **kwargs
 ) -> Union[
     DynamicalSystem, tuple[DynamicalSystem, tuple[NDArray, NDArray, NDArray, NDArray]]
 ]:
     """Estimate parameters of linearized system by matching cross-spectral densities."""
-    if u.ndim == 1:
-        u = u[:, None]
-    if y.ndim == 1:
-        y = y[:, None]
-    f, S_uu = sig.welch(u[:, None, :], fs=sr, nperseg=nperseg, axis=0)
-    f, S_yu = sig.csd(u[:, None, :], y[:, :, None], fs=sr, nperseg=nperseg, axis=0)
+    f, S_yu, S_uu = estimate_spectra(u, y, sr, nperseg)
     s = 2 * np.pi * f * 1j
     weight = np.std(S_yu, axis=0) * np.sqrt(len(f))
     x0, unravel = ravel_pytree(sys)
