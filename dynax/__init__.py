@@ -5,6 +5,7 @@ from equinox import static_field as static_field
 
 from .derivative import lie_derivative
 from .estimation import (
+    boxed_field,
     fit_csd_matching,
     fit_least_squares,
     fit_multiple_shooting,
@@ -38,6 +39,7 @@ __all__ = [
     fit_csd_matching,
     fit_least_squares,
     fit_multiple_shooting,
+    boxed_field,
     non_negative_field,
     AbstractEvolution,
     Flow,
