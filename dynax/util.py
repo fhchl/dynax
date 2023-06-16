@@ -1,5 +1,6 @@
 import functools
 
+import equinox
 import jax
 import jax.numpy as jnp
 
@@ -82,3 +83,7 @@ def nmse(target, prediction, axis=0):
 def nrmse(target, prediction, axis=0):
     """Compute normalized root mean-squared error."""
     return jnp.sqrt(nmse(target, prediction, axis))
+
+
+def pretty(tree):
+    return equinox.tree_pformat(tree, short_arrays=False)
