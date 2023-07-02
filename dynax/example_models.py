@@ -1,4 +1,5 @@
 import jax.numpy as jnp
+from equinox import static_field
 
 from .estimation import boxed_field, non_negative_field
 from .system import ControlAffine, DynamicalSystem
@@ -53,10 +54,11 @@ class NonlinearDrag(ControlAffine):
 
     """
 
-    m: float
     r: float
     r2: float
     k: float
+    m: float
+    outputs: list[int] = static_field(default_factory=lambda: [0])
     n_states = 2
     n_inputs = 1
     n_outputs = 1
@@ -71,7 +73,7 @@ class NonlinearDrag(ControlAffine):
         return jnp.array([0.0, 1.0 / self.m])
 
     def h(self, x, u=None, t=None):
-        return x[0]
+        return x[jnp.array(self.outputs)]
 
 
 class Sastry9_9(ControlAffine):

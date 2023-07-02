@@ -19,27 +19,8 @@ from dynax.example_models import LotkaVolterra, NonlinearDrag, SpringMassDamper
 tols = dict(rtol=1e-05, atol=1e-06)
 
 
-def test_fit_least_squares():
-    # data
-    t = np.linspace(0, 1, 100)
-    u = np.sin(1 * 2 * np.pi * t)
-    x0 = [1.0, 0.0]
-    true_model = Flow(SpringMassDamper(1.0, 2.0, 3.0))
-    _, y_true = true_model(x0, t, u)
-    # fit
-    init_model = Flow(SpringMassDamper(1.0, 1.0, 1.0))
-    pred_model = fit_least_squares(init_model, t, y_true, x0, u)
-    # check result
-    _, y_pred = pred_model(x0, t, u)
-    npt.assert_allclose(y_pred, y_true, **tols)
-    npt.assert_allclose(
-        jax.tree_util.tree_flatten(pred_model)[0],
-        jax.tree_util.tree_flatten(true_model)[0],
-        **tols,
-    )
-
-
-def test_fit_least_squares_single_output():
+@pytest.mark.parametrize("outputs", [[0], [0, 1]])
+def test_fit_least_squares(outputs):
     # data
     t = np.linspace(0, 2, 200)
     u = (
@@ -48,10 +29,10 @@ def test_fit_least_squares_single_output():
         + np.sin(10 * 2 * np.pi * t)
     )
     x0 = [1.0, 0.0]
-    true_model = Flow(NonlinearDrag(1.0, 2.0, 3.0, 4.0))
+    true_model = Flow(NonlinearDrag(1.0, 2.0, 3.0, 4.0, outputs))
     _, y_true = true_model(x0, t, u)
     # fit
-    init_model = Flow(NonlinearDrag(1.0, 1.0, 1.0, 1.0))
+    init_model = Flow(NonlinearDrag(1.0, 1.0, 1.0, 1.0, outputs))
     pred_model = fit_least_squares(init_model, t, y_true, x0, u)
     # check result
     _, y_pred = pred_model(x0, t, u)
@@ -173,8 +154,7 @@ def test_fit_with_bounded_parameters_and_ndarrays():
 @pytest.mark.parametrize("num_shots", [1, 2, 3])
 def test_fit_multiple_shooting_with_input(num_shots):
     # data
-    # TODO: test this with 100000 points when upgrading to diffrax > v0.2
-    t = np.linspace(0, 10, 960)
+    t = np.linspace(0, 10, 100000)
     u = np.sin(1 * 2 * np.pi * t)
     x0 = [1.0, 0.0]
     true_model = Flow(SpringMassDamper(1.0, 2.0, 3.0))
@@ -262,25 +242,3 @@ def test_csd_matching():
         rtol=1e-1,
         atol=1e-1,
     )
-
-    # import matplotlib.pyplot as plt
-    # fitted_model = ForwardModel(fitted_sys, step=PIDController(rtol=1e-4, atol=1e-6))
-    # _, y_pred = fitted_model(x0, t, u)
-
-    # plt.figure()
-    # plt.plot(t, y, 'k-')
-    # plt.plot(t, y_pred, 'b--')
-
-    # plt.figure()
-    # H = transfer_function(sys)
-    # f = np.linspace(0, sr/2, 1000)
-    # s = 2*np.pi*f*1j
-    # h = jax.vmap(H)(s)
-    # m, r, k = sys.m, sys.r, sys.k
-    # plt.plot(f, np.abs(h)[:, 0, 0], label='true')
-    # plt.plot(f, np.abs(1/(m*s**2 + r*s + k)), label='theory')
-
-    # fitted_H = transfer_function(fitted_sys)
-    # plt.plot(f, np.abs(jax.vmap(fitted_H)(s))[:, 0, 0], label='estimate')
-    # plt.legend()
-    # plt.show()
