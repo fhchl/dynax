@@ -1,6 +1,7 @@
 """Classes for representing dynamical systems."""
 
 from collections.abc import Callable
+from typing import Optional
 
 import equinox as eqx
 import jax
@@ -8,15 +9,16 @@ import jax.numpy as jnp
 import numpy as np
 from jaxtyping import Array, Float
 
+from .linearize import input_output_linearize
 from .util import ssmatrix
 
 
-def _linearize(f, h, x0, u0, t):
-    """Linearize dx=f(x,u), y=h(x,u) around x0, u0."""
-    A = jax.jacfwd(f, argnums=0)(x0, u0, t)
-    B = jax.jacfwd(f, argnums=1)(x0, u0, t)
-    C = jax.jacfwd(h, argnums=0)(x0, u0, t)
-    D = jax.jacfwd(h, argnums=1)(x0, u0, t)
+def _linearize(f, h, x0, u0, t0):
+    """Linearize dx=f(x,u,t), y=h(x,u,t) around x0, u0, t0."""
+    A = jax.jacfwd(f, argnums=0)(x0, u0, t0)
+    B = jax.jacfwd(f, argnums=1)(x0, u0, t0)
+    C = jax.jacfwd(h, argnums=0)(x0, u0, t0)
+    D = jax.jacfwd(h, argnums=1)(x0, u0, t0)
     return A, B, C, D
 
 
@@ -133,7 +135,6 @@ class LinearSystem(DynamicalSystem):
     """
 
     # TODO: could be subclass of control-affine? Two blocking problems:
-    # - right now, control affine is SISO only for io-linearization
     # - may h depend on u? Needed for D. If so, then one could compute
     #   relative degree.
 
@@ -153,11 +154,9 @@ class LinearSystem(DynamicalSystem):
         B = ssmatrix(B)
         D = ssmatrix(D)
         assert A.ndim == B.ndim == C.ndim == D.ndim == 2
-        assert A.shape[0] == A.shape[1]
-        assert B.shape[0] == A.shape[0]
-        assert C.shape[1] == A.shape[0]
-        assert D.shape[1] == B.shape[1]
+        assert A.shape[0] == A.shape[1] == B.shape[0] == C.shape[1]
         assert D.shape[0] == C.shape[0]
+        assert D.shape[1] == B.shape[1]
         self.A = A
         self.B = B
         self.C = C
@@ -365,4 +364,51 @@ class DynamicStateFeedbackSystem(DynamicalSystem):
     def output(self, xz, u=None, t=None):
         x = xz[: self._sys.n_states]
         y = self._sys.output(x, u, t)
+        return y
+
+
+class LinearizingSystem(DynamicalSystem):
+    r"""Coupled ODE of nonlinear dynamics, linear reference and io linearizing law.
+
+    .. math::
+
+        ẋ &= f(x) + g(x)y \\
+        ż &= Az + Bu \\
+        y &= h(x, z, u)
+
+    Args:
+        sys: nonlinear control affine system
+        refsys: linear reference system
+        reldeg: relative degree of sys and lower bound of relative degree of refsys
+
+    """
+
+    sys: ControlAffine
+    refsys: LinearSystem
+    reldeg: int
+    feedbacklaw: Optional[Callable] = None
+    linearizing_output: Optional[int] = eqx.static_field()
+
+    def __post_init__(self):
+        if self.sys.n_inputs > 1:
+            raise ValueError("Only single input systems supported.")
+        self.n_states = self.sys.n_states + self.refsys.n_states
+        self.n_outputs = self.n_inputs = 1
+        if self.feedbacklaw is None:
+            self.feedbacklaw = input_output_linearize(
+                self.sys, self.reldeg, self.refsys, self.linearizing_output
+            )
+
+    def vector_field(self, x, u=None, t=None):
+        x, z = x[: self.sys.n_states], x[self.sys.n_states :]
+        if u is None:
+            u = 0.0
+        y = self.feedbacklaw(x, z, u)
+        dx = self.sys.vector_field(x, y)
+        dz = self.refsys.vector_field(z, u)
+        return jnp.concatenate((dx, dz))
+
+    def output(self, x, u=None, t=None):
+        x, z = x[: self.sys.n_states], x[self.sys.n_states :]
+        y = self.feedbacklaw(x, z, u)
         return y

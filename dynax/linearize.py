@@ -9,7 +9,7 @@ import numpy as np
 from jaxtyping import Array
 
 from .derivative import lie_derivative
-from .system import ControlAffine, DynamicalSystem, LinearSystem
+from .system import ControlAffine, LinearSystem
 
 
 def relative_degree(sys, xs, max_reldeg=10, output: Optional[int] = None) -> int:
@@ -108,49 +108,3 @@ def input_output_linearize(
             return ((y_reldeg_ref - y_reldeg - jnp.sum(ae0s)) / LgLfnm1h(x)).squeeze()
 
     return feedbacklaw
-
-
-class LinearizingSystem(DynamicalSystem):
-    r"""Coupled ODE of nonlinear dynamics, linear reference and io linearizing law.
-
-    .. math::
-
-        ẋ &= f(x) + g(x)y \\
-        ż &= Az + Bu \\
-        y &= h(x, z, u)
-
-    Args:
-        sys: nonlinear control affine system
-        refsys: linear reference system
-        reldeg: relative degree of sys and lower bound of relative degree of refsys
-
-    """
-
-    sys: ControlAffine
-    refsys: LinearSystem
-    reldeg: int
-    feedbacklaw: Optional[Callable] = None
-
-    def __post_init__(self):
-        if self.sys.n_inputs > 1:
-            raise ValueError("Only single input systems supported.")
-        self.n_states = self.sys.n_states + self.refsys.n_states
-        self.n_outputs = self.n_inputs = 1
-        if self.feedbacklaw is None:
-            self.feedbacklaw = input_output_linearize(
-                self.sys, self.reldeg, self.refsys
-            )
-
-    def vector_field(self, x, u=None, t=None):
-        x, z = x[: self.sys.n_states], x[self.sys.n_states :]
-        if u is None:
-            u = 0.0
-        y = self.feedbacklaw(x, z, u)
-        dx = self.sys.vector_field(x, y)
-        dz = self.refsys.vector_field(z, u)
-        return jnp.concatenate((dx, dz))
-
-    def output(self, x, u=None, t=None):
-        x, z = x[: self.sys.n_states], x[self.sys.n_states :]
-        y = self.feedbacklaw(x, z, u)
-        return y
