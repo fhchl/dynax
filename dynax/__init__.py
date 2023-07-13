@@ -1,7 +1,6 @@
 import importlib.metadata
 
 import jax as jax
-from equinox import static_field as static_field
 
 from .derivative import lie_derivative as lie_derivative
 from .estimation import (
@@ -9,12 +8,15 @@ from .estimation import (
     fit_csd_matching as fit_csd_matching,
     fit_least_squares as fit_least_squares,
     fit_multiple_shooting as fit_multiple_shooting,
+    free_field as free_field,
     non_negative_field as non_negative_field,
+    static_field as static_field,
 )
 from .evolution import AbstractEvolution as AbstractEvolution, Flow as Flow, Map as Map
 from .interpolation import spline_it as spline_it
 from .linearize import (
     input_output_linearize as input_output_linearize,
+    LinearizingSystem as LinearizingSystem,
     relative_degree as relative_degree,
 )
 from .system import (

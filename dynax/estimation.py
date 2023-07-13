@@ -20,15 +20,38 @@ from .system import DynamicalSystem
 from .util import value_and_jacfwd
 
 
-def boxed_field(lower: float, upper: float, **kwargs):
-    """Mark a parameter as box-constrained."""
+def static_field(**kwargs):
+    """Like `equinox.static_field`, but removes constraints if they exist."""
     try:
         metadata = dict(kwargs["metadata"])
     except KeyError:
         metadata = kwargs["metadata"] = {}
-    if "constrained" in metadata:
-        raise ValueError("Cannot use metadata if `constrained` already set.")
+    if "static" in metadata:
+        raise ValueError("Cannot use metadata with `static` already set.")
+    metadata["static"] = True
+    metadata["constrained"] = False
+    return field(**kwargs)
+
+
+def boxed_field(lower: float, upper: float, **kwargs):
+    """Mark a field value as box-constrained."""
+    try:
+        metadata = dict(kwargs["metadata"])
+    except KeyError:
+        metadata = kwargs["metadata"] = {}
     metadata["constrained"] = ("boxed", (lower, upper))
+    metadata["static"] = False
+    return field(**kwargs)
+
+
+def free_field(**kwargs):
+    """Mark a field value as unconstrained, e.g. when subclassing."""
+    try:
+        metadata = dict(kwargs["metadata"])
+    except KeyError:
+        metadata = kwargs["metadata"] = {}
+    metadata["static"] = False
+    metadata["constrained"] = False
     return field(**kwargs)
 
 

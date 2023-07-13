@@ -1,7 +1,6 @@
 """Classes for representing dynamical systems."""
 
 from collections.abc import Callable
-from typing import Optional
 
 import equinox as eqx
 import jax
@@ -9,7 +8,7 @@ import jax.numpy as jnp
 import numpy as np
 from jaxtyping import Array, Float
 
-from .linearize import input_output_linearize
+from .estimation import static_field
 from .util import ssmatrix
 
 
@@ -33,9 +32,9 @@ class DynamicalSystem(eqx.Module):
     """
 
     # these attributes should be overridden by subclasses
-    n_states: int = eqx.static_field(default=None, init=False)
-    n_inputs: int = eqx.static_field(default=None, init=False)
-    n_outputs: int = eqx.static_field(default=None, init=False)
+    n_states: int = static_field(default=None, init=False)
+    n_inputs: int = static_field(default=None, init=False)
+    n_outputs: int = static_field(default=None, init=False)
 
     # Don't know if it is possible to set vector_field and output
     # in a __init__ method, which would make the API nicer. For
@@ -364,51 +363,4 @@ class DynamicStateFeedbackSystem(DynamicalSystem):
     def output(self, xz, u=None, t=None):
         x = xz[: self._sys.n_states]
         y = self._sys.output(x, u, t)
-        return y
-
-
-class LinearizingSystem(DynamicalSystem):
-    r"""Coupled ODE of nonlinear dynamics, linear reference and io linearizing law.
-
-    .. math::
-
-        ẋ &= f(x) + g(x)y \\
-        ż &= Az + Bu \\
-        y &= h(x, z, u)
-
-    Args:
-        sys: nonlinear control affine system
-        refsys: linear reference system
-        reldeg: relative degree of sys and lower bound of relative degree of refsys
-
-    """
-
-    sys: ControlAffine
-    refsys: LinearSystem
-    reldeg: int
-    feedbacklaw: Optional[Callable] = None
-    linearizing_output: Optional[int] = eqx.static_field()
-
-    def __post_init__(self):
-        if self.sys.n_inputs > 1:
-            raise ValueError("Only single input systems supported.")
-        self.n_states = self.sys.n_states + self.refsys.n_states
-        self.n_outputs = self.n_inputs = 1
-        if self.feedbacklaw is None:
-            self.feedbacklaw = input_output_linearize(
-                self.sys, self.reldeg, self.refsys, self.linearizing_output
-            )
-
-    def vector_field(self, x, u=None, t=None):
-        x, z = x[: self.sys.n_states], x[self.sys.n_states :]
-        if u is None:
-            u = 0.0
-        y = self.feedbacklaw(x, z, u)
-        dx = self.sys.vector_field(x, y)
-        dz = self.refsys.vector_field(z, u)
-        return jnp.concatenate((dx, dz))
-
-    def output(self, x, u=None, t=None):
-        x, z = x[: self.sys.n_states], x[self.sys.n_states :]
-        y = self.feedbacklaw(x, z, u)
         return y

@@ -9,7 +9,7 @@ import numpy as np
 from jaxtyping import Array
 
 from .derivative import lie_derivative
-from .system import ControlAffine, LinearSystem
+from .system import ControlAffine, DynamicalSystem, LinearSystem
 
 
 def relative_degree(sys, xs, max_reldeg=10, output: Optional[int] = None) -> int:
@@ -91,6 +91,10 @@ def input_output_linearize(
     else:
         msg = f"asymptotic must be of length {reldeg=} but, {len(asymptotic)=}"
         assert len(asymptotic) == reldeg, msg
+
+        coeffs = np.concatenate(([1], asymptotic))
+        msg = "Polynomial must be Hurwitz"
+        assert np.all(np.real(np.roots(coeffs)) <= 0)
         alphas = asymptotic
 
         cAis = [c.dot(np.linalg.matrix_power(A, i)) for i in range(reldeg)]
@@ -101,10 +105,58 @@ def input_output_linearize(
             y_reldeg = Lfnh(x)
             ae0s = jnp.array(
                 [
-                    a * (Lfih(x) - cAi.dot(z))
-                    for a, Lfih, cAi in zip(alphas, Lfihs, cAis)
+                    ai * (Lfih(x) - cAi.dot(z))
+                    for ai, Lfih, cAi in zip(alphas, Lfihs, cAis)
                 ]
             )
             return ((y_reldeg_ref - y_reldeg - jnp.sum(ae0s)) / LgLfnm1h(x)).squeeze()
 
     return feedbacklaw
+
+
+class LinearizingSystem(DynamicalSystem):
+    r"""Coupled ODE of nonlinear dynamics, linear reference and io linearizing law.
+
+    .. math::
+
+        ẋ &= f(x) + g(x)y \\
+        ż &= Az + Bu \\
+        y &= h(x, z, u)
+
+    Args:
+        sys: nonlinear control affine system
+        refsys: linear reference system
+        reldeg: relative degree of sys and lower bound of relative degree of refsys
+
+    """
+
+    sys: ControlAffine
+    refsys: LinearSystem
+    feedbacklaw: Optional[Callable] = None
+
+    def __init__(self, sys, refsys, reldeg, feedbacklaw=None, linearizing_output=None):
+        if sys.n_inputs > 1:
+            raise ValueError("Only single input systems supported.")
+        self.sys = sys
+        self.refsys = refsys
+        self.n_outputs = self.n_inputs = 1
+        self.n_states = self.sys.n_states + self.refsys.n_states
+        self.feedbacklaw = feedbacklaw
+        if feedbacklaw is None:
+            self.feedbacklaw = input_output_linearize(
+                sys, reldeg, refsys, linearizing_output
+            )
+
+    def vector_field(self, x, u=None, t=None):
+        x, z = x[: self.sys.n_states], x[self.sys.n_states :]
+        if u is None:
+            u = 0.0
+        y = self.feedbacklaw(x, z, u)
+        dx = self.sys.vector_field(x, y)
+        dz = self.refsys.vector_field(z, u)
+        return jnp.concatenate((dx, dz))
+
+    def output(self, x, u=None, t=None):
+        x, z = x[: self.sys.n_states], x[self.sys.n_states :]
+        y = self.feedbacklaw(x, z, u)
+        return y

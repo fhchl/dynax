@@ -1,7 +1,6 @@
 import jax.numpy as jnp
-from equinox import static_field
 
-from .estimation import boxed_field, non_negative_field
+from .estimation import boxed_field, non_negative_field, static_field
 from .system import ControlAffine, DynamicalSystem
 
 
