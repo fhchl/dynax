@@ -39,16 +39,16 @@ def lie_derivatives_jet(f, h, n=1):
     fac = scipy.special.factorial(np.arange(n + 1))
 
     def liefun(x):
-        # taylor coefficients of x(t) = \phi_t(x_0)
+        # taylor coefficients of x(t) = ϕₜ(x_0)
         x_primals = [x]
         x_series = [jnp.zeros_like(x) for k in range(n)]
         for k in range(n):
             # taylor coefficients of z(t) = f(x(t))
             z_primals, z_series = jet(f, x_primals, (x_series,))
             z = [z_primals] + z_series
-            # build xk from zk: \dot x(t) = z(t) = f(x(t))
+            # build xₖ from zₖ: ẋ(t) = z(t) = f(x(t))
             x_series[k] = z[k] / (k + 1)
-        # taylor coefficients of y(t) = h(x(t)) = h(\phi_t(x_0))
+        # taylor coefficients of y(t) = h(x(t)) = h(ϕₜ(x_0))
         y_primals, y_series = jet(h, x_primals, (x_series,))
         Lfh = fac * jnp.array((y_primals, *y_series))
         return Lfh
