@@ -6,10 +6,12 @@ import pytest
 from diffrax import Kvaerno5, PIDController
 from jax.flatten_util import ravel_pytree
 
-from dynax import DynamicalSystem, fit_least_squares, Flow
-from dynax.estimation import (
+from dynax import (
+    DynamicalSystem,
     fit_csd_matching,
+    fit_least_squares,
     fit_multiple_shooting,
+    Flow,
     non_negative_field,
     transfer_function,
 )
@@ -154,7 +156,7 @@ def test_fit_with_bounded_parameters_and_ndarrays():
 @pytest.mark.parametrize("num_shots", [1, 2, 3])
 def test_fit_multiple_shooting_with_input(num_shots):
     # data
-    t = np.linspace(0, 10, 100000)
+    t = np.linspace(0, 10, 10000)
     u = np.sin(1 * 2 * np.pi * t)
     x0 = [1.0, 0.0]
     true_model = Flow(SpringMassDamper(1.0, 2.0, 3.0))

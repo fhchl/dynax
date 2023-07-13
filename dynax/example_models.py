@@ -1,7 +1,12 @@
 import jax.numpy as jnp
 
-from .estimation import boxed_field, non_negative_field, static_field
-from .system import ControlAffine, DynamicalSystem
+from .system import (
+    boxed_field,
+    ControlAffine,
+    DynamicalSystem,
+    non_negative_field,
+    static_field,
+)
 
 
 class PlasticFlowLinElastic(DynamicalSystem):

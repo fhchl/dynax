@@ -1,6 +1,6 @@
 """Functions for estimating parameters of dynamical systems."""
 
-from dataclasses import field, fields
+from dataclasses import fields
 from typing import Callable, Optional, TypeVar, Union
 
 import diffrax as dfx
@@ -18,46 +18,6 @@ from scipy.optimize._optimize import MemoizeJac
 from .evolution import AbstractEvolution
 from .system import DynamicalSystem
 from .util import value_and_jacfwd
-
-
-def static_field(**kwargs):
-    """Like `equinox.static_field`, but removes constraints if they exist."""
-    try:
-        metadata = dict(kwargs["metadata"])
-    except KeyError:
-        metadata = kwargs["metadata"] = {}
-    if "static" in metadata:
-        raise ValueError("Cannot use metadata with `static` already set.")
-    metadata["static"] = True
-    metadata["constrained"] = False
-    return field(**kwargs)
-
-
-def boxed_field(lower: float, upper: float, **kwargs):
-    """Mark a field value as box-constrained."""
-    try:
-        metadata = dict(kwargs["metadata"])
-    except KeyError:
-        metadata = kwargs["metadata"] = {}
-    metadata["constrained"] = ("boxed", (lower, upper))
-    metadata["static"] = False
-    return field(**kwargs)
-
-
-def free_field(**kwargs):
-    """Mark a field value as unconstrained, e.g. when subclassing."""
-    try:
-        metadata = dict(kwargs["metadata"])
-    except KeyError:
-        metadata = kwargs["metadata"] = {}
-    metadata["static"] = False
-    metadata["constrained"] = False
-    return field(**kwargs)
-
-
-def non_negative_field(min_val: float = 0.0, **kwargs):
-    """Mark a parameter as non-negative."""
-    return boxed_field(lower=min_val, upper=np.inf, **kwargs)
 
 
 def _get_bounds(module: eqx.Module) -> tuple[list, list]:
