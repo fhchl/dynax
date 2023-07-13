@@ -85,5 +85,38 @@ def nrmse(target, prediction, axis=0):
     return jnp.sqrt(nmse(target, prediction, axis))
 
 
+def monkeypatch_pretty_print():
+    from equinox._pretty_print import named_objs, bracketed, pp, dataclasses  # noqa
+
+    def _pformat_dataclass(obj, **kwargs):
+        def field_kind(field):
+            if field.metadata.get("static", False):
+                return "(static)"
+            elif constr := field.metadata.get("constrained", False):
+                return f"({constr[0]}: {constr[1]})"
+            return ""
+
+        objs = named_objs(
+            [
+                (
+                    field.name + field_kind(field),
+                    getattr(obj, field.name, "<uninitialised>"),
+                )
+                for field in dataclasses.fields(obj)
+                if field.repr
+            ],
+            **kwargs,
+        )
+        return bracketed(
+            name=pp.text(obj.__class__.__name__),
+            indent=kwargs["indent"],
+            objs=objs,
+            lbracket="(",
+            rbracket=")",
+        )
+
+    equinox._pretty_print._pformat_dataclass = _pformat_dataclass
+
+
 def pretty(tree):
     return equinox.tree_pformat(tree, short_arrays=False)
