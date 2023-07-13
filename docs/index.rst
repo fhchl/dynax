@@ -20,12 +20,13 @@ linearization of dynamical systems. It combines `JAX`_,
    This project is under active development.
 
 .. toctree::
-   :maxdepth: 1
+   :maxdepth: 2
    :caption: Contents:
 
    examples
    api
    references
+
 
 
 Indices and tables
