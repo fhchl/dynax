@@ -6,24 +6,29 @@ _"Dynamical systems in JAX"_
 
 __This is WIP!__
 
-This package combines [JAX](https://github.com/google/jax), [Diffrax](https://github.com/patrick-kidger/diffrax), and [Equinox](https://github.com/patrick-kidger/equinox) for straight-forward simulation, fitting and linearization of dynamical systems. See [example](examples) and [test](tests) folders for some documentation.
+This package combines [JAX][jax], [Diffrax][diffrax], and [Equinox][equinox] for
+straight-forward simulation, fitting and linearization of dynamical systems. See
+[example](examples) and [test](tests) folders for some documentation.
+
 
 ## Installing
 
-Requires a recent version of JAX. On Windows, use WSL or the unofficial builds [here](https://github.com/cloudhan/jax-windows-builder) to install jaxlib, e.g. like this:
+Requires Python 3.9+, JAX 0.4.13+, Equinox 0.10.10+ and Diffrax 0.4.0+
 
-    pip install --find-links https://whls.blob.core.windows.net/unstable/index.html jaxlib==0.3.24 jax==0.3.24
+On Windows, use WSL or the unofficial builds [here][jaxlibwin] to install jaxlib, e.g. like this:
 
-With the correct version of JAX installed, do either of
+    pip install --find-links https://whls.blob.core.windows.net/unstable/index.html jaxlib==0.4.11 jax==0.4.13
 
-    pip install .[jax03]
-    pip install .[jax04]
+With the correct version of JAX installed:
+
+    pip install .
+
 
 ## Testing
 
 Install with
 
-    pip install -e .[dev,jax04]
+    pip install .[dev]
 
 and run
 
@@ -32,3 +37,9 @@ and run
 To also test the examples, do
 
     pytest --runslow
+
+
+[jax]: https://github.com/google/jax
+[diffrax]: https://github.com/patrick-kidger/diffrax
+[equinox]: https://github.com/patrick-kidger/equinox
+[jaxlibwin]: https://github.com/cloudhan/jax-windows-builder

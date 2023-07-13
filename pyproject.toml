@@ -11,8 +11,11 @@ authors = [
 keywords = ["jax", "dynamical-systems", "system-identification", "linearization"]
 urls = {repository = "https://github.com/fhchl/dynax"}
 dependencies = [
-    "numpy>=1.20",
-    "scipy>=1.9",
+    "numpy>=1.24",
+    "scipy>=1.11",
+    "jax>=0.4.13,<=0.5",
+    "diffrax>=0.4,<=0.5",
+    "equinox>=0.10, <=0.10.10",
 ]
 
 [project.optional-dependencies]
@@ -23,21 +26,8 @@ dev = [
     "sphinx",
     "sphinxcontrib-bibtex",
     "sphinx_rtd_theme",
+    "nbsphinx",
     "pre-commit",
-]
-jax03 = [
-    "jax>=0.3,<0.4",
-    "jaxlib>=0.3,<0.4",
-    "diffrax>=0.2,<0.3",
-    "equinox>=0.9,<0.10",
-    "jaxtyping>=0.2,<0.2.13",
-]
-jax04 = [
-    "jax>=0.4",
-    "jaxlib>=0.4",
-    "diffrax>=0.3",
-    "equinox>=0.10",
-    "jaxtyping>=0.2"
 ]
 
 [tool.pytest.ini_options]
