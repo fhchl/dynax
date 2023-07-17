@@ -251,25 +251,19 @@ def fit_multiple_shooting(
     res = least_squares(
         fun, init_params, bounds=bounds, jac=jac, x_scale="jac", **kwargs
     )
-    x0s, model = unpack(res.x, treedef, x0s_shape)
 
-    x0s = np.asarray(x0s)
-    ts = np.asarray(ts)
-    ts0 = np.asarray(ts0)
-
-    res.x = model
-    res.x0s = x0s
-    res.ts = ts
-    res.ts0 = ts0
+    x0s, res.model = unpack(res.x, treedef, x0s_shape)
+    res.x0s = np.asarray(x0s)
+    res.ts = np.asarray(ts)
+    res.ts0 = np.asarray(ts0)
 
     if u is not None:
-        us = np.asarray(us)
-        res.us = us
+        res.us = np.asarray(us)
 
     return res
 
 
-def transfer_function(sys: DynamicalSystem, to_states=False, **kwargs):
+def transfer_function(sys: DynamicalSystem, to_states: bool = False, **kwargs):
     """Compute transfer-function of linearized system."""
     linsys = sys.linearize(**kwargs)
     A, B, C, D = linsys.A, linsys.B, linsys.C, linsys.D
@@ -288,7 +282,7 @@ def transfer_function(sys: DynamicalSystem, to_states=False, **kwargs):
 def estimate_spectra(
     u: ArrayLike, y: ArrayLike, sr: int, nperseg: int
 ) -> tuple[NDArray, NDArray, NDArray]:
-    """Estimate cross and autopectral densities."""
+    """Estimate cross and autospectral densities."""
     u = np.asarray(u)
     y = np.asarray(y)
     if u.ndim == 1:
@@ -301,7 +295,13 @@ def estimate_spectra(
 
 
 def fit_csd_matching(
-    sys: DynamicalSystem, u, y, sr, nperseg=1024, reg=0, ret_Syx=False, **kwargs
+    sys: DynamicalSystem,
+    u: ArrayLike,
+    y: ArrayLike,
+    sr: int,
+    nperseg: int = 1024,
+    reg: float = 0,
+    **kwargs,
 ) -> OptimizeResult:
     """Estimate parameters of linearized system by matching cross-spectral densities."""
     f, S_yu, S_uu = estimate_spectra(u, y, sr, nperseg)
