@@ -10,9 +10,10 @@ tags:
 authors:
   - name: Franz M. Heuchel
     orcid: 0000-0002-6084-0170
-    affiliation: 1 # (Multiple affiliations must be quoted)
+    affiliation: 1
   - name: Finn T. Agerkvist
-    affiliation: 2
+    orcid: 0000-0001-9434-9008
+    affiliation: 1
 affiliations:
  - name: Department of Electrical and Photonical Engineering, Technical University of Denmark, Denmark
    index: 1
