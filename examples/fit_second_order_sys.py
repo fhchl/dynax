@@ -68,7 +68,7 @@ print("initial system:", initial_sys)
 # If we have long-duration, wide-band input data we can fit the linear
 # parameters by matching the transfer-functions. In this example the result is
 # not very good.
-initial_sys = fit_csd_matching(initial_sys, u_train, y_train, samplerate, nperseg=100)
+initial_sys = fit_csd_matching(initial_sys, u_train, y_train, samplerate, nperseg=100).x
 print("linear params fitted:", initial_sys)
 
 # Combine the ODE with an ODE solver
@@ -76,7 +76,7 @@ init_model = Flow(initial_sys)
 # Fit all parameters with previously estimated parameters as a starting guess.
 pred_model = fit_least_squares(
     model=init_model, t=t_train, y=y_train, x0=initial_x, u=u_train, verbose=0
-)
+).x
 print("fitted system:", pred_model.system)
 
 # check the results

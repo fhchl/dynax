@@ -9,10 +9,10 @@ import jax
 import jax.numpy as jnp
 import numpy as np
 import scipy.signal as sig
+from jax import Array
 from jax.flatten_util import ravel_pytree
-from jaxtyping import Array
 from numpy.typing import ArrayLike, NDArray
-from scipy.optimize import least_squares
+from scipy.optimize import least_squares, OptimizeResult
 from scipy.optimize._optimize import MemoizeJac
 
 from .evolution import AbstractEvolution
@@ -52,13 +52,13 @@ Evolution = TypeVar("Evolution", bound=AbstractEvolution)
 
 def fit_least_squares(
     model: Evolution,
-    t: Array,
-    y: Array,
-    x0: Array,
-    u: Optional[Array] = None,
+    t: ArrayLike,
+    y: ArrayLike,
+    x0: ArrayLike,
+    u: Optional[ArrayLike] = None,
     batched: bool = False,
     **kwargs,
-) -> Evolution:
+) -> OptimizeResult:
     """Fit forward model with nonlinear least-squares.
 
     Args:
@@ -106,11 +106,11 @@ def fit_least_squares(
     res = least_squares(
         fun, init_params, bounds=bounds, jac=jac, x_scale="jac", **kwargs
     )
-    params = res.x
-    return unravel(params)
+    res.x = unravel(res.x)
+    return res
 
 
-def _moving_window(a: jnp.ndarray, size: int, stride: int):
+def _moving_window(a: Array, size: int, stride: int):
     start_idx = jnp.arange(0, len(a) - size + 1, stride)[:, None]
     inner_idx = jnp.arange(size)[None, :]
     return a[start_idx + inner_idx]
@@ -118,17 +118,14 @@ def _moving_window(a: jnp.ndarray, size: int, stride: int):
 
 def fit_multiple_shooting(
     model: Evolution,
-    t: Array,
-    y: Array,
-    x0: Array,
-    u: Optional[Union[Callable[[float], Array], Array]] = None,
+    t: ArrayLike,
+    y: ArrayLike,
+    x0: ArrayLike,
+    u: Optional[Union[Callable[[float], Array], ArrayLike]] = None,
     num_shots: int = 1,
     continuity_penalty: float = 0.0,
     **kwargs,
-) -> Union[
-    tuple[Evolution, NDArray, NDArray, NDArray],
-    tuple[Evolution, NDArray, NDArray, NDArray, NDArray],
-]:
+) -> OptimizeResult:
     """Fit forward model with multiple shooting and nonlinear least-squares.
 
     Args:
@@ -260,11 +257,16 @@ def fit_multiple_shooting(
     ts = np.asarray(ts)
     ts0 = np.asarray(ts0)
 
-    if u is None:
-        return model, x0s, ts, ts0
-    else:
+    res.x = model
+    res.x0s = x0s
+    res.ts = ts
+    res.ts0 = ts0
+
+    if u is not None:
         us = np.asarray(us)
-        return model, x0s, ts, ts0, us
+        res.us = us
+
+    return res
 
 
 def transfer_function(sys: DynamicalSystem, to_states=False, **kwargs):
@@ -287,6 +289,8 @@ def estimate_spectra(
     u: ArrayLike, y: ArrayLike, sr: int, nperseg: int
 ) -> tuple[NDArray, NDArray, NDArray]:
     """Estimate cross and autopectral densities."""
+    u = np.asarray(u)
+    y = np.asarray(y)
     if u.ndim == 1:
         u = u[:, None]
     if y.ndim == 1:
@@ -298,9 +302,7 @@ def estimate_spectra(
 
 def fit_csd_matching(
     sys: DynamicalSystem, u, y, sr, nperseg=1024, reg=0, ret_Syx=False, **kwargs
-) -> Union[
-    DynamicalSystem, tuple[DynamicalSystem, tuple[NDArray, NDArray, NDArray, NDArray]]
-]:
+) -> OptimizeResult:
     """Estimate parameters of linearized system by matching cross-spectral densities."""
     f, S_yu, S_uu = estimate_spectra(u, y, sr, nperseg)
     s = 2 * np.pi * f * 1j
@@ -326,9 +328,5 @@ def fit_csd_matching(
     fun = MemoizeJac(jax.jit(lambda x: value_and_jacfwd(residuals, x)))
     jac = fun.derivative
     res = least_squares(fun, x0, jac=jac, x_scale="jac", bounds=bounds, **kwargs)
-    fitted_sys = unravel(res.x)
-    if ret_Syx:
-        H = transfer_function(fitted_sys)
-        hatS_yu = jax.vmap(H)(s) * S_uu
-        return fitted_sys, (f, hatS_yu, S_yu, S_uu)
-    return fitted_sys
+    res.x = unravel(res.x)
+    return res
