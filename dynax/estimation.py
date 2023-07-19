@@ -2,18 +2,22 @@
 
 from dataclasses import fields
 from typing import Callable, Optional, TypeVar, Union
+import warnings
 
 import diffrax as dfx
 import equinox as eqx
 import jax
+from jax._src.custom_derivatives import Residuals
 import jax.numpy as jnp
 import numpy as np
 import scipy.signal as sig
 from jax import Array
+from jax.typing import ArrayLike
 from jax.flatten_util import ravel_pytree
 from numpy.typing import ArrayLike, NDArray
 from scipy.optimize import least_squares, OptimizeResult
 from scipy.optimize._optimize import MemoizeJac
+from scipy.linalg import svd
 
 from .evolution import AbstractEvolution
 from .system import DynamicalSystem
@@ -57,9 +61,13 @@ def fit_least_squares(
     x0: ArrayLike,
     u: Optional[ArrayLike] = None,
     batched: bool = False,
+    sigma: Optional[ArrayLike] = None,
+    absolute_sigma: bool = False,
     **kwargs,
 ) -> OptimizeResult:
     """Fit forward model with nonlinear least-squares.
+
+    Parameter bounds can be defined via the `*_field` functions.
 
     Args:
         model: the forward model to fit
@@ -67,28 +75,54 @@ def fit_least_squares(
         y: target outputs of system
         x0: initial state
         u: optional system input
+        batched: If True, interpret `t`, `y`, `x0`, `u` as holding multiple
+            experiments stacked along the first axis.
+        sigma: A 1-D sequence with values of the standard deviation of the measurement
+            error for each output of `model.system`. If None, `sigma` will be set to
+            the rms values of each measurement in `y`, which makes the cost scale
+            invariant to magnitude differences.
+        absolute_sigma: If True, `sigma` is used in an absolute sense and the estimated
+            parameter covariance `pcov` reflects these absolute values. If False
+            (default), only the relative magnitudes of the `sigma` values matter and
+            `sigma` is scaled to match the sample variance of the residuals after the
+            fit.
         kwargs: optional parameters for `scipy.optimize.least_squares`
+
     Returns:
-        A copy of `model` with the fitted parameters.
+        `OptimizeResult` as returned by `scipy.optimize.least_squares` with the
+        following fields defined:
+
+            x: `model` with estimated parameters
+            cov: The Covariance of the parameter estimate as a pytree of pytrees
+            jac: The Jacobian as a pytree of pytrees
+
     """
     t = jnp.asarray(t)
     y = jnp.asarray(y)
     x0 = jnp.asarray(x0)
 
     if batched:
+        # First axis holds experiments, second time.
         std_y = np.std(y, axis=1, keepdims=True)
         calc_coeffs = jax.vmap(dfx.backward_hermite_coefficients)
     else:
+        # First axis holds time.
         std_y = np.std(y, axis=0, keepdims=True)
         calc_coeffs = dfx.backward_hermite_coefficients
 
-    ucoeffs = None
+    if sigma is None:
+        weight = 1 / std_y
+    else:
+        sigma = np.asarray(sigma)
+        weight = 1 / sigma
+
     if u is not None:
-        ucoeffs = calc_coeffs(t, jnp.asarray(u))
+        u = jnp.asarray(u)
+        ucoeffs = calc_coeffs(t, u)
+    else:
+        ucoeffs = None
 
-    # NOTE: least_squares wrapper also implemented at `jaxopt.ScipyLeastSquares`
-
-    # use ravel instead of flatten as we also want to flatten all ndarrays
+    # Use ravel instead of flatten as we also want to flatten all ndarrays.
     init_params, unravel = ravel_pytree(model)
     bounds = _get_bounds(model)
 
@@ -97,16 +131,48 @@ def fit_least_squares(
         if batched:
             model = jax.vmap(model)
         _, pred_y = model(x0, t=t, ucoeffs=ucoeffs)
-        res = ((y - pred_y) / std_y).reshape(-1)
-        return res / np.sqrt(len(res))
+        res = (y - pred_y) * weight
+        # Scale cost to mean squared error (mse) for interpretable verbose output.
+        res = res * np.sqrt(2 / y.size)
+        return res.reshape(-1)
 
-    # compute primal and sensitivties in one forward pass
+    # Compute primal and sensitivties in one forward pass.
     fun = MemoizeJac(jax.jit(lambda x: value_and_jacfwd(residuals, x)))
     jac = fun.derivative
     res = least_squares(
         fun, init_params, bounds=bounds, jac=jac, x_scale="jac", **kwargs
     )
+
+    # Unscale mse to Least-Squares cost.
+    res.jac = res.jac * np.sqrt(y.size / 2)  # TODO: check this
+    res.cost = res.cost * y.size / 2
+
+    # pcov = H^{-1} ~= inv(J^T J). Do regularized inverse here.
+    _, s, VT = svd(res.jac, full_matrices=False)
+    threshold = np.finfo(float).eps * max(res.jac.shape) * s[0]
+    s = s[s > threshold]
+    VT = VT[: s.size]
+    pcov = np.dot(VT.T / s**2, VT)
+
+    warn_cov = False
+    if not absolute_sigma:
+        if y.size > res.x.size:
+            s_sq = res.cost / (y.size - res.x.size)
+            pcov = pcov * s_sq
+        else:
+            warn_cov = True
+
+    if np.isnan(pcov).any():
+        warn_cov = True
+
+    if warn_cov:
+        pcov.fill(np.inf)
+        warnings.warn("Covariance of the parameters could not be estimated")
+
     res.x = unravel(res.x)
+    res.cov = unravel(map(lambda x: unravel(x), pcov))
+    res.jac = unravel(map(lambda x: unravel(x), res.jac))
+
     return res
 
 
