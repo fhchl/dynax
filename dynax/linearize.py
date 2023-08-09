@@ -1,11 +1,13 @@
 """Functions related to feedback linearization of nonlinear systems."""
 
 from collections.abc import Callable
+from functools import partial
 from typing import Optional, Sequence
 
 import jax
 import jax.numpy as jnp
 import numpy as np
+import optimistix as optx
 from jaxtyping import Array
 
 from .derivative import lie_derivative
@@ -127,6 +129,116 @@ def input_output_linearize(
     return feedbacklaw
 
 
+def prop(f: Callable[[Array, float], Array], n: int, x: Array, u: float) -> Array:
+    """Propagates system n steps."""
+    # TODO: replace by lax.scan
+    if n == 0:
+        return x
+    return prop(f, n - 1, f(x, u), u)
+
+
+def discrete_relative_degree(
+    sys: DynamicalSystem,
+    xs: Array,
+    us: Array,
+    max_reldeg=10,
+    output: Optional[int] = None,
+):
+    """Estimate relative degree of discrete-time system on region xs.
+
+    Source: Lee, Linearization of Nonlinear Control Systems (2022), Def. 7.7
+
+    """
+    f = sys.vector_field
+    h = sys.output
+
+    y_depends_u = jax.grad(lambda n, x, u: h(prop(f, n, x, u)), 2)
+
+    for n in range(1, max_reldeg + 1):
+        res = jax.vmap(partial(y_depends_u, n))(xs, us)
+        if np.all(res == 0):
+            continue
+        elif np.all(res != 0):
+            return n
+        else:
+            raise RuntimeError("sys has ill defined relative degree.")
+    raise RuntimeError("Could not estmate relative degree. Increase max_reldeg.")
+
+
+def discrete_input_output_linearize(
+    sys: DynamicalSystem,
+    reldeg: int,
+    ref: LinearSystem,
+    output: Optional[int] = None,
+    solver=None,
+) -> Callable[[Array, Array, float, float], float]:
+    """Construct input-output linearizing feedback law for a discrete-time system."""
+    # Lee 2022, Chap. 7.4
+    f = lambda x, u: sys.vector_field(x, u)
+    h = sys.output
+    A, b, c = ref.A, ref.B, ref.C
+    if sys.n_inputs != ref.n_inputs != 1:
+        raise ValueError("Systems must have single input.")
+    if output is None:
+        if not (sys.n_outputs == ref.n_outputs and sys.n_outputs in ["scalar", 1]):
+            raise ValueError("Systems must be single output and `output` is None.")
+    else:
+        _h = h
+        h = lambda x: _h(x)[output]
+        c = ref.C[output]
+
+    if solver is None:
+        solver = optx.Newton(rtol=1e-6, atol=1e-6)
+
+    cAn = c.dot(np.linalg.matrix_power(A, reldeg))
+    cAnm1b = c.dot(np.linalg.matrix_power(A, reldeg - 1)).dot(b)
+
+    def feedbacklaw(x: Array, z: Array, v: float, u_prev: float):
+        y_reldeg_ref = cAn.dot(z) + cAnm1b * v
+        fn = lambda u, args: (h(prop(f, reldeg, x, u)) - y_reldeg_ref).squeeze()
+        # Catch https://github.com/patrick-kidger/diffrax/issues/296
+        u = jax.lax.cond(
+            fn(u_prev, None) == 0,
+            lambda: u_prev,
+            lambda: optx.root_find(fn, solver, u_prev).value,
+        )
+        return u.squeeze()
+
+    return feedbacklaw
+
+
+class DiscreteLinearizingSystem(DynamicalSystem):
+    r"""Dynamics computing linearizing feedback as output."""
+
+    sys: ControlAffine
+    refsys: LinearSystem
+    feedbacklaw: Callable
+
+    n_inputs = "scalar"
+
+    def __init__(self, sys, refsys, reldeg, linearizing_output=None):
+        if sys.n_inputs != "scalar":
+            raise ValueError("Only single input systems supported.")
+        self.sys = sys
+        self.refsys = refsys
+        self.n_states = self.sys.n_states + self.refsys.n_states + 1
+        self.feedbacklaw = discrete_input_output_linearize(
+            sys, reldeg, refsys, linearizing_output
+        )
+
+    def vector_field(self, x, u, t=None):
+        jax.debug.print("{}", x[0])
+        x, z, v_last = x[: self.sys.n_states], x[self.sys.n_states : -1], x[-1]
+        vn = self.feedbacklaw(x, z, u, v_last)
+        xn = self.sys.vector_field(x, vn)
+        zn = self.refsys.vector_field(z, u)
+        return jnp.concatenate((xn, zn, jnp.array([vn])))
+
+    def output(self, x, u=None, t=None):
+        v = x[-1]
+        return v
+
+
 class LinearizingSystem(DynamicalSystem):
     r"""Coupled ODE of nonlinear dynamics, linear reference and io linearizing law.
 
@@ -145,33 +257,38 @@ class LinearizingSystem(DynamicalSystem):
 
     sys: ControlAffine
     refsys: LinearSystem
-    feedbacklaw: Optional[Callable] = None
+    feedbacklaw: Callable[[Array, Array, float], float]
 
-    def __init__(self, sys, refsys, reldeg, feedbacklaw=None, linearizing_output=None):
-        if sys.n_inputs > 1:
-            raise ValueError("Only single input systems supported.")
+    n_inputs = "scalar"
+
+    def __init__(
+        self,
+        sys: ControlAffine,
+        refsys: LinearSystem,
+        reldeg: int,
+        feedbacklaw: Optional[Callable] = None,
+        linearizing_output: Optional[int] = None,
+    ):
         self.sys = sys
         self.refsys = refsys
-        self.n_inputs = "scalar"
         self.n_states = (
             self.sys.n_states + self.refsys.n_states
         )  # FIXME: support "scalar"
-        self.feedbacklaw = feedbacklaw
-        if feedbacklaw is None:
+        if callable(feedbacklaw):
+            self.feedbacklaw = feedbacklaw
+        else:
             self.feedbacklaw = input_output_linearize(
                 sys, reldeg, refsys, linearizing_output
             )
 
     def vector_field(self, x, u=None, t=None):
         x, z = x[: self.sys.n_states], x[self.sys.n_states :]
-        if u is None:
-            u = 0.0
         y = self.feedbacklaw(x, z, u)
         dx = self.sys.vector_field(x, y)
         dz = self.refsys.vector_field(z, u)
         return jnp.concatenate((dx, dz))
 
-    def output(self, x, u=None, t=None):
+    def output(self, x, u, t=None):
         x, z = x[: self.sys.n_states], x[self.sys.n_states :]
-        y = self.feedbacklaw(x, z, u)
-        return y
+        ur = self.feedbacklaw(x, z, u)
+        return ur

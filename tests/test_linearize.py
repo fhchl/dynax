@@ -4,13 +4,20 @@ import numpy.testing as npt
 
 from dynax import (
     ControlAffine,
+    discrete_relative_degree,
+    DiscreteLinearizingSystem,
     DynamicalSystem,
     DynamicStateFeedbackSystem,
     Flow,
+    input_output_linearize,
     LinearSystem,
+    Map,
+    relative_degree,
 )
 from dynax.example_models import NonlinearDrag, Sastry9_9
-from dynax.linearize import input_output_linearize, is_controllable, relative_degree
+from dynax.linearize import (
+    is_controllable,
+)
 
 
 tols = dict(rtol=1e-04, atol=1e-06)
@@ -43,6 +50,20 @@ def test_relative_degree():
     # output is velocity
     sys = SpringMassDamperWithOutput(out=1)
     assert relative_degree(sys, xs) == 1
+
+
+def test_discrete_relative_degree():
+    xs = np.random.normal(size=(100, 2))
+    us = np.random.normal(size=(100, 1))
+
+    sys = SpringMassDamperWithOutput(out=0)
+    assert discrete_relative_degree(sys, xs, us) == 2
+
+    with npt.assert_raises(RuntimeError):
+        discrete_relative_degree(sys, xs, us, max_reldeg=1)
+
+    sys = SpringMassDamperWithOutput(out=1)
+    assert discrete_relative_degree(sys, xs, us) == 1
 
 
 def test_is_controllable():
@@ -126,3 +147,33 @@ def test_input_output_linearize_multiple_outputs():
         y_ref = Flow(ref)(np.zeros(sys.n_states), t, u)[1]
         y = Flow(feedback_sys)(np.zeros(feedback_sys.n_states), t, u)[1]
         npt.assert_allclose(y_ref[:, out_idx], y[:, out_idx], **tols)
+
+
+class Lee7_4_5(DynamicalSystem):
+    n_states = 2
+    n_inputs = "scalar"
+
+    def vector_field(self, x, u, t=None):
+        x1, x2 = x
+        return 0.1 * jnp.array([x1 + x1**3 + x2, x2 + x2**3 + u])
+
+    def output(self, x, u=None, t=None):
+        return x[0]
+
+
+def test_discrete_input_output_linearize():
+    sys = Lee7_4_5()
+    refsys = sys.linearize()
+    xs = np.random.normal(size=(100, 2))
+    us = np.random.normal(size=100)
+    reldeg = discrete_relative_degree(sys, xs, us)
+    assert reldeg == 2
+
+    feedback_sys = DiscreteLinearizingSystem(sys, refsys, reldeg)
+    t = np.linspace(0, 0.001, 10)
+    u = np.cos(t) * 0.1
+    _, v = Map(feedback_sys)(np.zeros(2 + 2 + 1), t, u)
+    _, y = Map(sys)(np.zeros(2), t, u)
+    _, y_ref = Map(refsys)(np.zeros(2), t, u)
+
+    npt.assert_allclose(y_ref, y, **tols)

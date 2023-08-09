@@ -12,6 +12,9 @@ from .estimation import (
 from .evolution import AbstractEvolution as AbstractEvolution, Flow as Flow, Map as Map
 from .interpolation import spline_it as spline_it
 from .linearize import (
+    discrete_input_output_linearize as discrete_input_output_linearize,
+    discrete_relative_degree as discrete_relative_degree,
+    DiscreteLinearizingSystem as DiscreteLinearizingSystem,
     input_output_linearize as input_output_linearize,
     LinearizingSystem as LinearizingSystem,
     relative_degree as relative_degree,
