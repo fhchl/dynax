@@ -54,6 +54,68 @@ def _get_bounds(module: eqx.Module) -> tuple[list, list]:
 Evolution = TypeVar("Evolution", bound=AbstractEvolution)
 
 
+def _least_squares(
+    fun,
+    args=(),
+    kwargs={},
+    absolute_sigma=False,
+    verbose_mse=True,
+    **lskwargs,
+):
+    """least_squares for `equinox.Module`s with automatic differentiation."""
+    # Use ravel instead of flatten as we also want to flatten all ndarrays.
+    init_params, unravel = ravel_pytree(fun)
+    bounds = _get_bounds(fun)
+
+    def residuals(params):
+        fun = unravel(params)
+        r = fun(*args, **kwargs)
+        # Scale cost to mean squared error (mse) for interpretable verbose output.
+        if verbose_mse:
+            r = r * np.sqrt(2 / r.size)
+        return r.reshape(-1)
+
+    # Compute primal and sensitivties in one forward pass.
+    fun = MemoizeJac(jax.jit(lambda x: value_and_jacfwd(residuals, x)))
+    jac = fun.derivative
+    res = least_squares(fun, init_params, bounds=bounds, jac=jac, **lskwargs)
+
+    ysize = res.fun.size
+
+    # Unscale mse to Least-Squares cost.
+    if verbose_mse:
+        res.jac = res.jac * np.sqrt(ysize / 2)  # TODO: check this
+        res.cost = res.cost * ysize / 2
+
+    # pcov = H^{-1} ~= inv(J^T J). Do regularized inverse here.
+    _, s, VT = svd(res.jac, full_matrices=False)
+    threshold = np.finfo(float).eps * max(res.jac.shape) * s[0]
+    s = s[s > threshold]
+    VT = VT[: s.size]
+    pcov = np.dot(VT.T / s**2, VT)
+
+    warn_cov = False
+    if not absolute_sigma:
+        if ysize > res.x.size:
+            s_sq = res.cost / (ysize - res.x.size)
+            pcov = pcov * s_sq
+        else:
+            warn_cov = True
+
+    if np.isnan(pcov).any():
+        warn_cov = True
+
+    if warn_cov:
+        pcov.fill(np.inf)
+        warnings.warn("Covariance of the parameters could not be estimated")
+
+    res.x = unravel(res.x)
+    res.cov = unravel(list(map(lambda x: unravel(x), pcov)))
+    res.jac = unravel(list(map(lambda x: unravel(x), res.jac)))
+
+    return res
+
+
 def fit_least_squares(
     model: Evolution,
     t: ArrayLike,
@@ -169,9 +231,26 @@ def fit_least_squares(
         pcov.fill(np.inf)
         warnings.warn("Covariance of the parameters could not be estimated")
 
+    # FIXME: I am stuck here. We need some way to transform the covariance matrix
+    # into a Pytree of Pytrees.
+    # If 
+    #
+    #    tree = ((np.array([[a, b], [c, d]]), e))
+    #
+    # then we would like
+    # 
+    #    cov[0][0, 0][1] == covariance(a, e)
+    #    cov[0][0, 0][0] == np.ndarray([[cov(a, a), cov(a, b)],
+    #                                   [cov(a, c), cov(a, d)]])
+    #    cov[1][1] = cov(e, e)
+    #
+    # but! jnp.ndarrays can not hold leaves! or can they?
+    # Idea: first unflatten and then ravel: unflatten doesn't care about the specific
+    #         types, so we can make pytrees of pytrees
+    
     res.x = unravel(res.x)
-    res.cov = unravel(map(lambda x: unravel(x), pcov))
-    res.jac = unravel(map(lambda x: unravel(x), res.jac))
+    res.cov = unravel(list(map(lambda x: unravel(x), pcov)))
+    res.jac = unravel(list(map(lambda x: unravel(x), res.jac)))
 
     return res
 
@@ -318,7 +397,7 @@ def fit_multiple_shooting(
         fun, init_params, bounds=bounds, jac=jac, x_scale="jac", **kwargs
     )
 
-    x0s, res.model = unpack(res.x, treedef, x0s_shape)
+    x0s, res.x = unpack(res.x, treedef, x0s_shape)
     res.x0s = np.asarray(x0s)
     res.ts = np.asarray(ts)
     res.ts0 = np.asarray(ts0)
