@@ -21,7 +21,7 @@ from scipy.optimize._optimize import MemoizeJac
 
 from .evolution import AbstractEvolution
 from .system import DynamicalSystem
-from .util import value_and_jacfwd
+from .util import mse, nmse, nrmse, value_and_jacfwd
 
 
 def _get_bounds(module: eqx.Module) -> tuple[list, list]:
@@ -209,8 +209,15 @@ def fit_least_squares(
     )
 
     # Unscale mse to Least-Squares cost.
-    res.jac = res.jac * np.sqrt(res_size / 2)  # TODO: check this
+    res.fun = res.fun[: y.size].reshape(y.shape) / np.sqrt(2 / res_size) / weight
+    res.jac = res.jac * np.sqrt(res_size / 2)
     res.cost = res.cost * res_size / 2
+
+    # Compute normalized root-mean-squared error
+    y_pred = y - res.fun
+    res.mse = np.atleast_1d(mse(y, y_pred))
+    res.nmse = np.atleast_1d(nmse(y, y_pred))
+    res.nrmse = np.atleast_1d(nrmse(y, y_pred))
 
     # Compute covariance matrix.
     # pcov = H^{-1} ~= inv(J^T J). Use regularized inverse.
