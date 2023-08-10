@@ -7,7 +7,8 @@ import equinox as eqx
 import jax
 import jax.numpy as jnp
 import numpy as np
-from jaxtyping import Array, Float
+from jax import Array
+from jaxtyping import Float
 
 from .util import ssmatrix
 
@@ -71,10 +72,10 @@ class DynamicalSystem(eqx.Module):
 
     """
 
-    # these attributes should be overridden by subclasses
-    n_states: int = static_field(default=None, init=False)
-    n_inputs: int = static_field(default=None, init=False)
-    n_outputs: int = static_field(default=None, init=False)
+    # these attributes should be set by subclasses
+    n_states: int = static_field(init=False)
+    n_inputs: int = static_field(init=False)
+    n_outputs: int = static_field(init=False)
 
     # Don't know if it is possible to set vector_field and output
     # in a __init__ method, which would make the API nicer. For
@@ -177,10 +178,10 @@ class LinearSystem(DynamicalSystem):
     # - may h depend on u? Needed for D. If so, then one could compute
     #   relative degree.
 
-    A: jnp.ndarray
-    B: jnp.ndarray
-    C: jnp.ndarray
-    D: jnp.ndarray
+    A: Array
+    B: Array
+    C: Array
+    D: Array
 
     def __init__(self, A: Array, B: Array, C: Array, D: Array):
         """

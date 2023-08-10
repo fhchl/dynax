@@ -75,7 +75,7 @@ print("initial system:", tree_pformat(initial_sys))
 init_model = Flow(initial_sys)
 # Fit all parameters with multiple shooting
 num_shots = 3
-model, x0s, ts, ts0, us = fit_multiple_shooting(
+res = fit_multiple_shooting(
     model=init_model,
     t=t_train,
     y=y_train,
@@ -84,6 +84,11 @@ model, x0s, ts, ts0, us = fit_multiple_shooting(
     verbose=0,
     num_shots=num_shots,
 )
+model = res.x
+x0s = res.x0s
+ts = res.ts
+ts0 = res.ts0
+us = res.us
 print("fitted system:", tree_pformat(model.system))
 
 # check the results

@@ -50,3 +50,10 @@ combine-as-imports = true
 lines-after-imports = 2
 order-by-type = false
 known-first-party = ["dynax"]
+
+[tool.isort]
+profile = "black"
+combine_as_imports = true
+lines_after_imports = 2
+order_by_type = false
+known_first_party = ["dynax"]

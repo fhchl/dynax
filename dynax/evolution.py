@@ -89,7 +89,7 @@ class Flow(AbstractEvolution):
         ).ys
 
         # Compute output
-        y = jax.vmap(self.system.output)(x, u)
+        y = jax.vmap(self.system.output)(x, u, t)
 
         # Remove singleton dimensions
         if squeeze:

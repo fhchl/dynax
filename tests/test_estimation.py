@@ -4,6 +4,7 @@ import numpy as np
 import numpy.testing as npt
 import pytest
 from diffrax import Kvaerno5, PIDController
+from jax import Array
 from jax.flatten_util import ravel_pytree
 
 from dynax import (
@@ -35,7 +36,7 @@ def test_fit_least_squares(outputs):
     _, y_true = true_model(x0, t, u)
     # fit
     init_model = Flow(NonlinearDrag(1.0, 1.0, 1.0, 1.0, outputs))
-    pred_model = fit_least_squares(init_model, t, y_true, x0, u)
+    pred_model = fit_least_squares(init_model, t, y_true, x0, u).x
     # check result
     _, y_pred = pred_model(x0, t, u)
     npt.assert_allclose(y_pred, y_true, **tols)
@@ -64,7 +65,7 @@ def test_fit_least_squares_on_batch():
     _, ys = jax.vmap(true_model)(x0s, ts, us)
     # fit
     init_model = Flow(NonlinearDrag(1.0, 1.0, 1.0, 1.0))
-    pred_model = fit_least_squares(init_model, ts, ys, x0s, us, batched=True)
+    pred_model = fit_least_squares(init_model, ts, ys, x0s, us, batched=True).x
     # check result
     _, ys_pred = jax.vmap(pred_model)(x0s, ts, us)
     npt.assert_allclose(ys_pred, ys, **tols)
@@ -103,7 +104,7 @@ def test_fit_with_bounded_parameters():
     init_model = Flow(
         LotkaVolterra(alpha=1.0, beta=1.0, gamma=1.5, delta=2.0), **solver_opt
     )
-    pred_model = fit_least_squares(init_model, t, x_true, x0)
+    pred_model = fit_least_squares(init_model, t, x_true, x0).x
     # check result
     x_pred, _ = pred_model(x0, t)
     npt.assert_allclose(x_pred, x_true, **tols)
@@ -117,11 +118,11 @@ def test_fit_with_bounded_parameters():
 def test_fit_with_bounded_parameters_and_ndarrays():
     # model
     class LotkaVolterra(DynamicalSystem):
-        n_states = 2
-        n_inputs = 0
         alpha: float
         beta: float
-        delta_gamma: jnp.ndarray = non_negative_field()
+        delta_gamma: Array = non_negative_field()
+        n_states = 2
+        n_inputs = 0
 
         def vector_field(self, x, u=None, t=None):
             x, y = x
@@ -144,7 +145,7 @@ def test_fit_with_bounded_parameters_and_ndarrays():
         LotkaVolterra(alpha=1.0, beta=1.0, delta_gamma=jnp.array([1.5, 2])),
         **solver_opt,
     )
-    pred_model = fit_least_squares(init_model, t, x_true, x0)
+    pred_model = fit_least_squares(init_model, t, x_true, x0).x
     # check result
     x_pred, _ = pred_model(x0, t)
     npt.assert_allclose(x_pred, x_true, **tols)
@@ -172,7 +173,7 @@ def test_fit_multiple_shooting_with_input(num_shots):
         continuity_penalty=2,
         num_shots=num_shots,
         verbose=2,
-    )[0]
+    ).x
     # check result
     x_pred, _ = pred_model(x0, t, u)
     npt.assert_allclose(x_pred, x_true, **tols)
@@ -200,7 +201,7 @@ def test_fit_multiple_shooting_without_input(num_shots):
     )
     pred_model = fit_multiple_shooting(
         init_model, t, x_true, x0, num_shots=num_shots, continuity_penalty=2
-    )[0]
+    ).x
     # check result
     x_pred, _ = pred_model(x0, t)
     npt.assert_allclose(x_pred, x_true, **tols)
@@ -236,7 +237,7 @@ def test_csd_matching():
     _, y = model(x0, t, u)
     # fit
     init_sys = SpringMassDamper(1.0, 1.0, 1.0)
-    fitted_sys = fit_csd_matching(init_sys, u, y, sr, nperseg=1024, verbose=1)
+    fitted_sys = fit_csd_matching(init_sys, u, y, sr, nperseg=1024, verbose=1).x
 
     npt.assert_allclose(
         jax.tree_util.tree_flatten(fitted_sys)[0],
