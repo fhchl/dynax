@@ -1,23 +1,23 @@
 """Functions for estimating parameters of dynamical systems."""
 
-from dataclasses import fields
-from typing import Callable, Optional, TypeVar, Union
 import warnings
+from dataclasses import fields
+from typing import Any, Callable, Literal, Optional, Union
 
 import diffrax as dfx
 import equinox as eqx
 import jax
-from jax._src.custom_derivatives import Residuals
 import jax.numpy as jnp
+import jax.tree_util as jtu
 import numpy as np
 import scipy.signal as sig
 from jax import Array
-from jax.typing import ArrayLike
 from jax.flatten_util import ravel_pytree
-from numpy.typing import ArrayLike, NDArray
-from scipy.optimize import least_squares, OptimizeResult
-from scipy.optimize._optimize import MemoizeJac
+from jax.typing import ArrayLike
+from numpy.typing import NDArray
 from scipy.linalg import svd
+from scipy.optimize import least_squares, OptimizeResult as _OptimizeResult
+from scipy.optimize._optimize import MemoizeJac
 
 from .evolution import AbstractEvolution
 from .system import DynamicalSystem
@@ -51,73 +51,51 @@ def _get_bounds(module: eqx.Module) -> tuple[list, list]:
     return lower_bounds, upper_bounds
 
 
-Evolution = TypeVar("Evolution", bound=AbstractEvolution)
+def _key_paths(tree: Any, root: str = "tree") -> list[str]:
+    """List key_paths to free fields of pytree including elements of JAX arrays."""
+    f = lambda l: l.tolist() if isinstance(l, jax.Array) else l
+    flattened, _ = jtu.tree_flatten_with_path(jtu.tree_map(f, tree))
+    return [f"{root}{jtu.keystr(kp)}" for kp, _ in flattened]
 
 
-def _least_squares(
-    fun,
-    args=(),
-    kwargs={},
-    absolute_sigma=False,
-    verbose_mse=True,
-    **lskwargs,
-):
-    """least_squares for `equinox.Module`s with automatic differentiation."""
-    # Use ravel instead of flatten as we also want to flatten all ndarrays.
-    init_params, unravel = ravel_pytree(fun)
-    bounds = _get_bounds(fun)
+class OptimizeResult(_OptimizeResult):
+    """Represents the optimization result.
 
-    def residuals(params):
-        fun = unravel(params)
-        r = fun(*args, **kwargs)
-        # Scale cost to mean squared error (mse) for interpretable verbose output.
-        if verbose_mse:
-            r = r * np.sqrt(2 / r.size)
-        return r.reshape(-1)
-
-    # Compute primal and sensitivties in one forward pass.
-    fun = MemoizeJac(jax.jit(lambda x: value_and_jacfwd(residuals, x)))
-    jac = fun.derivative
-    res = least_squares(fun, init_params, bounds=bounds, jac=jac, **lskwargs)
-
-    ysize = res.fun.size
-
-    # Unscale mse to Least-Squares cost.
-    if verbose_mse:
-        res.jac = res.jac * np.sqrt(ysize / 2)  # TODO: check this
-        res.cost = res.cost * ysize / 2
-
-    # pcov = H^{-1} ~= inv(J^T J). Do regularized inverse here.
-    _, s, VT = svd(res.jac, full_matrices=False)
-    threshold = np.finfo(float).eps * max(res.jac.shape) * s[0]
-    s = s[s > threshold]
-    VT = VT[: s.size]
-    pcov = np.dot(VT.T / s**2, VT)
-
-    warn_cov = False
-    if not absolute_sigma:
-        if ysize > res.x.size:
-            s_sq = res.cost / (ysize - res.x.size)
-            pcov = pcov * s_sq
-        else:
-            warn_cov = True
-
-    if np.isnan(pcov).any():
-        warn_cov = True
-
-    if warn_cov:
-        pcov.fill(np.inf)
-        warnings.warn("Covariance of the parameters could not be estimated")
-
-    res.x = unravel(res.x)
-    res.cov = unravel(list(map(lambda x: unravel(x), pcov)))
-    res.jac = unravel(list(map(lambda x: unravel(x), res.jac)))
-
-    return res
+    Attributes
+    ----------
+    x : Evolution
+        The solution of the optimization.
+    success : bool
+        Whether or not the optimizer exited successfully.
+    status : int
+        Termination status of the optimizer. Its value depends on the
+        underlying solver. Refer to `message` for details.
+    message : str
+        Description of the cause of the termination.
+    fun, jac, hess: ndarray
+        Values of objective function, its Jacobian and its Hessian (if
+        available). The Hessians may be approximations, see the documentation
+        of the function in question.
+    pcov: ndarray
+        Estimate of the covariance matrix.
+    hess_inv : object
+        Inverse of the objective function's Hessian; may be an approximation.
+        Not available for all solvers. The type of this attribute may be
+        either np.ndarray or scipy.sparse.linalg.LinearOperator.
+    key_paths: List of key_paths for x that index the corresponding entries in `pcov`,
+        `jac`, `hess` and `hess_inv`.
+    nfev, njev, nhev : int
+        Number of evaluations of the objective functions and of its
+        Jacobian and Hessian.
+    nit : int
+        Number of iterations performed by the optimizer.
+    maxcv : float
+        The maximum constraint violation.
+    """
 
 
 def fit_least_squares(
-    model: Evolution,
+    model: AbstractEvolution,
     t: ArrayLike,
     y: ArrayLike,
     x0: ArrayLike,
@@ -125,29 +103,38 @@ def fit_least_squares(
     batched: bool = False,
     sigma: Optional[ArrayLike] = None,
     absolute_sigma: bool = False,
+    reg_val: float = 0,
+    reg_bias: Literal["initial"] | None = None,
+    reg_weight: Literal["inv_initial"] | None = None,
     **kwargs,
 ) -> OptimizeResult:
-    """Fit forward model with nonlinear least-squares.
+    """Fit forward model with (regularized) nonlinear least-squares.
 
-    Parameter bounds can be defined via the `*_field` functions.
+    Parameters can be constrained via the `*_field` functions.
 
     Args:
-        model: the forward model to fit
-        t: times at which `y` is given
-        y: target outputs of system
-        x0: initial state
-        u: optional system input
+        model: Forward model holding initial parameter estimates
+        t: Times at which `y` is given
+        y: Target outputs of system
+        x0: Initial state
+        u: Pptional system input
         batched: If True, interpret `t`, `y`, `x0`, `u` as holding multiple
             experiments stacked along the first axis.
         sigma: A 1-D sequence with values of the standard deviation of the measurement
             error for each output of `model.system`. If None, `sigma` will be set to
-            the rms values of each measurement in `y`, which makes the cost scale
-            invariant to magnitude differences.
+            the rms values of each measurement in `y`, which makes the cost
+            scale-invariant to magnitude differences between measurements.
         absolute_sigma: If True, `sigma` is used in an absolute sense and the estimated
             parameter covariance `pcov` reflects these absolute values. If False
             (default), only the relative magnitudes of the `sigma` values matter and
             `sigma` is scaled to match the sample variance of the residuals after the
             fit.
+        reg_val: Weight of the l2 penalty term
+        reg_bias: If "initial", bias the parameter estimates towards the values in
+            `model`.
+        reg_weight: If "inv_initial", weight each penalty term with the inverse
+            of the initial values. Applies no weightings to parameters with zero initial
+            value.
         kwargs: optional parameters for `scipy.optimize.least_squares`
 
     Returns:
@@ -155,8 +142,9 @@ def fit_least_squares(
         following fields defined:
 
             x: `model` with estimated parameters
-            cov: The Covariance of the parameter estimate as a pytree of pytrees
-            jac: The Jacobian as a pytree of pytrees
+            cov: Covariance matrix of the parameter estimate
+            key_paths: List of key_paths that index the corresponding entries in `cov`
+                and `jac`
 
     """
     t = jnp.asarray(t)
@@ -164,7 +152,7 @@ def fit_least_squares(
     x0 = jnp.asarray(x0)
 
     if batched:
-        # First axis holds experiments, second time.
+        # First axis holds experiments, second axis holds time.
         std_y = np.std(y, axis=1, keepdims=True)
         calc_coeffs = jax.vmap(dfx.backward_hermite_coefficients)
     else:
@@ -184,9 +172,21 @@ def fit_least_squares(
     else:
         ucoeffs = None
 
-    # Use ravel instead of flatten as we also want to flatten all ndarrays.
     init_params, unravel = ravel_pytree(model)
     bounds = _get_bounds(model)
+
+    param_bias = 0
+    if reg_bias == "initial":
+        param_bias = init_params
+
+    if reg_val != 0 and reg_weight == "initial":
+        one_or_init_param = np.where(np.asarray(init_params) != 0, init_params, 1)
+        reg_val = reg_val / one_or_init_param
+
+    is_regularized = np.any(reg_val != 0)
+    res_size = y.size
+    if is_regularized:
+        res_size = y.size + init_params.size
 
     def residuals(params):
         model = unravel(params)
@@ -194,9 +194,12 @@ def fit_least_squares(
             model = jax.vmap(model)
         _, pred_y = model(x0, t=t, ucoeffs=ucoeffs)
         res = (y - pred_y) * weight
+        res = res.reshape(-1)
+        if is_regularized:
+            res = jnp.concatenate((res, reg_val * (params - param_bias)))
         # Scale cost to mean squared error (mse) for interpretable verbose output.
-        res = res * np.sqrt(2 / y.size)
-        return res.reshape(-1)
+        res = res * np.sqrt(2 / res_size)
+        return res
 
     # Compute primal and sensitivties in one forward pass.
     fun = MemoizeJac(jax.jit(lambda x: value_and_jacfwd(residuals, x)))
@@ -206,10 +209,11 @@ def fit_least_squares(
     )
 
     # Unscale mse to Least-Squares cost.
-    res.jac = res.jac * np.sqrt(y.size / 2)  # TODO: check this
-    res.cost = res.cost * y.size / 2
+    res.jac = res.jac * np.sqrt(res_size / 2)  # TODO: check this
+    res.cost = res.cost * res_size / 2
 
-    # pcov = H^{-1} ~= inv(J^T J). Do regularized inverse here.
+    # Compute covariance matrix.
+    # pcov = H^{-1} ~= inv(J^T J). Use regularized inverse.
     _, s, VT = svd(res.jac, full_matrices=False)
     threshold = np.finfo(float).eps * max(res.jac.shape) * s[0]
     s = s[s > threshold]
@@ -218,8 +222,8 @@ def fit_least_squares(
 
     warn_cov = False
     if not absolute_sigma:
-        if y.size > res.x.size:
-            s_sq = res.cost / (y.size - res.x.size)
+        if res_size > res.x.size:
+            s_sq = res.cost / (res_size - res.x.size)
             pcov = pcov * s_sq
         else:
             warn_cov = True
@@ -229,28 +233,13 @@ def fit_least_squares(
 
     if warn_cov:
         pcov.fill(np.inf)
-        warnings.warn("Covariance of the parameters could not be estimated")
+        warnings.warn(
+            "Covariance of the parameters could not be estimated", stacklevel=2
+        )
 
-    # FIXME: I am stuck here. We need some way to transform the covariance matrix
-    # into a Pytree of Pytrees.
-    # If 
-    #
-    #    tree = ((np.array([[a, b], [c, d]]), e))
-    #
-    # then we would like
-    # 
-    #    cov[0][0, 0][1] == covariance(a, e)
-    #    cov[0][0, 0][0] == np.ndarray([[cov(a, a), cov(a, b)],
-    #                                   [cov(a, c), cov(a, d)]])
-    #    cov[1][1] = cov(e, e)
-    #
-    # but! jnp.ndarrays can not hold leaves! or can they?
-    # Idea: first unflatten and then ravel: unflatten doesn't care about the specific
-    #         types, so we can make pytrees of pytrees
-    
     res.x = unravel(res.x)
-    res.cov = unravel(list(map(lambda x: unravel(x), pcov)))
-    res.jac = unravel(list(map(lambda x: unravel(x), res.jac)))
+    res.pcov = pcov
+    res.key_paths = _key_paths(model, root=model.__class__.__name__)
 
     return res
 
@@ -262,7 +251,7 @@ def _moving_window(a: Array, size: int, stride: int):
 
 
 def fit_multiple_shooting(
-    model: Evolution,
+    model: AbstractEvolution,
     t: ArrayLike,
     y: ArrayLike,
     x0: ArrayLike,
@@ -319,7 +308,7 @@ def fit_multiple_shooting(
     t = t[:num_samples]
     y = y[:num_samples]
 
-    # FIXME: use numpy for everything that is not jitted
+    # TODO: use numpy for everything that is not jitted
     # Divide signals into segments.
     ts = _moving_window(t, num_samples_per_segment, num_samples_per_segment - 1)
     ys = _moving_window(y, num_samples_per_segment, num_samples_per_segment - 1)
@@ -365,22 +354,7 @@ def fit_multiple_shooting(
 
     def residuals(params):
         x0s, model = unpack(params, treedef, x0s_shape)
-        # TODO: for dfx.NoAdjoint using diffrax<v0.3 computing jacobians through
-        # vmap is very slow.
-        # pmap needs exact number of devices:
-        # xs_pred, ys_pred = jax.pmap(model)(x0s, t=ts0, ucoeffs=ucoeffs)
-        # vmap is slow:
         xs_pred, ys_pred = jax.vmap(model)(x0s, t=ts0, ucoeffs=ucoeffs)
-        # xmap needs axies names and seems complicated:
-        # in_axes = [['shots', ...], ['shots', ...], ['shots', ...]]
-        # out_axes = ['shots', ...]
-        # m = lambda x, t, u: model(x, t=t, ucoeffs=u)
-        # xs_pred, ys_pred = xmap(m, in_axes=in_axes, out_axes=[...])(x0s, ts0, ucoeffs)
-        # just use serial map:
-        # m = lambda x, t, u: model(x, t=t, ucoeffs=u)
-        # xs_pred, ys_pred = zip(*list(map(m, x0s, ts0, ucoeffs)))
-        # xs_pred = jnp.stack(xs_pred)
-        # ys_pred = jnp.stack(ys_pred)
         # output residual
         res_y = ((ys - ys_pred) / std_y).reshape(-1)
         res_y = res_y / np.sqrt(len(res_y))
