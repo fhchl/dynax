@@ -104,8 +104,8 @@ def fit_least_squares(
     sigma: Optional[ArrayLike] = None,
     absolute_sigma: bool = False,
     reg_val: float = 0,
-    reg_bias: Literal["initial"] | None = None,
-    reg_weight: Literal["inv_initial"] | None = None,
+    reg_bias: Optional[Literal["initial"]] = None,
+    reg_weight: Optional[Literal["inv_initial"]] = None,
     **kwargs,
 ) -> OptimizeResult:
     """Fit forward model with (regularized) nonlinear least-squares.
