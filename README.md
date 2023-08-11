@@ -43,6 +43,14 @@ To also test the examples, do
     pytest --runslow
 
 
+## Related software
+
+- [nlgreyfast][nlgreyfast]: Matlab library for fitting ODE's with mutliple shooting
+- [dynamax][dynamax]: inference and learning for probablistic state-space models
+
+
+[dynamax]: https://github.com/probml/dynamax
+[nlgreyfast]: https://github.com/meco-group/nlgreyfast
 [jax]: https://github.com/google/jax
 [diffrax]: https://github.com/patrick-kidger/diffrax
 [equinox]: https://github.com/patrick-kidger/equinox
