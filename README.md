@@ -13,13 +13,9 @@ straight-forward simulation, fitting and linearization of dynamical systems. See
 
 ## Installing
 
-Requires Python 3.9+, JAX 0.4.13+, Equinox 0.10.10+ and Diffrax 0.4.0+
+Requires Python 3.9+, JAX 0.4.13+, Equinox 0.10.10+ and Diffrax 0.4.0+.
 
-On Windows, use WSL or the unofficial builds [here][jaxlibwin] to install jaxlib, e.g. like this:
-
-    pip install --find-links https://whls.blob.core.windows.net/unstable/index.html jaxlib==0.4.11 jax==0.4.13
-
-With the correct version of JAX installed:
+With the correct version of jaxlib installed:
 
     pip install .
 
@@ -42,4 +38,3 @@ To also test the examples, do
 [jax]: https://github.com/google/jax
 [diffrax]: https://github.com/patrick-kidger/diffrax
 [equinox]: https://github.com/patrick-kidger/equinox
-[jaxlibwin]: https://github.com/cloudhan/jax-windows-builder
