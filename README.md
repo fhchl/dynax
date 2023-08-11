@@ -6,11 +6,11 @@ _"Dynamical systems in JAX"_
 
 __This is WIP!__
 
-This package combines [JAX][jax], [Diffrax][diffrax], and [Equinox][equinox] for
-straight-forward simulation, fitting and linearization of dynamical systems. Main features
+This package allows for straight-forward simulation, fitting and linearization of dynamical systems 
+by combing [JAX][jax], [Diffrax][diffrax], [Equinox][equinox], and [scipy.optimize][scipy]. Its main features
 include:
 
-- estimation of ODE parameters and their covariance via nonlinear Least-Squares
+- estimation of ODE parameters and their covariance via the prediction-error method
 - estimation of linear ODE parameters via matching of transfer-functions
 - fitting with multiple shooting
 - input-output linearization of continuous-time input-affine systems with well-defined relative degree
@@ -49,6 +49,7 @@ To also test the examples, do
 - [dynamax][dynamax]: inference and learning for probablistic state-space models
 
 
+[scipy]: https://docs.scipy.org/doc/scipy/reference/optimize.html
 [dynamax]: https://github.com/probml/dynamax
 [nlgreyfast]: https://github.com/meco-group/nlgreyfast
 [jax]: https://github.com/google/jax
