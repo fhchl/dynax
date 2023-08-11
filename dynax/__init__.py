@@ -1,6 +1,6 @@
 import importlib.metadata
 
-import jax as jax
+import jax as _jax
 
 from .derivative import lie_derivative as lie_derivative
 from .estimation import (
@@ -29,13 +29,13 @@ from .system import (
     static_field as static_field,
     StaticStateFeedbackSystem as StaticStateFeedbackSystem,
 )
-from .util import monkeypatch_pretty_print, pretty as pretty
+from .util import _monkeypatch_pretty_print, pretty as pretty
 
 
 # TODO: leave out or make clear somewhere
 print("Setting jax_enable_x64 to True.")
-jax.config.update("jax_enable_x64", True)
+_jax.config.update("jax_enable_x64", True)
 
-monkeypatch_pretty_print()
+_monkeypatch_pretty_print()
 
 __version__ = importlib.metadata.version("dynax")

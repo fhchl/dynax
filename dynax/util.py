@@ -85,7 +85,7 @@ def nrmse(target, prediction, axis=0):
     return jnp.sqrt(nmse(target, prediction, axis))
 
 
-def monkeypatch_pretty_print():
+def _monkeypatch_pretty_print():
     from equinox._pretty_print import named_objs, bracketed, pp, dataclasses  # noqa
 
     def _pformat_dataclass(obj, **kwargs):
