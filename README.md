@@ -12,6 +12,7 @@ include:
 
 - estimation of ODE parameters and their covariance via the prediction-error method
 - estimation of linear ODE parameters via matching of transfer-functions
+- fitting of multiple experiments
 - fitting with multiple shooting
 - input-output linearization of continuous-time input-affine systems with well-defined relative degree
 - input-output linearization of discrete-time systems with well-defined relative degree
