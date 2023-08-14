@@ -63,7 +63,12 @@ print("true system:", true_system)
 t_train = np.linspace(0, 10, 1000)
 samplerate = 1 / t_train[1]
 np.random.seed(42)
-u_train = np.random.normal(size=len(t_train))
+u_train = np.sum(
+    np.stack(
+        [np.sin(f * t_train) for f in np.random.uniform(0, samplerate / 4, size=10)]
+    ),
+    axis=0,
+)
 initial_x = [0.0, 0.0]
 x_train, y_train = true_model(initial_x, t_train, u_train)
 
@@ -81,10 +86,10 @@ res = fit_multiple_shooting(
     y=y_train,
     x0=initial_x,
     u=u_train,
-    verbose=0,
+    verbose=2,
     num_shots=num_shots,
 )
-model = res.x
+model = res.model
 x0s = res.x0s
 ts = res.ts
 ts0 = res.ts0
@@ -93,7 +98,6 @@ print("fitted system:", tree_pformat(model.system))
 
 # check the results
 x_pred, y_pred = model(initial_x, t_train, u_train)
-assert np.allclose(x_train, x_pred, atol=1e-5, rtol=1e-5)
 
 # plot
 xs_pred, _ = jax.vmap(model)(x0s, ts0, us)
@@ -105,3 +109,5 @@ for i in range(num_shots):
 plt.plot()
 plt.legend()
 plt.show()
+
+assert np.allclose(x_train, x_pred, atol=1e-5, rtol=1e-5)
