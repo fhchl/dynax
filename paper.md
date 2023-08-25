@@ -30,9 +30,9 @@ these systems linear and thus controllable. `Dynax` is based on JAX and uses its
 
 `Dynax`'s main features include:
 
-- Parameters estimation of nonlinear systems: fitting of both continuous and discrete-time systems to data via the prediction-error method [@ljung2002prediction], fitting to multiple experiments simultaneously, fitting via multiple shooting , estimation of parameter covariances, and box-constraints on parameter values.
-- Automatic input-output linearization: computing of feedback laws for both continuous-time input-affine systems and general discrete-time systems with well-defined relative degrees that allow tracking of linear reference outputs.
-- Parameter estimation of linear or linearized ODEs via matching of frequency-responses: this is helpful for obtaining good starting guesses for the identification of the nonlinear identification.
+- Parameters estimation of nonlinear systems: fitting of both continuous and discrete-time systems to data via the prediction-error method [@ljung2002prediction], fitting to multiple experiments simultaneously, fitting via multiple shooting [@Bock1981;@9651533], estimation of parameter covariances, and box-constraints on parameter values.
+- Automatic input-output linearization [@sastryNonlinearSystems1999]: computing of feedback laws for both continuous-time input-affine systems and general discrete-time systems with well-defined relative degrees that allow tracking of linear reference outputs.
+- Parameter estimation of linear or linearized ODEs via matching of frequency-responses [@pintelonSystemIdentificationFrequency2012]: this is helpful for obtaining good starting guesses for the identification of the nonlinear identification.
 
 
 # Statement of need
