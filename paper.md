@@ -30,7 +30,7 @@ these systems linear and thus controllable. `Dynax` is based on JAX and uses its
 
 `Dynax`'s main features include:
 
-- Parameters estimation of nonlinear systems: fitting of both continuous and discrete-time systems to data via the prediction-error method, including multiple experiments, multiple shooting, estimation of parameter covariances, and box-constraints on parameter values.
+- Parameters estimation of nonlinear systems: fitting of both continuous and discrete-time systems to data via the prediction-error method [@ljung2002prediction], fitting to multiple experiments simultaneously, fitting via multiple shooting , estimation of parameter covariances, and box-constraints on parameter values.
 - Automatic input-output linearization: computing of feedback laws for both continuous-time input-affine systems and general discrete-time systems with well-defined relative degrees that allow tracking of linear reference outputs.
 - Parameter estimation of linear or linearized ODEs via matching of frequency-responses: this is helpful for obtaining good starting guesses for the identification of the nonlinear identification.
 
@@ -38,17 +38,16 @@ these systems linear and thus controllable. `Dynax` is based on JAX and uses its
 # Statement of need
 
 
-Currently, there exist no tools in the Python ecosystem that directly facilitate parameter estimation for nonlinear differential equation systems (sometimes called "grey-box models"). For nonlinear system identification, there exists `nlgreyest`[^nlgreyest] and `nlgreyfast`[@retzler_shooting_2022] in Matlab, `SciMLSensitivity`[@rackauckas2020universal] and the related SciML ecosystem in Julia. For Python, there exists only packages for linear system identification like `sysidentpy`[@lacerda2020sysidentpy] or `SIPPY`^[https://github.com/CPCLAB-UNIPI/SIPPY].
+Currently, there exist no tools in the Python ecosystem that directly facilitate parameter estimation for nonlinear differential equation systems (sometimes called "grey-box models"). For nonlinear system identification, there exists `nlgreyest`[^nlgreyest] and `nlgreyfast` [@retzler_shooting_2022] in Matlab, `SciMLSensitivity` [@rackauckas2020universal] and the related SciML ecosystem in Julia. For Python, there exists only packages for linear system identification like `SIPPY`^[https://github.com/CPCLAB-UNIPI/SIPPY] or nonparameteric models like `sysidentpy` [@lacerda2020sysidentpy]. Most importantly, Dynax is the first software package that allows computation of input-output linearizing control signals automatically.
 
-`Dynax` was designed to be used by researchers, students and engineers that are familiar with Python without the need to now about optimization, estimation and automatic differentiation. It is already used at the Technical University of Denmark for research and teaching on the modeling of nonlinear acoustic transducers. There, it is enjoyed for the simplicity with which one can come up with new models, fit them to data and automatically compute the predistortorted input signals that make such tranducers act more linearily and thus less distorted.
+`Dynax` was designed to be used by researchers, students and engineers that are familiar with Python without the need to now about optimization, estimation and automatic differentiation. Importantly, only a minimal use of JAX's Numpy implementation is necessary when defining the dynamical systems. It is already used at the Technical University of Denmark for research and teaching on the modeling of nonlinear acoustic transducers. There, it is enjoyed for the simplicity with which one can come up with new models, fit them to data and automatically compute the predistortorted input signals that make such transducers act more linearily and thus less distorted.
 
 [^nlgreyest]: https://se.mathworks.com/help/ident/ref/nlgreyest.html
 
 
 # Acknowledgements
 
-We acknowledge contributions from Brigitta Sipocz, Syrtis Major, and Semyeong
-Oh, and support from Kathryn Johnston during the genesis of this project.
+We acknowledge ideas from and discussions with from Manuel Hahmann and Finn T. Agerkvist that helped shape this library. This research was financed by a collaboration project with Huawei.
 
 # References
 
