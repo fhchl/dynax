@@ -38,16 +38,16 @@ these systems linear and thus controllable. `Dynax` is based on JAX and uses its
 # Statement of need
 
 
-Currently, there exist no tools in the Python ecosystem that directly facilitate parameter estimation for nonlinear differential equation systems (sometimes called "grey-box models"). For nonlinear system identification, there exists `nlgreyest`[^nlgreyest] and `nlgreyfast` [@retzler_shooting_2022] in Matlab, `SciMLSensitivity` [@rackauckas2020universal] and the related SciML ecosystem in Julia. For Python, there exists only packages for linear system identification like `SIPPY`^[https://github.com/CPCLAB-UNIPI/SIPPY] or nonparameteric models like `sysidentpy` [@lacerda2020sysidentpy]. Most importantly, Dynax is the first software package that allows computation of input-output linearizing control signals automatically.
+Currently, there exist no tools in the Python ecosystem that directly facilitate parameter estimation for nonlinear differential equation systems (sometimes called "grey-box models"). For nonlinear system identification, there exists `nlgreyest`[^nlgreyest] and `nlgreyfast` [@retzler_shooting_2022] in Matlab, `SciMLSensitivity` [@rackauckas2020universal] and the related SciML ecosystem in Julia. For Python, there exists only packages for linear system identification like `SIPPY`^[https://github.com/CPCLAB-UNIPI/SIPPY] or non-parameteric models like `sysidentpy` [@lacerda2020sysidentpy]. Most importantly, Dynax seems to be the first publicly available software package for computing input-output linearizing control signals automatically.
 
-`Dynax` was designed to be used by researchers, students and engineers that are familiar with Python without the need to now about optimization, estimation and automatic differentiation. Importantly, only a minimal use of JAX's Numpy implementation is necessary when defining the dynamical systems. It is already used at the Technical University of Denmark for research and teaching on the modeling of nonlinear acoustic transducers. There, it is enjoyed for the simplicity with which one can come up with new models, fit them to data and automatically compute the predistortorted input signals that make such transducers act more linearily and thus less distorted.
+`Dynax` was designed to be used by researchers, students and engineers that are familiar with Python without the need to know about optimization, estimation and automatic differentiation. Importantly, only minimal use of JAX is required by the user when defining dynamical systems. `Dynax` is already used at the Technical University of Denmark for research and teaching on the modeling of nonlinear acoustic transducers. There, it is enjoyed for the simplicity with which one can come up with new models, fit them to data and automatically compute the signals that make such transducers act more linearly and thus less distorted.
 
 [^nlgreyest]: https://se.mathworks.com/help/ident/ref/nlgreyest.html
 
 
 # Acknowledgements
 
-We acknowledge ideas from and discussions with from Manuel Hahmann and Finn T. Agerkvist that helped shape this library. This research was financed by a collaboration project with Huawei.
+We acknowledge discussions with from Manuel Hahmann and Finn T. Agerkvist that helped shape this library. This research was supported by a research collaboration with Huawei.
 
 # References
 
