@@ -1,5 +1,5 @@
 ---
-title: 'Dynax: A package for parameter estimation and linearization of dynamical system'
+title: 'Dynax: A Python package for parameter estimation and linearization of dynamical system'
 tags:
   - Python
   - control
@@ -11,9 +11,6 @@ authors:
   - name: Franz M. Heuchel
     orcid: 0000-0002-6084-0170
     affiliation: 1
-  - name: Finn T. Agerkvist
-    orcid: 0000-0001-9434-9008
-    affiliation: 1
 affiliations:
  - name: Department of Electrical and Photonical Engineering, Technical University of Denmark, Denmark
    index: 1
@@ -23,37 +20,30 @@ bibliography: paper.bib
 
 # Summary
 
-`Dynax` is a Python package for modeling nonlinear dynamical systems,
-identifying their parameters from data, and designing linearizing feedback laws
-for controlling their input-output behavior. Its main features include:
+Describing the evolution of systems over time is an integral part of the sciences and engineering for verifying models,
+predicting outcomes, and controlling systems for some desired behavior. However,
+the parameters of such models are often unknown and need to be estimated from
+data. `Dynax` is a Python package for modeling nonlinear dynamical
+systems and estimating their parameters from data. Additionally, it provides
+routines for computing feedback laws which render the input-output behavior of
+these systems linear and thus controllable. `Dynax` is based on JAX and uses its automatic differentiation for speeding up optimizations and computing the input-output linearizing control inputs automatically from model descriptions.
 
-- estimation of ODE parameters and their covariance via the prediction-error method
-- estimation of linear ODE parameters via matching of transfer-functions
-- fitting of multiple experiments
-- fitting with multiple shooting
-- input-output linearization of continuous-time input-affine systems with well-defined relative degree
-- input-output linearization of discrete-time systems with well-defined relative degree
-- estimation of a system's relative-degree
+`Dynax`'s main features include:
+
+- Parameters estimation of nonlinear systems: fitting of both continuous and discrete-time systems to data via the prediction-error method, including multiple experiments, multiple shooting, estimation of parameter covariances, and box-constraints on parameter values.
+- Automatic input-output linearization: computing of feedback laws for both continuous-time input-affine systems and general discrete-time systems with well-defined relative degrees that allow tracking of linear reference outputs.
+- Parameter estimation of linear or linearized ODEs via matching of frequency-responses: this is helpful for obtaining good starting guesses for the identification of the nonlinear identification.
+
 
 # Statement of need
 
-- nonlinear compensation: no open-source software at all
 
-Currently, there exists no tools in the Python ecosystem that directly facilitate parameter estimation for nonlinear differential equation systems (sometimes called "grey-box models"). There exists
-[`nlgreyest`](https://se.mathworks.com/help/ident/ref/nlgreyest.html) in Matlab's Control
-System toolbox, [`DiffEqParamEstim.jl`](https://docs.sciml.ai/DiffEqParamEstim/stable/) in Julia, [`sysidentpy`](https://github.com/wilsonrljr/sysidentpy)[@lacerda2020sysidentpy] and [`SIPPY`](https://github.com/CPCLAB-UNIPI/SIPPY) in Python.
+Currently, there exist no tools in the Python ecosystem that directly facilitate parameter estimation for nonlinear differential equation systems (sometimes called "grey-box models"). For nonlinear system identification, there exists `nlgreyest`[^nlgreyest] and `nlgreyfast`[@retzler_shooting_2022] in Matlab, `SciMLSensitivity`[@rackauckas2020universal] and the related SciML ecosystem in Julia. For Python, there exists only packages for linear system identification like `sysidentpy`[@lacerda2020sysidentpy] or `SIPPY`^[https://github.com/CPCLAB-UNIPI/SIPPY].
 
-`Dynax` was designed to be used by researchers, students and engineers. It
-is already used in a course at DTU for estimating the parameters of loudspeaker drivers instead of a commercial black-box solution.
-The combination of design and ease of use make it possible to iteratively test and
-develop dynamical system models for linearization of such transducers.
+`Dynax` was designed to be used by researchers, students and engineers that are familiar with Python without the need to now about optimization, estimation and automatic differentiation. It is already used at the Technical University of Denmark for research and teaching on the modeling of nonlinear acoustic transducers. There, it is enjoyed for the simplicity with which one can come up with new models, fit them to data and automatically compute the predistortorted input signals that make such tranducers act more linearily and thus less distorted.
 
-# Similar software
+[^nlgreyest]: https://se.mathworks.com/help/ident/ref/nlgreyest.html
 
-- Dynamax
-- nlgreyest
-- nlgreyfast
-- DiffEqParamEstim
 
 # Acknowledgements
 
