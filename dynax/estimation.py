@@ -15,7 +15,7 @@ from jax import Array
 from jax.flatten_util import ravel_pytree
 from jax.typing import ArrayLike
 from numpy.typing import NDArray
-from scipy.linalg import svd
+from scipy.linalg import pinvh
 from scipy.optimize import least_squares, OptimizeResult as _OptimizeResult
 from scipy.optimize._optimize import MemoizeJac
 
@@ -94,19 +94,22 @@ class OptimizeResult(_OptimizeResult):
     """
 
 
-def _compute_covariance(res, absolute_sigma):
-    """Compute covariance matrix."""
-    # pcov = H^{-1} ~= inv(J^T J). Use regularized inverse.
-    _, s, VT = svd(res.jac, full_matrices=False)
-    threshold = np.finfo(float).eps * max(res.jac.shape) * s[0]
-    s = s[s > threshold]
-    VT = VT[: s.size]
-    pcov = np.dot(VT.T / s**2, VT)
+def _compute_covariance(
+    jac, cost, absolute_sigma: bool, cov_prior: Optional[NDArray] = None
+) -> NDArray:
+    """Compute covariance matrix from least-squares result."""
+    rsize, xsize = jac.shape
+    rtol = np.finfo(float).eps * max(rsize, xsize)
+    hess = jac.T @ jac
+    if cov_prior is not None:
+        # pcov = inv(JJ^T + Σₚ⁻¹)
+        hess += np.linalg.inv(cov_prior)
+    pcov = pinvh(hess, rtol=rtol)
 
     warn_cov = False
     if not absolute_sigma:
-        if res.fun.size > res.x.size:
-            s_sq = res.cost / (res.fun.size - res.x.size)
+        if rsize > xsize:
+            s_sq = cost / (rsize - xsize)
             pcov = pcov * s_sq
         else:
             warn_cov = True
@@ -127,36 +130,52 @@ def _least_squares(
     f: Callable[[ArrayLike], Array],
     x0: NDArray,
     bounds: tuple[NDArray, NDArray],
+    reg_term: Optional[Callable[[ArrayLike], Array]] = None,
     x_scale: bool = True,
     verbose_mse: bool = True,
-    **kwargs,
-):
-    """Least-squares with jit, autodiff and parameter scaling."""
-    if verbose_mse:
-        _f = f
+    **kwargs: Any,
+) -> OptimizeResult:
+    """Least-squares with jit, autodiff and parameter scaling, regularization"""
 
-        def f(x):
-            res = _f(x)
+    if reg_term is not None:
+        # Add regularization term
+        _f = f
+        f = lambda x: jnp.concatenate((_f(x), reg_term(x)))
+
+    if verbose_mse:
+        # Scale cost to mean-squared error
+        __f = f
+
+        def f(params):
+            res = __f(params)
             return res * np.sqrt(2 / res.size)
 
     if x_scale:
+        # Scale parameters by initial value
         norm = np.where(np.asarray(x0) != 0, x0, 1)
         x0 = x0 / norm
-        __f = f
-        f = lambda x: __f(x * norm)
-    else:
-        norm = 1
+        ___f = f
+        f = lambda x: ___f(x * norm)
 
     fun = MemoizeJac(jax.jit(lambda x: value_and_jacfwd(f, x)))
     jac = fun.derivative
     res = least_squares(fun, x0, bounds=bounds, jac=jac, x_scale="jac", **kwargs)
 
-    res.x = res.x * norm
+    if x_scale:
+        # Unscale parameters
+        res.x = res.x * norm
+
     if verbose_mse:
+        # Rescale to Least Squares cost
         mse_scaling = np.sqrt(2 / res.fun.size)
         res.fun = res.fun / mse_scaling
         res.jac = res.jac / mse_scaling
-        res.cost = res.cost / mse_scaling**2
+
+    if reg_term is not None:
+        # Remove regularization from residuals and Jacobian and cost
+        res.fun = res.fun[: -len(x0)]
+        res.jac = res.jac[: -len(x0)]
+        res.cost = np.sum(res.fun**2) / 2
 
     return res
 
@@ -249,24 +268,33 @@ def fit_least_squares(
         param_bias = init_params
 
     is_regularized = np.any(reg_val != 0)
+    if is_regularized:
+        cov_prior = np.diag(1 / reg_val * np.ones(len(init_params)))
+        reg_term = lambda params: reg_val * (params - param_bias)
+    else:
+        cov_prior = None
+        reg_term = None
 
-    def residuals(params):
+    def residual_term(params):
         model = unravel(params)
         if batched:
             model = jax.vmap(model)
         _, pred_y = model(x0, t=t, ucoeffs=ucoeffs)
-        res = ((y - pred_y) * weight).reshape(-1)
-        if is_regularized:
-            res = jnp.concatenate((res, reg_val * (params - param_bias)))
-        return res
+        res = (y - pred_y) * weight
+        return res.reshape(-1)
 
     res = _least_squares(
-        residuals, init_params, bounds, verbose_mse=verbose_mse, **kwargs
+        residual_term,
+        init_params,
+        bounds,
+        reg_term=reg_term,
+        verbose_mse=verbose_mse,
+        **kwargs,
     )
 
     res.model = unravel(res.x)
-    res.pcov = _compute_covariance(res, absolute_sigma)
-    res.y_pred = y - res.fun[: y.size].reshape(y.shape) / weight
+    res.pcov = _compute_covariance(res.jac, res.cost, absolute_sigma, cov_prior)
+    res.y_pred = y - res.fun.reshape(y.shape) / weight
     res.key_paths = _key_paths(model, root=model.__class__.__name__)
     res.mse = np.atleast_1d(mse(y, res.y_pred))
     res.nmse = np.atleast_1d(nmse(y, res.y_pred))
@@ -433,32 +461,52 @@ def fit_csd_matching(
     nperseg: int = 1024,
     reg: float = 0,
     verbose_mse: bool = True,
+    absolute_sigma: bool = False,
     **kwargs,
 ) -> OptimizeResult:
     """Estimate parameters of linearized system by matching cross-spectral densities."""
-    f, S_yu, S_uu = estimate_spectra(u, y, sr, nperseg)
+    f, Syu, Suu = estimate_spectra(u, y, sr, nperseg)
     s = 2 * np.pi * f * 1j
-    weight = np.std(S_yu, axis=0) * np.sqrt(len(f))
+    weight = 1 / np.std(Syu, axis=0)
     init_params, unravel = ravel_pytree(sys)
+
+    is_regularized = np.any(reg != 0)
+    if is_regularized:
+        cov_prior = np.diag(1 / reg * np.ones(len(init_params)))
+        reg_term = lambda params: params * reg
+    else:
+        cov_prior = None
+        reg_term = None
 
     def residuals(params):
         sys = unravel(params)
         H = transfer_function(sys)
-        hatG_yx = jax.vmap(H)(s)
-        hatS_yu = hatG_yx * S_uu
-        res = (S_yu - hatS_yu) / weight
-        regterm = params / np.where(np.asarray(init_params) != 0, init_params, 1) * reg
-        return jnp.concatenate(
-            (
-                jnp.real(res).reshape(-1),
-                jnp.imag(res).reshape(-1),
-                regterm,  # high param values may lead to stiff ODEs
-            )
-        )
+        Gyx_pred = jax.vmap(H)(s)
+        Syu_pred = Gyx_pred * Suu
+        r = (Syu - Syu_pred) * weight
+        r = jnp.concatenate((jnp.real(r), jnp.imag(r)))
+        return r.reshape(-1)
 
     bounds = _get_bounds(sys)
     res = _least_squares(
-        residuals, init_params, bounds, verbose_mse=verbose_mse, **kwargs
+        residuals,
+        init_params,
+        bounds,
+        reg_term=reg_term,
+        verbose_mse=verbose_mse,
+        **kwargs,
     )
+
+    Syu_pred_real, Syu_pred_imag = res.fun[: Syu.size], res.fun[Syu.size :]
+    Syu_pred = Syu - (Syu_pred_real + 1j * Syu_pred_imag).reshape(Syu.shape) / weight
+
     res.sys = unravel(res.x)
+    res.pcov = _compute_covariance(
+        res.jac, res.cost, absolute_sigma, cov_prior=cov_prior
+    )
+    res.key_paths = _key_paths(sys, root=sys.__class__.__name__)
+    res.mse = np.atleast_1d(mse(Syu, Syu_pred))
+    res.nmse = np.atleast_1d(nmse(Syu, Syu_pred))
+    res.nrmse = np.atleast_1d(nrmse(Syu, Syu_pred))
+
     return res
