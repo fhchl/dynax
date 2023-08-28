@@ -43,7 +43,6 @@ Currently, there exist no tools in the Python ecosystem that directly facilitate
 [^nlgreyest]: [https://se.mathworks.com/help/ident/ref/nlgreyest.html](https://se.mathworks.com/help/ident/ref/nlgreyest.html)
 [^sippy]: [https://github.com/CPCLAB-UNIPI/SIPPY](https://github.com/CPCLAB-UNIPI/SIPPY)
 
-
 # Acknowledgements
 
 We acknowledge discussions with from Manuel Hahmann and Finn T. Agerkvist that helped shape this library. This research was supported by a research collaboration with Huawei.
