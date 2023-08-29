@@ -127,10 +127,10 @@ def _compute_covariance(
 
 
 def _least_squares(
-    f: Callable[[ArrayLike], Array],
+    f: Callable[[Array], Array],
     x0: NDArray,
-    bounds: tuple[NDArray, NDArray],
-    reg_term: Optional[Callable[[ArrayLike], Array]] = None,
+    bounds: tuple[list, list],
+    reg_term: Optional[Callable[[Array], Array]] = None,
     x_scale: bool = True,
     verbose_mse: bool = True,
     **kwargs: Any,
@@ -140,7 +140,8 @@ def _least_squares(
     if reg_term is not None:
         # Add regularization term
         _f = f
-        f = lambda x: jnp.concatenate((_f(x), reg_term(x)))
+        _reg_term = reg_term  # https://github.com/python/mypy/issues/7268
+        f = lambda x: jnp.concatenate((_f(x), _reg_term(x)))
 
     if verbose_mse:
         # Scale cost to mean-squared error
@@ -279,6 +280,7 @@ def fit_least_squares(
         model = unravel(params)
         if batched:
             model = jax.vmap(model)
+        # FIXME: ucoeffs not supported for Map
         _, pred_y = model(x0, t=t, ucoeffs=ucoeffs)
         res = (y - pred_y) * weight
         return res.reshape(-1)

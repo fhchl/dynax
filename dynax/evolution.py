@@ -21,7 +21,7 @@ except AttributeError:
 class AbstractEvolution(eqx.Module):
     """Abstract base-class for evolutions."""
 
-    def __call__(self, x0, *args, **kwargs):
+    def __call__(self, x0: ArrayLike, t: ArrayLike, u: ArrayLike, **kwargs):
         raise NotImplementedError
 
 
@@ -42,7 +42,7 @@ class Flow(AbstractEvolution):
         u: Optional[ArrayLike] = None,
         ufun: Optional[Callable[[float], float]] = None,
         ucoeffs: Optional[ArrayLike] = None,
-        squeeze=True,
+        squeeze: bool = True,
         **diffeqsolve_kwargs,
     ):
         """Solve initial value problem for state and output trajectories."""
@@ -53,17 +53,17 @@ class Flow(AbstractEvolution):
         ), f"len(x0)={len(x0)} but sys has {self.system.n_states} states"
 
         if u is None and ufun is None and ucoeffs is None:
-            ufun = lambda t: None
+            _ufun = lambda t: None
         elif ucoeffs is not None:
             path = dfx.CubicInterpolation(t, ucoeffs)
-            ufun = path.evaluate
+            _ufun = path.evaluate
         elif callable(u):
-            ufun = u
+            _ufun = u
         elif u is not None:
             msg = "t and u must have matching first dimensions"
             u = jnp.asarray(u)
             assert len(t) == u.shape[0], msg
-            ufun = spline_it(t, u)
+            _ufun = spline_it(t, u)
         else:
             raise ValueError("Must specify one of u, ufun, ucoeffs.")
 
@@ -77,7 +77,7 @@ class Flow(AbstractEvolution):
             dt0=self.dt0 if self.dt0 is not None else t[1],
         )
         diffeqsolve_default_options |= diffeqsolve_kwargs
-        vector_field = lambda t, x, self: self.system.vector_field(x, ufun(t), t)
+        vector_field = lambda t, x, self: self.system.vector_field(x, _ufun(t), t)
         term = dfx.ODETerm(vector_field)
         x = dfx.diffeqsolve(
             term,
@@ -107,9 +107,9 @@ class Map(AbstractEvolution):
     def __call__(
         self,
         x0: ArrayLike,
-        num_steps: Optional[int] = None,
         t: Optional[ArrayLike] = None,
         u: Optional[ArrayLike] = None,
+        num_steps: Optional[int] = None,
         squeeze: bool = True,
     ):
         """Solve discrete map."""

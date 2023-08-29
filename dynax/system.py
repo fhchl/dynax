@@ -8,7 +8,6 @@ import jax
 import jax.numpy as jnp
 import numpy as np
 from jax import Array
-from jaxtyping import Float
 
 from .util import ssmatrix
 
@@ -370,13 +369,13 @@ class DynamicStateFeedbackSystem(DynamicalSystem):
 
     _sys: DynamicalSystem
     _sys2: DynamicalSystem
-    _feedbacklaw: Callable[[Array, Array, Float], Float]
+    _feedbacklaw: Callable[[Array, Array, float], float]
 
     def __init__(
         self,
         sys: DynamicalSystem,
         sys2: DynamicalSystem,
-        v: Callable[[Array, Array, Array], Array],
+        v: Callable[[Array, Array, float], float],
     ):
         r"""
         Args:
