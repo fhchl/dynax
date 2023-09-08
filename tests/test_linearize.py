@@ -23,10 +23,6 @@ class SpringMassDamperWithOutput(ControlAffine):
     out: int
     n_states = 2
     n_inputs = 1
-    n_outputs = 1
-
-    def __init__(self, out):
-        self.out = out
 
     def f(self, x, t=None):
         x1, x2 = x

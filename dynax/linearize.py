@@ -12,15 +12,18 @@ from .derivative import lie_derivative
 from .system import ControlAffine, DynamicalSystem, LinearSystem
 
 
-def relative_degree(sys, xs, max_reldeg=10, output: Optional[int] = None) -> int:
+# TODO: make this a method of ControlAffine
+def relative_degree(
+    sys: ControlAffine, xs, max_reldeg=10, output: Optional[int] = None
+) -> int:
     """Estimate relative degree of system on region xs."""
     # TODO: when ControlAffine has y = h(x) + i(x)u, include test for n = 0,
     # i.e. i(x) == 0 for all x in xs.
     assert sys.n_inputs == 1
     if output is None:
-        assert (
-            sys.n_outputs == 1
-        ), f"Output is None, but system has {sys.n_outputs} outputs."
+        # Make sure system has single output
+        msg = f"Output is None, but system has {sys.n_outputs} outputs."
+        assert sys.n_outputs == 1, msg
         h = sys.h
     else:
         h = lambda *args, **kwargs: sys.h(*args, **kwargs)[output]

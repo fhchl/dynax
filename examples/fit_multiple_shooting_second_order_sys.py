@@ -34,10 +34,9 @@ class NonlinearDrag(ControlAffine):
     r2: float
     k: float
 
-    # Set the number of states (order of system), the number of in- and outputs.
+    # Set the number of states (order of system), the number of inputs
     n_states = 2
     n_inputs = 1
-    n_outputs = 1
 
     # Define the dynamical system via the methods f, g, and h
     def f(self, x, u=None, t=None):

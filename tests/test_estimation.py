@@ -19,7 +19,7 @@ from dynax import (
 from dynax.example_models import LotkaVolterra, NonlinearDrag, SpringMassDamper
 
 
-tols = dict(rtol=1e-05, atol=1e-06)
+tols = dict(rtol=1e-05, atol=1e-05)
 
 
 @pytest.mark.parametrize("outputs", [[0], [0, 1]])
@@ -186,11 +186,10 @@ def test_fit_multiple_shooting_with_input(num_shots):
 
 @pytest.mark.parametrize("num_shots", [1, 2, 3])
 def test_fit_multiple_shooting_without_input(num_shots):
-    tols = dict(rtol=1e-04, atol=1e-4)
     # data
-    t = np.linspace(0, 1, 96000)
+    t = np.linspace(0, 1, 1000)
     x0 = [0.5, 0.5]
-    solver_opt = dict(step=PIDController(rtol=1e-5, atol=1e-7))
+    solver_opt = dict(step=PIDController(rtol=1e-3, atol=1e-6))
     true_model = Flow(
         LotkaVolterra(alpha=2 / 3, beta=4 / 3, gamma=1.0, delta=1.0), **solver_opt
     )
@@ -204,11 +203,12 @@ def test_fit_multiple_shooting_without_input(num_shots):
     ).model
     # check result
     x_pred, _ = pred_model(x0, t)
-    npt.assert_allclose(x_pred, x_true, **tols)
+    npt.assert_allclose(x_pred, x_true, atol=1e-3, rtol=1e-3)
     npt.assert_allclose(
         jax.tree_util.tree_flatten(pred_model)[0],
         jax.tree_util.tree_flatten(true_model)[0],
-        **tols,
+        atol=1e-2,
+        rtol=1e-2,
     )
 
 

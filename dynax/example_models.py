@@ -15,7 +15,6 @@ class PlasticFlowLinElastic(DynamicalSystem):
     sigma_0: float
     n_states = 2
     n_inputs = 1
-    n_outputs = 1
 
     def vector_field(self, x, u=None, t=None):
         S, E = x
@@ -65,7 +64,6 @@ class NonlinearDrag(ControlAffine):
     outputs: list[int] = static_field(default_factory=lambda: [0])
     n_states = 2
     n_inputs = 1
-    n_outputs = 1
 
     def f(self, x, u=None, t=None):
         x1, x2 = x
