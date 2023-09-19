@@ -135,7 +135,7 @@ def _least_squares(
     verbose_mse: bool = True,
     **kwargs: Any,
 ) -> OptimizeResult:
-    """Least-squares with jit, autodiff and parameter scaling, regularization"""
+    """Least-squares with jit, autodiff, parameter scaling and regularization."""
 
     if reg_term is not None:
         # Add regularization term
@@ -152,11 +152,12 @@ def _least_squares(
             return res * np.sqrt(2 / res.size)
 
     if x_scale:
-        # Scale parameters by initial value
-        norm = np.where(np.asarray(x0) != 0, x0, 1)
+        # Scale parameters and bounds by initial values
+        norm = np.where(np.asarray(x0) != 0, np.abs(x0), 1)
         x0 = x0 / norm
         ___f = f
         f = lambda x: ___f(x * norm)
+        bounds = (np.array(bounds[0]) / norm, np.array(bounds[1]) / norm)
 
     fun = MemoizeJac(jax.jit(lambda x: value_and_jacfwd(f, x)))
     jac = fun.derivative
