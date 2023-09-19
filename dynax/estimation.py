@@ -462,12 +462,21 @@ def fit_csd_matching(
     sr: int,
     nperseg: int = 1024,
     reg: float = 0,
+    x_scale: bool = True,
     verbose_mse: bool = True,
     absolute_sigma: bool = False,
+    fit_dc: bool = False,
     **kwargs,
 ) -> OptimizeResult:
     """Estimate parameters of linearized system by matching cross-spectral densities."""
     f, Syu, Suu = estimate_spectra(u, y, sr, nperseg)
+
+    if not fit_dc:
+        # remove dc term
+        f = f[1:]
+        Syu = Syu[1:]
+        Suu = Suu[1:]
+
     s = 2 * np.pi * f * 1j
     weight = 1 / np.std(Syu, axis=0)
     init_params, unravel = ravel_pytree(sys)
@@ -495,6 +504,7 @@ def fit_csd_matching(
         init_params,
         bounds,
         reg_term=reg_term,
+        x_scale=x_scale,
         verbose_mse=verbose_mse,
         **kwargs,
     )
