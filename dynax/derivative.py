@@ -27,7 +27,11 @@ def lie_derivative(f, h, n=1):
         return h
     else:
         lie_der = lie_derivative(f, h, n=n - 1)
-        return lambda x, *args: jax.jvp(lie_der, (x, *args), (f(x, *args),))[1]
+        return lambda x: jax.jvp(
+            lie_der,
+            (x,),
+            (f(x),),
+        )[1]
 
 
 def lie_derivatives_jet(f, h, n=1):

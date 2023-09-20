@@ -76,7 +76,7 @@ def input_output_linearize(
         h = sys.h
         A, b, c = ref.A, ref.B, ref.C
     else:
-        h = lambda x, t=None: sys.h(x, t=t)[output]
+        h = lambda x, t=None: sys.h(x)[output]
         A, b, c = ref.A, ref.B, ref.C[output]
 
     Lfnh = lie_derivative(sys.f, h, reldeg)
