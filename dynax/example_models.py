@@ -65,16 +65,16 @@ class NonlinearDrag(ControlAffine):
     n_states = 2
     n_inputs = 1
 
-    def f(self, x, u=None, t=None):
+    def f(self, x):
         x1, x2 = x
         return jnp.array(
             [x2, (-self.r * x2 - self.r2 * jnp.abs(x2) * x2 - self.k * x1) / self.m]
         )
 
-    def g(self, x, u=None, t=None):
+    def g(self, x):
         return jnp.array([0.0, 1.0 / self.m])
 
-    def h(self, x, u=None, t=None):
+    def h(self, x):
         return x[jnp.array(self.outputs)]
 
 
@@ -84,13 +84,13 @@ class Sastry9_9(ControlAffine):
     n_states = 3
     n_inputs = 1
 
-    def f(self, x, t=None):
+    def f(self, x):
         return jnp.array([0.0, x[0] + x[1] ** 2, x[0] - x[1]])
 
-    def g(self, x, t=None):
+    def g(self, x):
         return jnp.array([jnp.exp(x[1]), jnp.exp(x[1]), 0.0])
 
-    def h(self, x, t=None):
+    def h(self, x):
         return x[2]
 
 

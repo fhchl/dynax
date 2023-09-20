@@ -39,16 +39,16 @@ class NonlinearDrag(ControlAffine):
     n_inputs = 1
 
     # Define the dynamical system via the methods f, g, and h
-    def f(self, x, u=None, t=None):
+    def f(self, x):
         x1, x2 = x
         return jnp.array(
             [x2, (-self.r * x2 - self.r2 * jnp.abs(x2) * x2 - self.k * x1) / self.m]
         )
 
-    def g(self, x, u=None, t=None):
+    def g(self, x):
         return jnp.array([0.0, 1.0 / self.m])
 
-    def h(self, x, u=None, t=None):
+    def h(self, x):
         return x[0]
 
 

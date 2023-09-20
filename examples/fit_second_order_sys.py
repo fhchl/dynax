@@ -31,19 +31,18 @@ class NonlinearDrag(ControlAffine):
     # Set the number of states (order of system), the number of in- and outputs.
     n_states = 2
     n_inputs = 1
-    n_outputs = 1
 
     # Define the dynamical system via the methods f, g, and h
-    def f(self, x, u=None, t=None):
+    def f(self, x):
         x1, x2 = x
         return jnp.array(
             [x2, (-self.r * x2 - self.r2 * jnp.abs(x2) * x2 - self.k * x1) / self.m]
         )
 
-    def g(self, x, u=None, t=None):
+    def g(self, x):
         return jnp.array([0.0, 1.0 / self.m])
 
-    def h(self, x, u=None, t=None):
+    def h(self, x):
         return x[0]
 
 
@@ -68,7 +67,9 @@ print("initial system:", initial_sys)
 # If we have long-duration, wide-band input data we can fit the linear
 # parameters by matching the transfer-functions. In this example the result is
 # not very good.
-initial_sys = fit_csd_matching(initial_sys, u_train, y_train, samplerate, nperseg=100).x
+initial_sys = fit_csd_matching(
+    initial_sys, u_train, y_train, samplerate, nperseg=100
+).sys
 print("linear params fitted:", initial_sys)
 
 # Combine the ODE with an ODE solver
@@ -76,7 +77,7 @@ init_model = Flow(initial_sys)
 # Fit all parameters with previously estimated parameters as a starting guess.
 pred_model = fit_least_squares(
     model=init_model, t=t_train, y=y_train, x0=initial_x, u=u_train, verbose=0
-).x
+).model
 print("fitted system:", pred_model.system)
 
 # check the results

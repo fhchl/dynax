@@ -24,14 +24,14 @@ class SpringMassDamperWithOutput(ControlAffine):
     n_states = 2
     n_inputs = 1
 
-    def f(self, x, t=None):
+    def f(self, x):
         x1, x2 = x
         return jnp.array([x2, (-self.r * x2 - self.k * x1) / self.m])
 
-    def g(self, x, t=None):
+    def g(self, x):
         return jnp.array([0, 1 / self.m])
 
-    def h(self, x, t=None):
+    def h(self, x):
         return x[np.array(self.out)]
 
 

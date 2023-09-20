@@ -264,23 +264,23 @@ class ControlAffine(DynamicalSystem):
 
     """
 
-    def f(self, x, t=None):
+    def f(self, x):
         raise NotImplementedError
 
-    def g(self, x, t=None):
+    def g(self, x):
         raise NotImplementedError
 
-    def h(self, x, t=None):
+    def h(self, x):
         return x
 
     # FIXME: remove time dependence
     def vector_field(self, x, u=None, t=None):
         if u is None:
             u = 0
-        return self.f(x, t) + self.g(x, t) * u
+        return self.f(x) + self.g(x) * u
 
     def output(self, x, u=None, t=None):
-        return self.h(x, t)
+        return self.h(x)
 
 
 class SeriesSystem(DynamicalSystem):
