@@ -126,9 +126,9 @@ class DynamicalSystem(eqx.Module):
     def linearize(self, x0=None, u0=None, t=None) -> "LinearSystem":
         """Compute the approximate linearized system around a point."""
         if x0 is None:
-            x0 = np.zeros(self.n_states)
+            x0 = jnp.zeros(self.n_states)
         if u0 is None:
-            u0 = np.zeros(self.n_inputs)
+            u0 = jnp.zeros(self.n_inputs)
         A, B, C, D = _linearize(self.vector_field, self.output, x0, u0, t)
         # jax creates empty arrays
         if B.size == 0:

@@ -430,7 +430,7 @@ def transfer_function(sys: DynamicalSystem, to_states: bool = False, **kwargs):
     linsys = sys.linearize(**kwargs)
     A, B, C, D = linsys.A, linsys.B, linsys.C, linsys.D
 
-    def H(s):
+    def H(s: complex):
         """Transfer-function at s."""
         identity = np.eye(linsys.n_states)
         phi_B = jnp.linalg.solve(s * identity - A, B)

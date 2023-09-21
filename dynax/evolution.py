@@ -5,7 +5,7 @@ import equinox as eqx
 import jax
 import jax.numpy as jnp
 import numpy as np
-from numpy.typing import ArrayLike
+from jaxtyping import Array, ArrayLike
 
 from .interpolation import spline_it
 from .system import DynamicalSystem
@@ -44,7 +44,7 @@ class Flow(AbstractEvolution):
         ucoeffs: Optional[ArrayLike] = None,
         squeeze: bool = True,
         **diffeqsolve_kwargs,
-    ):
+    ) -> tuple[Array, Array]:
         """Solve initial value problem for state and output trajectories."""
         t = jnp.asarray(t)
         x0 = jnp.asarray(x0)
