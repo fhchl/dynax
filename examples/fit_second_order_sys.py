@@ -77,7 +77,7 @@ init_model = Flow(initial_sys)
 # Fit all parameters with previously estimated parameters as a starting guess.
 pred_model = fit_least_squares(
     model=init_model, t=t_train, y=y_train, x0=initial_x, u=u_train, verbose=0
-).model
+).result
 print("fitted system:", pred_model.system)
 
 # check the results
