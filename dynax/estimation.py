@@ -16,7 +16,7 @@ from jax.flatten_util import ravel_pytree
 from jax.typing import ArrayLike
 from numpy.typing import NDArray
 from scipy.linalg import pinvh
-from scipy.optimize import least_squares, OptimizeResult as _OptimizeResult
+from scipy.optimize import least_squares, OptimizeResult
 from scipy.optimize._optimize import MemoizeJac
 
 from .evolution import AbstractEvolution
@@ -56,42 +56,6 @@ def _key_paths(tree: Any, root: str = "tree") -> list[str]:
     f = lambda l: l.tolist() if isinstance(l, jax.Array) else l
     flattened, _ = jtu.tree_flatten_with_path(jtu.tree_map(f, tree))
     return [f"{root}{jtu.keystr(kp)}" for kp, _ in flattened]
-
-
-class OptimizeResult(_OptimizeResult):
-    """Represents the optimization result.
-
-    Attributes
-    ----------
-    x : Evolution
-        The solution of the optimization.
-    success : bool
-        Whether or not the optimizer exited successfully.
-    status : int
-        Termination status of the optimizer. Its value depends on the
-        underlying solver. Refer to `message` for details.
-    message : str
-        Description of the cause of the termination.
-    fun, jac, hess: ndarray
-        Values of objective function, its Jacobian and its Hessian (if
-        available). The Hessians may be approximations, see the documentation
-        of the function in question.
-    pcov: ndarray
-        Estimate of the covariance matrix.
-    hess_inv : object
-        Inverse of the objective function's Hessian; may be an approximation.
-        Not available for all solvers. The type of this attribute may be
-        either np.ndarray or scipy.sparse.linalg.LinearOperator.
-    key_paths: List of key_paths for x that index the corresponding entries in `pcov`,
-        `jac`, `hess` and `hess_inv`.
-    nfev, njev, nhev : int
-        Number of evaluations of the objective functions and of its
-        Jacobian and Hessian.
-    nit : int
-        Number of iterations performed by the optimizer.
-    maxcv : float
-        The maximum constraint violation.
-    """
 
 
 def _compute_covariance(
@@ -201,7 +165,7 @@ def fit_least_squares(
     Parameters can be constrained via the `*_field` functions.
 
     Args:
-        model: Forward model holding initial parameter estimates
+        model: Flow instance holding initial parameter estimates
         t: Times at which `y` is given
         y: Target outputs of system
         x0: Initial state
@@ -225,9 +189,9 @@ def fit_least_squares(
 
     Returns:
         `OptimizeResult` as returned by `scipy.optimize.least_squares` with the
-        following fields defined:
+        following additional attributes defined:
 
-            model: `model` with estimated parameters.
+            result: `model` with estimated parameters.
             cov: Covariance matrix of the parameter estimate.
             y_pred: Model prediction at optimum.
             key_paths: List of key_paths that index the corresponding entries in `cov`,
@@ -295,7 +259,7 @@ def fit_least_squares(
         **kwargs,
     )
 
-    res.model = unravel(res.x)
+    res.result = unravel(res.x)
     res.pcov = _compute_covariance(res.jac, res.cost, absolute_sigma, cov_prior)
     res.y_pred = y - res.fun.reshape(y.shape) / weight
     res.key_paths = _key_paths(model, root=model.__class__.__name__)
@@ -414,7 +378,7 @@ def fit_multiple_shooting(
 
     res = _least_squares(residuals, init_params, bounds, x_scale=False, **kwargs)
 
-    x0s, res.model = unravel(res.x)
+    x0s, res.result = unravel(res.x)
     res.x0s = np.asarray(jnp.concatenate((x0[None], x0s), axis=0))
     res.ts = np.asarray(ts)
     res.ts0 = np.asarray(ts0)
@@ -513,7 +477,7 @@ def fit_csd_matching(
     Syu_pred_real, Syu_pred_imag = res.fun[: Syu.size], res.fun[Syu.size :]
     Syu_pred = Syu - (Syu_pred_real + 1j * Syu_pred_imag).reshape(Syu.shape) / weight
 
-    res.sys = unravel(res.x)
+    res.result = unravel(res.x)
     res.pcov = _compute_covariance(
         res.jac, res.cost, absolute_sigma, cov_prior=cov_prior
     )

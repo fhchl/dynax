@@ -88,7 +88,7 @@ res = fit_multiple_shooting(
     verbose=2,
     num_shots=num_shots,
 )
-model = res.model
+model = res.result
 x0s = res.x0s
 ts = res.ts
 ts0 = res.ts0
