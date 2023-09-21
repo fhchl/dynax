@@ -69,7 +69,7 @@ print("initial system:", initial_sys)
 # not very good.
 initial_sys = fit_csd_matching(
     initial_sys, u_train, y_train, samplerate, nperseg=100
-).sys
+).result
 print("linear params fitted:", initial_sys)
 
 # Combine the ODE with an ODE solver

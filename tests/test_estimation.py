@@ -237,7 +237,7 @@ def test_csd_matching():
     _, y = model(x0, t, u)
     # fit
     init_sys = SpringMassDamper(1.0, 1.0, 1.0)
-    fitted_sys = fit_csd_matching(init_sys, u, y, sr, nperseg=1024, verbose=1).sys
+    fitted_sys = fit_csd_matching(init_sys, u, y, sr, nperseg=1024, verbose=1).result
 
     npt.assert_allclose(
         jax.tree_util.tree_flatten(fitted_sys)[0],
