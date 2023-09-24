@@ -31,7 +31,7 @@ def test_fit_least_squares(outputs):
         + np.sin(0.1 * 2 * np.pi * t)
         + np.sin(10 * 2 * np.pi * t)
     )
-    x0 = [1.0, 0.0]
+    x0 = (1.0, 0.0)
     true_model = Flow(NonlinearDrag(1.0, 2.0, 3.0, 4.0, outputs))
     _, y_true = true_model(x0, t, u)
     # fit

@@ -1,4 +1,5 @@
 import jax.numpy as jnp
+from jax import Array
 
 from .system import (
     boxed_field,
@@ -13,20 +14,16 @@ class PlasticFlowLinElastic(DynamicalSystem):
     kappa: float = non_negative_field()
     alpha: float
     sigma_0: float
-    n_states = 2
-    n_inputs = 1
 
-    def vector_field(self, x, u=None, t=None):
+    def vector_field(self, x: Array, u: float, t) -> tuple[float, float]:
         S, E = x
-        return jnp.array(
-            [
-                (self.kappa + self.alpha) * u
-                - self.alpha / self.sigma_0 * (S - self.kappa * E) * jnp.abs(u),
-                u,
-            ]
-        )
+        dS = (self.kappa + self.alpha) * u - self.alpha / self.sigma_0 * (
+            S - self.kappa * E
+        ) * jnp.abs(u)
+        dE = u
+        return dS, dE
 
-    def output(self, x, u=None, t=None):
+    def output(self, x: Array, u=None, t=None) -> float:
         S, E = x
         return S
 
@@ -41,13 +38,13 @@ class SpringMassDamper(DynamicalSystem):
     m: float
     r: float
     k: float
-    n_states = 2
-    n_inputs = 1
 
     def vector_field(self, x, u=None, t=None):
         u = u.squeeze() if u is not None else 0
         x1, x2 = x
-        return jnp.array([x2, (u - self.r * x2 - self.k * x1) / self.m])
+        dx1 = x2
+        dx2 = (u - self.r * x2 - self.k * x1) / self.m
+        return dx1, dx2
 
 
 class NonlinearDrag(ControlAffine):
@@ -61,42 +58,33 @@ class NonlinearDrag(ControlAffine):
     r2: float
     k: float
     m: float
-    outputs: list[int] = static_field(default_factory=lambda: [0])
-    n_states = 2
-    n_inputs = 1
+    outputs: tuple[int, ...] = static_field(default=(0,))
 
     def f(self, x):
         x1, x2 = x
-        return jnp.array(
-            [x2, (-self.r * x2 - self.r2 * jnp.abs(x2) * x2 - self.k * x1) / self.m]
-        )
+        return (x2, (-self.r * x2 - self.r2 * jnp.abs(x2) * x2 - self.k * x1) / self.m)
 
     def g(self, x):
-        return jnp.array([0.0, 1.0 / self.m])
+        return (0.0, 1.0 / self.m)
 
     def h(self, x):
-        return x[jnp.array(self.outputs)]
+        return tuple(x[i] for i in self.outputs)
 
 
 class Sastry9_9(ControlAffine):
     """Sastry Example 9.9"""
 
-    n_states = 3
-    n_inputs = 1
-
     def f(self, x):
-        return jnp.array([0.0, x[0] + x[1] ** 2, x[0] - x[1]])
+        return (0.0, x[0] + x[1] ** 2, x[0] - x[1])
 
     def g(self, x):
-        return jnp.array([jnp.exp(x[1]), jnp.exp(x[1]), 0.0])
+        return (jnp.exp(x[1]), jnp.exp(x[1]), 0.0)
 
     def h(self, x):
         return x[2]
 
 
 class LotkaVolterra(DynamicalSystem):
-    n_states = 2
-    n_inputs = 0
     alpha: float = non_negative_field()
     beta: float = non_negative_field()
     gamma: float = non_negative_field()
@@ -104,9 +92,9 @@ class LotkaVolterra(DynamicalSystem):
 
     def vector_field(self, x, u=None, t=None):
         x, y = x
-        return jnp.array(
-            [self.alpha * x - self.beta * x * y, self.delta * x * y - self.gamma * y]
-        )
+        dx = self.alpha * x - self.beta * x * y
+        dy = self.delta * x * y - self.gamma * y
+        return dx, dy
 
 
 class SpringMassWithBoucWenHysteresis(DynamicalSystem):
@@ -131,10 +119,8 @@ class SpringMassWithBoucWenHysteresis(DynamicalSystem):
         F = self.a * self.ki * u + (1 - self.a) * self.ki * z
         # shape control function
         psi = beta * jnp.sign(z * du) + self.gamma
-        return jnp.array(
-            [
-                du,
-                (f - self.r * du - F) / self.m,
-                du * (A - psi * jnp.power(jnp.abs(z), self.n)),
-            ]
+        return (
+            du,
+            (f - self.r * du - F) / self.m,
+            du * (A - psi * jnp.power(jnp.abs(z), self.n)),
         )

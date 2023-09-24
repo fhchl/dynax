@@ -41,11 +41,11 @@ def _get_bounds(module: eqx.Module) -> tuple[list, list]:
             upper_bounds.extend(ubs)
         elif constraint := field_.metadata.get("constrained", False):
             _, (lb, ub) = constraint
-            size = np.asarray(value).size
+            size = np.size(value)
             lower_bounds.extend([lb] * size)
             upper_bounds.extend([ub] * size)
         else:
-            size = np.asarray(value).size
+            size = np.size(value)
             lower_bounds.extend([-np.inf] * size)
             upper_bounds.extend([np.inf] * size)
     return lower_bounds, upper_bounds
@@ -105,7 +105,7 @@ def _least_squares(
         # Add regularization term
         _f = f
         _reg_term = reg_term  # https://github.com/python/mypy/issues/7268
-        f = lambda x: jnp.concatenate((_f(x), _reg_term(x)))
+        f = lambda params: jnp.concatenate((_f(params), _reg_term(params)))
 
     if verbose_mse:
         # Scale cost to mean-squared error
@@ -120,7 +120,7 @@ def _least_squares(
         norm = np.where(np.asarray(x0) != 0, np.abs(x0), 1)
         x0 = x0 / norm
         ___f = f
-        f = lambda x: ___f(x * norm)
+        f = lambda params: ___f(params * norm)
         bounds = (np.array(bounds[0]) / norm, np.array(bounds[1]) / norm)
 
     fun = MemoizeJac(jax.jit(lambda x: value_and_jacfwd(f, x)))
@@ -145,6 +145,11 @@ def _least_squares(
 
     return res
 
+
+# TODO(pytree): What to do here?
+# What is the data, e.g. output in pytree form?
+# x0 = (x, y)
+# x = [np.array([x1, x2, x3, ...]), np.array([y1, y2, y3, ....])]
 
 def fit_least_squares(
     model: AbstractEvolution,
@@ -203,7 +208,6 @@ def fit_least_squares(
     """
     t = jnp.asarray(t)
     y = jnp.asarray(y)
-    x0 = jnp.asarray(x0)
 
     if batched:
         # First axis holds experiments, second axis holds time.
@@ -392,10 +396,15 @@ def fit_multiple_shooting(
 def transfer_function(sys: DynamicalSystem, to_states: bool = False, **kwargs):
     """Compute transfer-function of linearized system."""
     linsys = sys.linearize(**kwargs)
+    # TODO(pytree): This one is going to be tricky and this should be tackled first.
+    # When we evaluate H(s), we don't know the state structure. We could demand that
+    # x0, u0 and t0 are supplied?
     A, B, C, D = linsys.A, linsys.B, linsys.C, linsys.D
 
     def H(s: complex):
         """Transfer-function at s."""
+        # TODO(pytree): Here, we are _required_ to materialize A, B, C, D, because this
+        # is otherwise very hard :/
         identity = np.eye(linsys.n_states)
         phi_B = jnp.linalg.solve(s * identity - A, B)
         if to_states:

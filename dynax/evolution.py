@@ -5,7 +5,7 @@ import equinox as eqx
 import jax
 import jax.numpy as jnp
 import numpy as np
-from jaxtyping import Array, ArrayLike
+from jaxtyping import Array, ArrayLike, PyTree
 
 from .interpolation import spline_it
 from .system import DynamicalSystem
@@ -37,33 +37,28 @@ class Flow(AbstractEvolution):
 
     def __call__(
         self,
-        x0: ArrayLike,
+        x0: PyTree,
         t: ArrayLike,
         u: Optional[ArrayLike] = None,
         ufun: Optional[Callable[[float], float]] = None,
         ucoeffs: Optional[ArrayLike] = None,
-        squeeze: bool = True,
         **diffeqsolve_kwargs,
     ) -> tuple[Array, Array]:
         """Solve initial value problem for state and output trajectories."""
-        t = jnp.asarray(t)
-        x0 = jnp.asarray(x0)
-        assert (
-            len(x0) == self.system.n_states
-        ), f"len(x0)={len(x0)} but sys has {self.system.n_states} states"
-
+        t_ = jnp.asarray(t)
+        # TODO(pytree): check that x0 has the right shape?
         if u is None and ufun is None and ucoeffs is None:
             _ufun = lambda t: None
         elif ucoeffs is not None:
-            path = dfx.CubicInterpolation(t, ucoeffs)
+            path = dfx.CubicInterpolation(t_, ucoeffs)
             _ufun = path.evaluate
         elif callable(u):
             _ufun = u
         elif u is not None:
             msg = "t and u must have matching first dimensions"
             u = jnp.asarray(u)
-            assert len(t) == u.shape[0], msg
-            _ufun = spline_it(t, u)
+            assert len(t_) == u.shape[0], msg
+            _ufun = spline_it(t_, u)
         else:
             raise ValueError("Must specify one of u, ufun, ucoeffs.")
 
@@ -71,30 +66,25 @@ class Flow(AbstractEvolution):
         diffeqsolve_default_options = dict(
             solver=self.solver,
             stepsize_controller=self.step,
-            saveat=dfx.SaveAt(ts=t),
-            max_steps=50 * len(t),
+            saveat=dfx.SaveAt(ts=t_),
+            max_steps=50 * len(t_),
             adjoint=DefaultAdjoint(),
-            dt0=self.dt0 if self.dt0 is not None else t[1],
+            dt0=self.dt0 if self.dt0 is not None else t_[1],
         )
         diffeqsolve_default_options |= diffeqsolve_kwargs
-        vector_field = lambda t, x, self: self.system.vector_field(x, _ufun(t), t)
+        vector_field = lambda t_, x, self: self.system.vector_field(x, _ufun(t_), t_)
         term = dfx.ODETerm(vector_field)
         x = dfx.diffeqsolve(
             term,
-            t0=t[0],
-            t1=t[-1],
+            t0=t_[0],
+            t1=t_[-1],
             y0=x0,
             args=self,  # https://github.com/patrick-kidger/diffrax/issues/135
             **diffeqsolve_default_options,
         ).ys
 
         # Compute output
-        y = jax.vmap(self.system.output)(x, u, t)
-
-        # Remove singleton dimensions
-        if squeeze:
-            x = x.squeeze()
-            y = y.squeeze()
+        y = jax.vmap(self.system.output)(x, u, t_)
 
         return x, y
 
@@ -110,17 +100,14 @@ class Map(AbstractEvolution):
         t: Optional[ArrayLike] = None,
         u: Optional[ArrayLike] = None,
         num_steps: Optional[int] = None,
-        squeeze: bool = True,
     ):
         """Solve discrete map."""
         x0 = jnp.asarray(x0)
         if num_steps is None:
             if t is not None:
-                t = jnp.asarray(t)
-                num_steps = len(t)
+                num_steps = len(np.asarray(t))
             elif u is not None:
-                u = jnp.asarray(u)
-                num_steps = len(u)
+                num_steps = len(np.asarray(u))
             else:
                 raise ValueError("must specify one of num_steps, t or u")
 
@@ -139,8 +126,5 @@ class Map(AbstractEvolution):
 
         # Compute output
         y = jax.vmap(self.system.output)(x)
-        if squeeze:
-            # Remove singleton dimensions
-            x = x.squeeze()
-            y = y.squeeze()
+
         return x, y

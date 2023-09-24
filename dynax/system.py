@@ -8,8 +8,16 @@ import jax
 import jax.numpy as jnp
 import numpy as np
 from jax import Array
-
+from jaxtyping import PyTree
+from typing import Optional
 from .util import ssmatrix
+
+from jax.tree_util import tree_map, tree_structure
+
+# TODO(pytree): to turn this into pytrees, we can't do Ax anymore. Instead, do
+# ẋ = jvp(f, (x0, u0, t0), (x, u, t)) or even better, use jax.linearize everywhere.
+# It doesn't make sense to use LinearSystem like that then anymore: we don't need to
+# store all those Matrices and instead store functions that evaluate jacobians.
 
 
 def _linearize(f, h, x0, u0, t0):
@@ -61,6 +69,9 @@ def non_negative_field(min_val: float = 0.0, **kwargs):
     return boxed_field(lower=min_val, upper=np.inf, **kwargs)
 
 
+# TODO(pytree): remove n_states, n_inputs, n_outputs. Use types instead.
+# So for SISO we have inputs and outputs as "Scalar".
+
 class DynamicalSystem(eqx.Module):
     r"""A continous-time dynamical system.
 
@@ -96,33 +107,29 @@ class DynamicalSystem(eqx.Module):
                 return self.gain*x
 
     """
-    # computed automatically
-    n_outputs: int = static_field(init=False)
-    # these attributes should be set by subclasses
-    n_states: int = static_field(init=False)
-    n_inputs: int = static_field(init=False)
+    x0: Optional[PyTree] = static_field(init=False, default=None)
 
-    def __post_init__(self):
-        # Check that required attributes are initialized
-        required_attrs = ["n_states", "n_inputs"]
-        for attr in required_attrs:
-            if not hasattr(self, attr):
-                raise AttributeError(f"Attribute '{attr}' not initialized.")
-
-        # Compute output size
-        x = jax.ShapeDtypeStruct((self.n_states,), jnp.float64)
-        u = jax.ShapeDtypeStruct((self.n_inputs,), jnp.float64)
-        t = 1.0
-        self.n_outputs = jax.eval_shape(self.output, x, u, t).size
-
-    def vector_field(self, x, u=None, t=None):
+    def vector_field(
+            self,
+            x: PyTree,
+            u: Optional[PyTree] = None,
+            t: Optional[float] = None
+    ):
         """Compute state derivative."""
         raise NotImplementedError
 
-    def output(self, x, u=None, t=None):
+    def output(
+            self,
+            x: PyTree,
+            u: Optional[PyTree] = None,
+            t: Optional[float] = None
+    ):
         """Compute output."""
         return x
 
+
+    # TODO(pytree): this should return a linear system, but that linear system should
+    # not use A, B, C, D, but jax.linearize, which works with arbitrary pytrees
     def linearize(self, x0=None, u0=None, t=None) -> "LinearSystem":
         """Compute the approximate linearized system around a point."""
         if x0 is None:
@@ -233,9 +240,6 @@ class LinearSystem(DynamicalSystem):
         self.B = B
         self.C = C
         self.D = D
-        self.n_states = A.shape[0]
-        self.n_inputs = B.shape[1]
-        self.__post_init__()
 
     def vector_field(self, x, u=None, t=None):
         x = jnp.atleast_1d(x)
@@ -264,20 +268,30 @@ class ControlAffine(DynamicalSystem):
 
     """
 
-    def f(self, x):
+    def f(self, x: PyTree) -> PyTree:
         raise NotImplementedError
 
-    def g(self, x):
+    def g(self, x: PyTree) -> PyTree:
         raise NotImplementedError
 
-    def h(self, x):
+    def h(self, x: PyTree) -> PyTree:
         return x
 
-    # FIXME: remove time dependence
     def vector_field(self, x, u=None, t=None):
+        fx = self.f(x)
+        if tree_structure(fx) != tree_structure(x):
+            raise ValueError("`f` must return a pytree with the same structure as `x`.")
         if u is None:
-            u = 0
-        return self.f(x) + self.g(x) * u
+            return fx
+        else:
+            gx = self.g(x)
+            if tree_structure(fx) != tree_structure(x):
+                raise ValueError(
+                    "`g` must return a pytree with the same structure as `x`."
+                )
+            if jnp.size(u) != 1:
+                raise ValueError("Only single inputs allowed.")
+            return tree_map(jnp.add, fx, tree_map(lambda x: x*u, gx))
 
     def output(self, x, u=None, t=None):
         return self.h(x)
@@ -295,6 +309,7 @@ class SeriesSystem(DynamicalSystem):
             sys1: system with n outputs
             sys2: system with n inputs
         """
+        # TODO(pytree): remove
         assert sys1.n_outputs == sys2.n_inputs, "in- and outputs don't match"
         self._sys1 = sys1
         self._sys2 = sys2

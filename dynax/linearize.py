@@ -23,6 +23,7 @@ def relative_degree(
     if output is None:
         # Make sure system has single output
         msg = f"Output is None, but system has {sys.n_outputs} outputs."
+        # TODO(pytree) check output shape somewhere if this is removed
         assert sys.n_outputs == 1, msg
         h = sys.h
     else:
@@ -69,9 +70,12 @@ def input_output_linearize(
         Only single-input-single-output systems are currently supported.
 
     """
+    # TODO(pytree): check at runtime?
     assert sys.n_inputs == ref.n_inputs == 1, "systems must be single input"
 
     if output is None:
+        # TODO(pytree): check somehow the single input and output, possibly at runtime
+        # or inside of feedbacklaw.
         assert sys.n_outputs == ref.n_outputs == 1, "systems must be single output"
         h = sys.h
         A, b, c = ref.A, ref.B, ref.C
@@ -151,6 +155,7 @@ class LinearizingSystem(DynamicalSystem):
             )
 
     def vector_field(self, x, u=None, t=None):
+        # TODO(pytree) this will be x, z = x
         x, z = x[: self.sys.n_states], x[self.sys.n_states :]
         if u is None:
             u = 0.0
