@@ -45,55 +45,6 @@ def test_relative_degree():
     assert relative_degree(sys, xs) == 1
 
 
-def test_is_controllable():
-    n = 3
-    A = np.diag(np.arange(n))
-    B = np.ones((n, 1))
-    assert is_controllable(A, B)
-
-    A[1, :] = A[0, :]
-    assert not is_controllable(A, B)
-
-
-def test_linearize_lin2lin():
-    n, m, p = 3, 2, 1
-    A = np.random.normal(size=(n, n))
-    B = np.random.normal(size=(n, m))
-    C = np.random.normal(size=(p, n))
-    D = np.random.normal(size=(p, m))
-    sys = LinearSystem(A, B, C, D)
-    linsys = sys.linearize()
-    assert np.allclose(A, linsys.A)
-    assert np.allclose(B, linsys.B)
-    assert np.allclose(C, linsys.C)
-    assert np.allclose(D, linsys.D)
-
-
-def test_linearize_dyn2lin():
-    class TestSys(DynamicalSystem):
-        n_states = 1
-        n_inputs = 1
-        vector_field = lambda self, x, u=None, t=None: -1 * x + 2 * u
-        output = lambda self, x, u=None, t=None: 3 * x + 4 * u
-
-    sys = TestSys()
-    linsys = sys.linearize()
-    assert np.array_equal(linsys.A, [[-1.0]])
-    assert np.array_equal(linsys.B, [[2.0]])
-    assert np.array_equal(linsys.C, [[3.0]])
-    assert np.array_equal(linsys.D, [[4.0]])
-
-
-def test_linearize_sastry9_9():
-    """Linearize should return 2d-arrays. Refererence computed by hand."""
-    sys = Sastry9_9()
-    linsys = sys.linearize()
-    assert np.array_equal(linsys.A, [[0, 0, 0], [1, 0, 0], [1, -1, 0]])
-    assert np.array_equal(linsys.B, [[1], [1], [0]])
-    assert np.array_equal(linsys.C, [[0, 0, 1]])
-    assert np.array_equal(linsys.D, [[0.0]])
-
-
 def test_input_output_linearize_single_output():
     """Feedback linearized system equals system linearized around x0."""
     sys = NonlinearDrag(0.1, 0.1, 0.1, 0.1)

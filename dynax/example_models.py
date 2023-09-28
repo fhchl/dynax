@@ -75,10 +75,10 @@ class Sastry9_9(ControlAffine):
     """Sastry Example 9.9"""
 
     def f(self, x):
-        return (0.0, x[0] + x[1] ** 2, x[0] - x[1])
+        return jnp.array([0.0, x[0] + x[1] ** 2, x[0] - x[1]])
 
     def g(self, x):
-        return (jnp.exp(x[1]), jnp.exp(x[1]), 0.0)
+        return jnp.array([jnp.exp(x[1]), jnp.exp(x[1]), 0.0])
 
     def h(self, x):
         return x[2]

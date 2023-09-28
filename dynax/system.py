@@ -2,31 +2,19 @@
 
 from collections.abc import Callable
 from dataclasses import field
+from typing import Optional
 
 import equinox as eqx
 import jax
 import jax.numpy as jnp
 import numpy as np
+from equinox.internal import ω
 from jax import Array
-from jaxtyping import PyTree
-from typing import Optional
-from .util import ssmatrix
-
+from jax.flatten_util import ravel_pytree
 from jax.tree_util import tree_map, tree_structure
+from jaxtyping import PyTree
 
-# TODO(pytree): to turn this into pytrees, we can't do Ax anymore. Instead, do
-# ẋ = jvp(f, (x0, u0, t0), (x, u, t)) or even better, use jax.linearize everywhere.
-# It doesn't make sense to use LinearSystem like that then anymore: we don't need to
-# store all those Matrices and instead store functions that evaluate jacobians.
-
-
-def _linearize(f, h, x0, u0, t0):
-    """Linearize dx=f(x,u,t), y=h(x,u,t) around x0, u0, t0."""
-    A = jax.jacfwd(f, argnums=0)(x0, u0, t0)
-    B = jax.jacfwd(f, argnums=1)(x0, u0, t0)
-    C = jax.jacfwd(h, argnums=0)(x0, u0, t0)
-    D = jax.jacfwd(h, argnums=1)(x0, u0, t0)
-    return A, B, C, D
+from .util import ssmatrix
 
 
 def static_field(**kwargs):
@@ -69,8 +57,14 @@ def non_negative_field(min_val: float = 0.0, **kwargs):
     return boxed_field(lower=min_val, upper=np.inf, **kwargs)
 
 
-# TODO(pytree): remove n_states, n_inputs, n_outputs. Use types instead.
-# So for SISO we have inputs and outputs as "Scalar".
+def _linearize(f, h, x, u, t):
+    """Linearize dx=f(x,u,t), y=h(x,u,t) around x, u and t."""
+    A = jax.jacfwd(f, argnums=0)(x, u, t)
+    B = jax.jacfwd(f, argnums=1)(x, u, t) if u is not None else None
+    C = jax.jacfwd(h, argnums=0)(x, u, t)
+    D = jax.jacfwd(h, argnums=1)(x, u, t) if u is not None else None
+    return A, B, C, D
+
 
 class DynamicalSystem(eqx.Module):
     r"""A continous-time dynamical system.
@@ -110,38 +104,23 @@ class DynamicalSystem(eqx.Module):
     x0: Optional[PyTree] = static_field(init=False, default=None)
 
     def vector_field(
-            self,
-            x: PyTree,
-            u: Optional[PyTree] = None,
-            t: Optional[float] = None
-    ):
+        self, x: PyTree, u: Optional[PyTree] = None, t: Optional[float] = None
+    ) -> PyTree:
         """Compute state derivative."""
         raise NotImplementedError
 
     def output(
-            self,
-            x: PyTree,
-            u: Optional[PyTree] = None,
-            t: Optional[float] = None
-    ):
+        self, x: PyTree, u: Optional[PyTree] = None, t: Optional[float] = None
+    ) -> PyTree:
         """Compute output."""
-        return x
+        return None
 
-
-    # TODO(pytree): this should return a linear system, but that linear system should
-    # not use A, B, C, D, but jax.linearize, which works with arbitrary pytrees
-    def linearize(self, x0=None, u0=None, t=None) -> "LinearSystem":
-        """Compute the approximate linearized system around a point."""
-        if x0 is None:
-            x0 = jnp.zeros(self.n_states)
-        if u0 is None:
-            u0 = jnp.zeros(self.n_inputs)
-        A, B, C, D = _linearize(self.vector_field, self.output, x0, u0, t)
-        # jax creates empty arrays
-        if B.size == 0:
-            B = np.zeros((self.n_states, self.n_inputs))
-        if D.size == 0:
-            D = np.zeros((C.shape[0], self.n_inputs))
+    def linearize(self, x=None, u=None, t=None) -> "LinearSystem":
+        """Compute the approximate linearized system around a point and input."""
+        x = self.x0 if x is None else x
+        if x is None:
+            raise ValueError("Specify either x or set x0 attribute.")
+        A, B, C, D = _linearize(self.vector_field, self.output, x, u, t)
         return LinearSystem(A, B, C, D)
 
     # def obs_ident_mat(self, x0, u=None, t=None):
@@ -199,72 +178,13 @@ class DynamicalSystem(eqx.Module):
     #   pass
 
 
-# TODO: have output_internals, that makes methods return tuple
-#       (x, pytree_interal_states_x)
-
-
-class LinearSystem(DynamicalSystem):
-    r"""A linear, time-invariant dynamical system.
-
-    .. math::
-
-        ẋ &= Ax + Bu \\
-        y &= Cx + Du
-
-    """
-
-    # TODO: could be subclass of control-affine? Two blocking problems:
-    # - may h depend on u? Needed for D. If so, then one could compute
-    #   relative degree.
-
-    A: Array
-    B: Array
-    C: Array
-    D: Array
-
-    def __init__(self, A: Array, B: Array, C: Array, D: Array):
-        """
-        Args:
-            A, B, C, D: system matrices of proper dimensions
-
-        """
-        A = ssmatrix(A)
-        C = ssmatrix(C)
-        B = ssmatrix(B)
-        D = ssmatrix(D)
-        assert A.ndim == B.ndim == C.ndim == D.ndim == 2
-        assert A.shape[0] == A.shape[1] == B.shape[0] == C.shape[1]
-        assert D.shape[0] == C.shape[0]
-        assert D.shape[1] == B.shape[1]
-        self.A = A
-        self.B = B
-        self.C = C
-        self.D = D
-
-    def vector_field(self, x, u=None, t=None):
-        x = jnp.atleast_1d(x)
-        out = self.A.dot(x)
-        if u is not None:
-            u = jnp.atleast_1d(u)
-            out += self.B.dot(u)
-        return out
-
-    def output(self, x, u=None, t=None):
-        x = jnp.atleast_1d(x)
-        out = self.C.dot(x)
-        if u is not None:
-            u = jnp.atleast_1d(u)
-            out += self.D.dot(u)
-        return out
-
-
 class ControlAffine(DynamicalSystem):
     r"""A control-affine dynamical system.
 
     .. math::
 
         ẋ &= f(x) + g(x)u \\
-        y &= h(x)
+        y &= h(x) + i(x)u
 
     """
 
@@ -274,99 +194,103 @@ class ControlAffine(DynamicalSystem):
     def g(self, x: PyTree) -> PyTree:
         raise NotImplementedError
 
-    def h(self, x: PyTree) -> PyTree:
-        return x
+    def h(self, x: PyTree) -> PyTree | None:
+        return None
+
+    def i(self, x: PyTree) -> PyTree | None:
+        return None
 
     def vector_field(self, x, u=None, t=None):
         fx = self.f(x)
-        if tree_structure(fx) != tree_structure(x):
-            raise ValueError("`f` must return a pytree with the same structure as `x`.")
         if u is None:
             return fx
-        else:
-            gx = self.g(x)
-            if tree_structure(fx) != tree_structure(x):
-                raise ValueError(
-                    "`g` must return a pytree with the same structure as `x`."
-                )
-            if jnp.size(u) != 1:
-                raise ValueError("Only single inputs allowed.")
-            return tree_map(jnp.add, fx, tree_map(lambda x: x*u, gx))
+        gx = self.g(x)
+        if tree_structure(gx) != tree_structure(u):
+            raise ValueError(
+                "The method g must return a pytree of the same structure as u."
+            )
+        gxu = tree_map(jnp.dot, self.g(x), u)
+        return (fx**ω + gxu**ω).ω
 
     def output(self, x, u=None, t=None):
-        return self.h(x)
+        hx = self.h(x)
+        ix = self.i(x)
+        if hx is None:
+            return None
+        if ix is None or u is None:
+            return hx
+        if tree_structure(ix) != tree_structure(u):
+            raise ValueError(
+                "The method g must return a pytree of the same structure as u."
+            )
+        ixu = tree_map(jnp.dot, ix, u)
+        return (hx**ω + ixu**ω).ω
+
+
+class LinearSystem(ControlAffine):
+    r"""A linear, time-invariant dynamical system.
+
+    .. math::
+
+        ẋ &= Ax + Bu \\
+        y &= Cx + Du
+
+    """
+    A: PyTree
+    B: Optional[PyTree] = None
+    C: Optional[PyTree] = None
+    D: Optional[PyTree] = None
+
+    def f(self, x: PyTree) -> PyTree:
+        return tree_map(jnp.dot, self.A, x)
+
+    def g(self, x: PyTree) -> PyTree:
+        return self.B
+
+    def h(self, x: PyTree) -> PyTree:
+        return tree_map(jnp.dot, self.C, x)
+
+    def i(self, x: PyTree) -> PyTree:
+        return self.D
 
 
 class SeriesSystem(DynamicalSystem):
     """Two systems in series."""
 
-    _sys1: DynamicalSystem
-    _sys2: DynamicalSystem
-
-    def __init__(self, sys1: DynamicalSystem, sys2: DynamicalSystem):
-        """
-        Args:
-            sys1: system with n outputs
-            sys2: system with n inputs
-        """
-        # TODO(pytree): remove
-        assert sys1.n_outputs == sys2.n_inputs, "in- and outputs don't match"
-        self._sys1 = sys1
-        self._sys2 = sys2
-        self.n_states = sys1.n_states + sys2.n_states
-        self.n_inputs = sys1.n_inputs
-        self.__post_init__()
+    sys1: DynamicalSystem
+    sys2: DynamicalSystem
 
     def vector_field(self, x, u=None, t=None):
-        x1 = x[: self._sys1.n_states]
-        x2 = x[self._sys1.n_states :]
-        y1 = self._sys1.output(x1, u, t)
-        dx1 = self._sys1.vector_field(x1, u, t)
-        dx2 = self._sys2.vector_field(x2, y1, t)
-        return jnp.concatenate((jnp.atleast_1d(dx1), jnp.atleast_1d(dx2)))
+        x1, x2 = x
+        y1 = self.sys1.output(x1, u, t)
+        dx1 = self.sys1.vector_field(x1, u, t)
+        dx2 = self.sys2.vector_field(x2, y1, t)
+        return dx1, dx2
 
     def output(self, x, u=None, t=None):
-        x1 = x[: self._sys1.n_states]
-        x2 = x[self._sys1.n_states :]
-        y1 = self._sys1.output(x1, u, t)
-        y2 = self._sys2.output(x2, y1, t)
+        x1, x2 = x
+        y1 = self.sys1.output(x1, u, t)
+        y2 = self.sys2.output(x2, y1, t)
         return y2
 
 
 class FeedbackSystem(DynamicalSystem):
     """Two systems connected via feedback."""
 
-    _sys: DynamicalSystem
-    _fbsys: DynamicalSystem
-
-    def __init__(self, sys: DynamicalSystem, fbsys: DynamicalSystem):
-        """
-        Args:
-            sys: system in forward path
-            fbsys: system in feedback path
-
-        """
-        self._sys = sys
-        self._fbsys = fbsys
-        self.n_states = sys.n_states + fbsys.n_states
-        self.n_inputs = sys.n_inputs
-        self.__post_init__()
+    sys: DynamicalSystem
+    feedbacksys: DynamicalSystem
 
     def vector_field(self, x, u=None, t=None):
-        if u is None:
-            u = np.zeros(self._sys.n_inputs)
-        x1 = x[: self._sys.n_states]
-        x2 = x[self._sys.n_states :]
-        y1 = self._sys.output(x1, None, t)
-        y2 = self._fbsys.output(x2, y1, t)
-        dx1 = self._sys.vector_field(x1, u + y2, t)
-        dx2 = self._fbsys.vector_field(x2, y1, t)
-        dx = jnp.concatenate((jnp.atleast_1d(dx1), jnp.atleast_1d(dx2)))
-        return dx
+        x1, x2 = x
+        y1 = self.sys.output(x1, None, t)
+        y2 = self.feedbacksys.output(x2, y1, t)
+        dx1 = self.sys.vector_field(x1, u + y2, t)
+        dx2 = self.feedbacksys.vector_field(x2, y1, t)
+        return dx1, dx2
 
     def output(self, x, u=None, t=None):
-        x1 = x[: self._sys.n_states]
-        y = self._sys.output(x1, None, t)
+        x1, _ = x
+        y = self.sys.output(x1, None, t)
         return y
 
 
@@ -380,31 +304,26 @@ class StaticStateFeedbackSystem(DynamicalSystem):
 
     """
 
-    _sys: DynamicalSystem
-    _feedbacklaw: Callable
+    sys: DynamicalSystem
+    feedbacklaw: Callable[[PyTree, PyTree], PyTree]
 
-    def __init__(self, sys: DynamicalSystem, v: Callable[[Array, Array], Array]):
+    def __init__(self, sys: DynamicalSystem, v: Callable[[PyTree, PyTree], PyTree]):
         """
         Args:
             sys: system with vector field `f` and output `h`
             v: static feedback law `v`
 
         """
-        self._sys = sys
-        self._feedbacklaw = staticmethod(v)
-        self.n_states = sys.n_states
-        self.n_inputs = sys.n_inputs
-        self.__post_init__()
+        self.sys = sys
+        self.feedbacklaw = staticmethod(v)
 
     def vector_field(self, x, u=None, t=None):
-        if u is None:
-            u = np.zeros(self._sys.n_inputs)
-        v = self._feedbacklaw(x, u)
-        dx = self._sys.vector_field(x, v, t)
+        v = self.feedbacklaw(x, u)
+        dx = self.sys.vector_field(x, v, t)
         return dx
 
     def output(self, x, u=None, t=None):
-        y = self._sys.output(x, u, t)
+        y = self.sys.output(x, u, t)
         return y
 
 
@@ -419,9 +338,9 @@ class DynamicStateFeedbackSystem(DynamicalSystem):
 
     """
 
-    _sys: DynamicalSystem
-    _sys2: DynamicalSystem
-    _feedbacklaw: Callable[[Array, Array, float], float]
+    sys: DynamicalSystem
+    sys2: DynamicalSystem
+    feedbacklaw: Callable[[Array, Array, float], float]
 
     def __init__(
         self,
@@ -436,23 +355,18 @@ class DynamicStateFeedbackSystem(DynamicalSystem):
             v: dynamic feedback law :math:`v`
 
         """
-        self._sys = sys
-        self._sys2 = sys2
-        self._feedbacklaw = v
-        self.n_states = sys.n_states + sys2.n_states
-        self.n_inputs = sys.n_inputs
-        self.__post_init__()
+        self.sys = sys
+        self.sys2 = sys2
+        self.feedbacklaw = v
 
-    def vector_field(self, xz, u=None, t=None):
-        if u is None:
-            u = np.zeros(self._sys.n_inputs)
-        x, z = xz[: self._sys.n_states], xz[self._sys.n_states :]
-        v = self._feedbacklaw(x, z, u)
-        dx = self._sys.vector_field(x, v, t)
-        dz = self._sys2.vector_field(z, u, t)
-        return jnp.concatenate((dx, dz))
+    def vector_field(self, x, u=None, t=None):
+        x, z = x
+        v = self.feedbacklaw(x, z, u)
+        dx = self.sys.vector_field(x, v, t)
+        dz = self.sys2.vector_field(z, u, t)
+        return (dx, dz)
 
-    def output(self, xz, u=None, t=None):
-        x = xz[: self._sys.n_states]
-        y = self._sys.output(x, u, t)
+    def output(self, x, u=None, t=None):
+        x, _ = x
+        y = self.sys.output(x, u, t)
         return y
