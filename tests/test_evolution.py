@@ -40,7 +40,7 @@ def test_forward_model_crit_damp():
     x0 = (1, 0)  # x(t=0)=1, dx(t=0)=0
     t = jnp.linspace(0, 0.1, 10)
     model = Flow(sys, step=dfx.PIDController(rtol=1e-7, atol=1e-9))
-    x_pred = model(x0, t)[1]
+    x_pred = model(t=t, x0=x0)[1]
     x_true = x(t, *x0)
     assert jnp.allclose(x_true, x_pred)
 

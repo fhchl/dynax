@@ -17,7 +17,7 @@ from dynax import (
     transfer_function,
 )
 from dynax.example_models import LotkaVolterra, NonlinearDrag, SpringMassDamper
-
+from dynax.util import tree_stack, tree_unstack
 
 tols = dict(rtol=1e-05, atol=1e-05)
 
@@ -48,21 +48,13 @@ def test_fit_least_squares(outputs):
 
 
 def test_fit_least_squares_on_batch():
-    # data
-    t = np.linspace(0, 2, 200)
-    us = np.stack(
-        (
-            np.sin(1 * 2 * np.pi * t),
-            np.sin(0.1 * 2 * np.pi * t),
-            np.sin(10 * 2 * np.pi * t),
-        ),
-        axis=0,
-    )
-    x0 = np.array([1.0, 0.0])
-    x0s = np.repeat(x0[None], us.shape[0], axis=0)
-    ts = np.repeat(t[None], us.shape[0], axis=0)
+    # input is list of pytrees
+    ts = [np.linspace(0, 2, 200) for _ in range(3)]
+    us = [np.sin(f * 2 * np.pi * ts[0]) for f in (1, 0.1, 10)]
+    x0s = [(1.0, 0.0) for _ in range(3)]
     true_model = Flow(NonlinearDrag(1.0, 2.0, 3.0, 4.0))
-    _, ys = jax.vmap(true_model)(x0s, ts, us)
+
+    _, ys = jax.vmap(true_model)(tree_stack(x0s), tree_stack(ts), tree_stack(us))
     # fit
     init_model = Flow(NonlinearDrag(1.0, 1.0, 1.0, 1.0))
     pred_model = fit_least_squares(init_model, ts, ys, x0s, us, batched=True).result

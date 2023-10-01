@@ -1,7 +1,7 @@
 """Functions related to feedback linearization of nonlinear systems."""
 
-from collections.abc import Callable
-from typing import Optional, Sequence
+from collections.abc import Callable, Sequence
+from typing import Optional
 
 import jax
 import jax.numpy as jnp

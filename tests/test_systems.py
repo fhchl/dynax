@@ -1,16 +1,12 @@
-from typing import Optional
-
 import diffrax as dfx
 import jax.numpy as jnp
+import jax.tree_util as jtu
 import numpy as np
 import numpy.testing as npt
-import pytest
-from jaxtyping import PyTree
-import jax.tree_util as jtu
+from equinox import tree_equal
 
 from dynax import DynamicalSystem, FeedbackSystem, Flow, LinearSystem, SeriesSystem
 from dynax.example_models import Sastry9_9
-from equinox import tree_equal
 
 
 tols = dict(rtol=1e-04, atol=1e-06)

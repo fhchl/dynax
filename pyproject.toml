@@ -29,7 +29,10 @@ dev = [
 ]
 
 [tool.pytest.ini_options]
-addopts = "--pdbcls=IPython.terminal.debugger:Pdb"
+addopts = """
+--pdbcls=IPython.terminal.debugger:Pdb
+--jaxtyping-packages=dynax,beartype.beartype(conf=beartype.BeartypeConf(strategy=beartype.BeartypeStrategy.On))
+"""
 
 [build-system]
 requires = ["hatchling"]

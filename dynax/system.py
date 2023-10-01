@@ -10,11 +10,9 @@ import jax.numpy as jnp
 import numpy as np
 from equinox.internal import ω
 from jax import Array
-from jax.flatten_util import ravel_pytree
 from jax.tree_util import tree_map, tree_structure
-from jaxtyping import PyTree
-
-from .util import ssmatrix
+from jax.typing import ArrayLike
+from jaxtyping import PyTree, Scalar, ScalarLike
 
 
 def static_field(**kwargs):
@@ -67,31 +65,24 @@ def _linearize(f, h, x, u, t):
 
 
 class DynamicalSystem(eqx.Module):
-    r"""A continous-time dynamical system.
+    r"""A continous-time dynamical system with optional output equation.
 
     .. math::
 
         ẋ &= f(x, u, t) \\
         y &= h(x, u, t)
 
-    Subclasses must set values for attributes n_states, n_inputs, and
-    n_outputs, and implement the `vector_field` method. Use the `output` method to
-    describe measurent equations. By default, the total state is returned as output.
+    Subclasses must implement f via the `vector_field` method, which must return PyTrees
+    of the same structure as `x`. One may optionally override the
+    `output` method to implement h, which should return a `PyTree` or `None`.
 
-    In most cases, it is not needed to define a custom __init__ method, as
-    `DynamicalSystem` is a dataclass. If subclasses define an __init__ method, they must
-    call `self.__post_init__()` at its end.
+    `DynamicalSystem` inherits from `equinox.Module` which is a dataclass, so an
+    `__init__` method is not necessarily required.
 
     Example::
 
         class IntegratorAndGain(DynamicalSystem):
-            n_states = 1
-            n_inputs = 1
             gain: float
-
-            def __init__(self, gain):
-                self.gain = gain
-                self.__post_init__()
 
             def vector_field(self, x, u, t):
                 dx = u
@@ -101,22 +92,28 @@ class DynamicalSystem(eqx.Module):
                 return self.gain*x
 
     """
+
     x0: Optional[PyTree] = static_field(init=False, default=None)
 
     def vector_field(
-        self, x: PyTree, u: Optional[PyTree] = None, t: Optional[float] = None
+        self, x: PyTree, u: Optional[PyTree] = None, t: Optional[Scalar] = None
     ) -> PyTree:
-        """Compute state derivative."""
+        """Compute the state derivative from current state, input and time."""
         raise NotImplementedError
 
     def output(
-        self, x: PyTree, u: Optional[PyTree] = None, t: Optional[float] = None
+        self, x: PyTree, u: Optional[PyTree] = None, t: Optional[Scalar] = None
     ) -> PyTree:
-        """Compute output."""
+        """Compute the output from current state, input and time."""
         return None
 
-    def linearize(self, x=None, u=None, t=None) -> "LinearSystem":
-        """Compute the approximate linearized system around a point and input."""
+    def linearize(
+        self,
+        x: Optional[PyTree] = None,
+        u: Optional[PyTree] = None,
+        t: Optional[Scalar] = None,
+    ) -> "LinearSystem":
+        """Compute the linearized system around a state, and input and time."""
         x = self.x0 if x is None else x
         if x is None:
             raise ValueError("Specify either x or set x0 attribute.")
@@ -178,6 +175,23 @@ class DynamicalSystem(eqx.Module):
     #   pass
 
 
+def _control_affine(bfun, Afun, x, u=None, t=None):
+    b = bfun(x)
+    A = Afun(x)
+    if u is None or A is None:
+        return b
+    if isinstance(u, (Scalar, ScalarLike)):
+        # elementwise multiply A with u
+        Au = tree_map(lambda Ai: Ai * u, A)
+    elif tree_structure(A) == tree_structure(u):
+        Au = tree_map(jnp.dot, A, u)
+    else:
+        raise ValueError(
+            f"If u isn't scalar, {bfun}(x) and u must have the same pytree structure"
+        )
+    return (b**ω + Au**ω).ω
+
+
 class ControlAffine(DynamicalSystem):
     r"""A control-affine dynamical system.
 
@@ -194,37 +208,17 @@ class ControlAffine(DynamicalSystem):
     def g(self, x: PyTree) -> PyTree:
         raise NotImplementedError
 
-    def h(self, x: PyTree) -> PyTree | None:
+    def h(self, x: PyTree) -> Array | None:
         return None
 
-    def i(self, x: PyTree) -> PyTree | None:
+    def i(self, x: PyTree) -> Array | None:
         return None
 
     def vector_field(self, x, u=None, t=None):
-        fx = self.f(x)
-        if u is None:
-            return fx
-        gx = self.g(x)
-        if tree_structure(gx) != tree_structure(u):
-            raise ValueError(
-                "The method g must return a pytree of the same structure as u."
-            )
-        gxu = tree_map(jnp.dot, self.g(x), u)
-        return (fx**ω + gxu**ω).ω
+        return _control_affine(self.f, self.g, x, u, t)
 
     def output(self, x, u=None, t=None):
-        hx = self.h(x)
-        ix = self.i(x)
-        if hx is None:
-            return None
-        if ix is None or u is None:
-            return hx
-        if tree_structure(ix) != tree_structure(u):
-            raise ValueError(
-                "The method g must return a pytree of the same structure as u."
-            )
-        ixu = tree_map(jnp.dot, ix, u)
-        return (hx**ω + ixu**ω).ω
+        return _control_affine(self.h, self.i, x, u, t)
 
 
 class LinearSystem(ControlAffine):

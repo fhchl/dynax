@@ -1,4 +1,5 @@
-from typing import Callable, Optional
+from collections.abc import Callable
+from typing import Optional
 
 import diffrax as dfx
 import equinox as eqx
@@ -9,13 +10,6 @@ from jaxtyping import Array, ArrayLike, PyTree
 
 from .interpolation import spline_it
 from .system import DynamicalSystem
-
-
-try:
-    # TODO: remove when upgrading to diffrax > v0.2
-    DefaultAdjoint = dfx.NoAdjoint
-except AttributeError:
-    DefaultAdjoint = dfx.DirectAdjoint
 
 
 class AbstractEvolution(eqx.Module):
@@ -35,18 +29,21 @@ class Flow(AbstractEvolution):
     )
     dt0: Optional[float] = eqx.static_field(default=None)
 
+
+    # FIXME(pytree): I just changed the call order, so this has to be fixed EVERYWHERE!
     def __call__(
         self,
-        x0: PyTree,
         t: ArrayLike,
-        u: Optional[ArrayLike] = None,
-        ufun: Optional[Callable[[float], float]] = None,
-        ucoeffs: Optional[ArrayLike] = None,
+        x0: Optional[PyTree] = None,
+        u: Optional[PyTree] = None,
+        ufun: Optional[Callable[[float], PyTree]] = None,
+        ucoeffs: Optional[tuple[PyTree, PyTree, PyTree, PyTree]] = None,
         **diffeqsolve_kwargs,
-    ) -> tuple[Array, Array]:
+    ) -> tuple[PyTree, PyTree]:
         """Solve initial value problem for state and output trajectories."""
         t_ = jnp.asarray(t)
-        # TODO(pytree): check that x0 has the right shape?
+        if x0 is None and self.system.x0 is None:
+            raise ValueError("One of x0 or system.x0 must be not None")
         if u is None and ufun is None and ucoeffs is None:
             _ufun = lambda t: None
         elif ucoeffs is not None:
@@ -55,10 +52,10 @@ class Flow(AbstractEvolution):
         elif callable(u):
             _ufun = u
         elif u is not None:
+            u_ = jnp.asarray(u)
             msg = "t and u must have matching first dimensions"
-            u = jnp.asarray(u)
-            assert len(t_) == u.shape[0], msg
-            _ufun = spline_it(t_, u)
+            assert len(t_) == u_.shape[0], msg
+            _ufun = spline_it(t_, u_)
         else:
             raise ValueError("Must specify one of u, ufun, ucoeffs.")
 
@@ -68,7 +65,7 @@ class Flow(AbstractEvolution):
             stepsize_controller=self.step,
             saveat=dfx.SaveAt(ts=t_),
             max_steps=50 * len(t_),
-            adjoint=DefaultAdjoint(),
+            adjoint=dfx.DirectAdjoint(),
             dt0=self.dt0 if self.dt0 is not None else t_[1],
         )
         diffeqsolve_default_options |= diffeqsolve_kwargs
