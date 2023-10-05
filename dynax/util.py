@@ -1,11 +1,15 @@
 import functools
 from collections.abc import Sequence
+from typing import Union
 
 import equinox
 import jax
 import jax.numpy as jnp
 import jax.tree_util as jtu
 from jaxtyping import PyTree
+
+
+Axis = Union[int, Sequence[int]]
 
 
 def ssmatrix(data, axis=1):
@@ -73,20 +77,20 @@ def value_and_jacrev(f, x):
     return y, jac
 
 
-def mse(target: PyTree, prediction: PyTree, axis=0):
+def mse(target: PyTree, prediction: PyTree, axis: Axis = 0):
     """Compute mean-squared error."""
     _mse = lambda t, p: jnp.mean(jnp.abs(t - p) ** 2, axis=axis)
     return jtu.tree_map(_mse, target, prediction)
 
 
-def nmse(target: PyTree, prediction: PyTree, axis=0):
+def nmse(target: PyTree, prediction: PyTree, axis: Axis = 0):
     """Compute normalized mean-squared error."""
     _mse = mse(target, prediction, axis)
     _nmse = lambda m, t: m / jnp.mean(jnp.abs(t) ** 2, axis=axis)
     return jtu.tree_map(_nmse, _mse, target)
 
 
-def nrmse(target: PyTree, prediction: PyTree, axis=0):
+def nrmse(target: PyTree, prediction: PyTree, axis: Axis = 0):
     """Compute normalized root mean-squared error."""
     _nmse = nmse(target, prediction, axis)
     return jtu.tree_map(jnp.sqrt, _nmse)

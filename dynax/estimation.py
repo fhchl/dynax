@@ -244,6 +244,7 @@ def fit_least_squares(
     x0_ = convert(x0)
     u_ = convert(u) if u is not None else None
 
+
     if sigma is None:
         std_y = tree_map(partial(np.std, axis=time_dim, keepdims=True), y_)
         weight = (1 / std_y**ω).ω
@@ -271,12 +272,15 @@ def fit_least_squares(
         cov_prior = None
         reg_term = None
 
+
     def residual_term(params):
         model = unravel_model(params)
+        # Wrap in lambda with positional arguments only for vmap
+        predict = lambda x, t, u: model(x, t=t, ucoeffs=u)
         if batched:
-            model = jax.vmap(model)
+            predict = jax.vmap(predict, in_axes=(0, None, 0))
         # FIXME: ucoeffs not supported for Map
-        _, pred_y = model(x0, t=t_, ucoeffs=ucoeffs)
+        _, pred_y = predict(x0_, t_, ucoeffs)
         res = ((y_**ω - pred_y**ω) * weight**ω).ω
         return ravel_pytree(res)[0]
 
@@ -294,9 +298,9 @@ def fit_least_squares(
     res.pcov = _compute_covariance(res.jac, res.cost, absolute_sigma, cov_prior)
     res.y_pred = (y_**ω - res.fun**ω / weight**ω).ω
     res.key_paths = _key_paths(model, root=model.__class__.__name__)
-    res.mse = np.atleast_1d(mse(y_, res.y_pred))
-    res.nmse = np.atleast_1d(nmse(y_, res.y_pred))
-    res.nrmse = np.atleast_1d(nrmse(y_, res.y_pred))
+    res.mse = mse(y_, res.y_pred)
+    res.nmse = nmse(y_, res.y_pred)
+    res.nrmse = nrmse(y_, res.y_pred)
 
     return res
 
