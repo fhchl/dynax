@@ -13,7 +13,7 @@ urls = {repository = "https://github.com/fhchl/dynax"}
 dependencies = [
     "jax>=0.4.13,<0.5",
     "diffrax>=0.4.1,<0.5",
-    "equinox>=0.10.11,<0.11",
+    "equinox>=0.11,<0.12",
 ]
 
 [project.optional-dependencies]
@@ -26,6 +26,7 @@ dev = [
     "sphinx_rtd_theme",
     "nbsphinx",
     "pre-commit",
+    "beartype",
 ]
 
 [tool.pytest.ini_options]

@@ -22,7 +22,7 @@ from dynax.util import tree_stack, tree_unstack
 tols = dict(rtol=1e-05, atol=1e-05)
 
 
-@pytest.mark.parametrize("outputs", [[0], [0, 1]])
+@pytest.mark.parametrize("outputs", [(0,), (0, 1)])
 def test_fit_least_squares(outputs):
     # data
     t = np.linspace(0, 2, 200)
@@ -49,17 +49,18 @@ def test_fit_least_squares(outputs):
 
 def test_fit_least_squares_on_batch():
     # input is list of pytrees
-    ts = [np.linspace(0, 2, 200) for _ in range(3)]
-    us = [np.sin(f * 2 * np.pi * ts[0]) for f in (1, 0.1, 10)]
-    x0s = [(1.0, 0.0) for _ in range(3)]
+    t = np.linspace(0, 2, 200)
+    fs = (1, 0.1, 10)
+    us = [np.sin(f * 2 * np.pi * t) for f in fs]
+    x0s = [(1.0, 0.0) for _ in range(len(fs))]
     true_model = Flow(NonlinearDrag(1.0, 2.0, 3.0, 4.0))
 
-    _, ys = jax.vmap(true_model)(tree_stack(x0s), tree_stack(ts), tree_stack(us))
+    _, ys = jax.vmap(true_model, in_axes=(0, None, 0))(tree_stack(x0s), t, tree_stack(us))
     # fit
     init_model = Flow(NonlinearDrag(1.0, 1.0, 1.0, 1.0))
-    pred_model = fit_least_squares(init_model, ts, ys, x0s, us, batched=True).result
+    pred_model = fit_least_squares(init_model, t, ys, x0s, us, batched=True).result
     # check result
-    _, ys_pred = jax.vmap(pred_model)(x0s, ts, us)
+    _, ys_pred = jax.vmap(pred_model)(x0s, t, us)
     npt.assert_allclose(ys_pred, ys, **tols)
     npt.assert_allclose(
         jax.tree_util.tree_flatten(pred_model)[0],

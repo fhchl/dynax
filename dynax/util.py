@@ -1,4 +1,5 @@
 import functools
+from collections.abc import Sequence
 
 import equinox
 import jax
@@ -72,19 +73,23 @@ def value_and_jacrev(f, x):
     return y, jac
 
 
-def mse(target, prediction, axis=0):
+def mse(target: PyTree, prediction: PyTree, axis=0):
     """Compute mean-squared error."""
-    return jnp.mean(jnp.abs(target - prediction) ** 2, axis=axis)
+    _mse = lambda t, p: jnp.mean(jnp.abs(t - p) ** 2, axis=axis)
+    return jtu.tree_map(_mse, target, prediction)
 
 
-def nmse(target, prediction, axis=0):
+def nmse(target: PyTree, prediction: PyTree, axis=0):
     """Compute normalized mean-squared error."""
-    return mse(target, prediction, axis) / jnp.mean(jnp.abs(target) ** 2, axis=axis)
+    _mse = mse(target, prediction, axis)
+    _nmse = lambda m, t: m / jnp.mean(jnp.abs(t) ** 2, axis=axis)
+    return jtu.tree_map(_nmse, _mse, target)
 
 
-def nrmse(target, prediction, axis=0):
+def nrmse(target: PyTree, prediction: PyTree, axis=0):
     """Compute normalized root mean-squared error."""
-    return jnp.sqrt(nmse(target, prediction, axis))
+    _nmse = nmse(target, prediction, axis)
+    return jtu.tree_map(jnp.sqrt, _nmse)
 
 
 def _monkeypatch_pretty_print():
@@ -125,8 +130,9 @@ def pretty(tree):
 
 
 # https://gist.github.com/willwhitney/dd89cac6a5b771ccff18b06b33372c75?permalink_comment_id=4634557#gistcomment-4634557
-def tree_stack(trees: list[PyTree]) -> PyTree:
-    """Takes a list of trees and stacks every corresponding leaf.
+
+def tree_stack(trees: Sequence[PyTree]) -> PyTree:
+    """Takes a sequence of trees and stacks every corresponding leaf.
 
     For example, given two trees ((a, b), c) and ((a', b'), c'), returns
     ((stack(a, a'), stack(b, b')), stack(c, c')).

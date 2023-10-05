@@ -21,6 +21,7 @@ from numpy.typing import NDArray
 from scipy.linalg import pinvh
 from scipy.optimize import least_squares, OptimizeResult
 from scipy.optimize._optimize import MemoizeJac
+from equinox.internal import ω
 
 from .evolution import AbstractEvolution
 from .system import DynamicalSystem
@@ -98,7 +99,7 @@ def _compute_covariance(
 
 def _least_squares(
     f: Callable[[Array], Array],
-    x0: NDArray,
+    x0: Array,
     bounds: tuple[list, list],
     reg_term: Optional[Callable[[Array], Array]] = None,
     x_scale: bool = True,
@@ -161,11 +162,11 @@ def _least_squares(
 def fit_least_squares(
     model: AbstractEvolution,
     t: NDArrayLike,
-    y: NDArrayLike | list[NDArrayLike],
-    x0: PyTree | list[PyTree],
-    u: Optional[PyTree | list[PyTree]] = None,
+    y: PyTree | Sequence[PyTree],
+    x0: PyTree | Sequence[PyTree],
+    u: Optional[PyTree | Sequence[PyTree]] = None,
     batched: bool = False,
-    sigma: Optional[NDArrayLike] = None,
+    sigma: Optional[PyTree] = None,
     absolute_sigma: bool = False,
     reg_val: float = 0.0,
     reg_bias: Optional[Literal["initial"]] = None,
@@ -187,7 +188,7 @@ def fit_least_squares(
             If all three arguments are arrays, the experiments should be stacked along
             their first axis and the model's `vector_field` should expect and return
             `jax.Array`s. If it expects `PyTree`s, `t`, `y`, `x0` and `u` should
-            instead be lists of equal length holding the data for each
+            instead be `Sequence`s of equal length holding the data for each
             experiment.
         sigma: A 1-D sequence with values of the standard deviation of the measurement
             error for each output of `model.system`. If None, `sigma` will be set to
@@ -219,37 +220,43 @@ def fit_least_squares(
 
     """
     t_ = jnp.asarray(t)
-    y_ = jnp.stack(y, axis=0)
 
     if batched:
-        # Multiple experiments are expected as lists or stacked arrays.
+        # Multiple experiments are expected as Sequences or stacked arrays.
         batched_inputs = [y, x0] if u is None else [y, x0, u]
-        is_lists = all(isinstance(o, (list, tuple)) for o in batched_inputs)
+        is_sequence = all(isinstance(o, Sequence) for o in batched_inputs)
         is_arrays = all(isinstance(o, (jax.Array, np.ndarray)) for o in batched_inputs)
-        if not (is_lists or is_arrays):
-            raise TypeError("For batched inputs, y, x0 (and u) must have same type")
-        std_y = np.std(y_, axis=1, keepdims=True)
-        if is_lists:
-            pass
+        if is_sequence:
+            convert = tree_stack
+        elif is_arrays:
+            convert = jnp.asarray
+        else:
+            raise TypeError("For batched inputs, y, x0 (and u) must have same type,"
+                            f"not {type(y)}, {type(x0)} (and {type(u)})")
+        time_dim = 1
         calc_coeffs = jax.vmap(dfx.backward_hermite_coefficients, in_axes=(None, 0))
     else:
-        if not isinstance(y, NDArrayLike):
-            raise TypeError("If batched is False, `y` must be an array")
-        std_y = np.std(y, axis=0, keepdims=True)
+        time_dim = 0
+        convert = lambda x: x
         calc_coeffs = dfx.backward_hermite_coefficients
 
+    y_ = convert(y)
+    x0_ = convert(x0)
+    u_ = convert(u) if u is not None else None
+
     if sigma is None:
-        weight = 1 / std_y
+        std_y = tree_map(partial(np.std, axis=time_dim, keepdims=True), y_)
+        weight = (1 / std_y**ω).ω
     else:
-        sigma = np.asarray(sigma)
-        weight = 1 / sigma
+        weight = (1 / sigma**ω).ω
 
     if u is not None:
-        ucoeffs = calc_coeffs(t_, u)
+        ucoeffs = calc_coeffs(t_, u_)
     else:
         ucoeffs = None
 
-    init_params, unravel = ravel_pytree(model)
+    _, unravel_y = ravel_pytree(y_)
+    init_params, unravel_model = ravel_pytree(model)
     bounds = _get_bounds(model)
 
     param_bias = 0
@@ -265,13 +272,13 @@ def fit_least_squares(
         reg_term = None
 
     def residual_term(params):
-        model = unravel(params)
+        model = unravel_model(params)
         if batched:
             model = jax.vmap(model)
         # FIXME: ucoeffs not supported for Map
         _, pred_y = model(x0, t=t_, ucoeffs=ucoeffs)
-        res = (y_ - pred_y) * weight
-        return res.reshape(-1)
+        res = ((y_**ω - pred_y**ω) * weight**ω).ω
+        return ravel_pytree(res)[0]
 
     res = _least_squares(
         residual_term,
@@ -282,9 +289,10 @@ def fit_least_squares(
         **kwargs,
     )
 
-    res.result = unravel(res.x)
+    res.fun = unravel_y(res.fun)
+    res.result = unravel_model(res.x)
     res.pcov = _compute_covariance(res.jac, res.cost, absolute_sigma, cov_prior)
-    res.y_pred = y_ - res.fun.reshape(y_.shape) / weight
+    res.y_pred = (y_**ω - res.fun**ω / weight**ω).ω
     res.key_paths = _key_paths(model, root=model.__class__.__name__)
     res.mse = np.atleast_1d(mse(y_, res.y_pred))
     res.nmse = np.atleast_1d(nmse(y_, res.y_pred))

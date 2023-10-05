@@ -29,12 +29,10 @@ class Flow(AbstractEvolution):
     )
     dt0: Optional[float] = eqx.static_field(default=None)
 
-
-    # FIXME(pytree): I just changed the call order, so this has to be fixed EVERYWHERE!
     def __call__(
         self,
+        x0: Optional[PyTree],
         t: ArrayLike,
-        x0: Optional[PyTree] = None,
         u: Optional[PyTree] = None,
         ufun: Optional[Callable[[float], PyTree]] = None,
         ucoeffs: Optional[tuple[PyTree, PyTree, PyTree, PyTree]] = None,

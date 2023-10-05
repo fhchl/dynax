@@ -68,7 +68,7 @@ class NonlinearDrag(ControlAffine):
         return (0.0, 1.0 / self.m)
 
     def h(self, x):
-        return jnp.array([x[i] for i in self.outputs])
+        return tuple([x[i] for i in self.outputs])
 
 
 class Sastry9_9(ControlAffine):
