@@ -55,12 +55,19 @@ def test_fit_least_squares_on_batch():
     x0s = [(1.0, 0.0) for _ in range(len(fs))]
     true_model = Flow(NonlinearDrag(1.0, 2.0, 3.0, 4.0))
 
-    _, ys = jax.vmap(true_model, in_axes=(0, None, 0))(tree_stack(x0s), t, tree_stack(us))
+    def vmap_seq(model, x0s, t, us):
+        x0s = tree_stack(x0s)
+        us = tree_stack(us)
+        _, ys = jax.vmap(model, in_axes=(0, None, 0))(x0s, t, us)
+        ys = tree_unstack(ys)
+        return ys
+
+    ys = vmap_seq(true_model, x0s, t, us)
     # fit
     init_model = Flow(NonlinearDrag(1.0, 1.0, 1.0, 1.0))
     pred_model = fit_least_squares(init_model, t, ys, x0s, us, batched=True).result
     # check result
-    _, ys_pred = jax.vmap(pred_model)(x0s, t, us)
+    ys_pred = vmap_seq(pred_model, x0s, t, us)
     npt.assert_allclose(ys_pred, ys, **tols)
     npt.assert_allclose(
         jax.tree_util.tree_flatten(pred_model)[0],
@@ -72,11 +79,12 @@ def test_fit_least_squares_on_batch():
 def test_can_compute_jacfwd_with_implicit_methods():
     # don't get catched by https://github.com/patrick-kidger/diffrax/issues/135
     t = jnp.linspace(0, 1, 10)
-    x0 = jnp.array([1.0, 0.0])
+    x0 = (1.0, 0.0)
     solver_opt = dict(solver=Kvaerno5(), step=PIDController(atol=1e-6, rtol=1e-3))
-
+    model = Flow(SpringMassDamper(1., 2., 3.), **solver_opt)
+    pytree_def = jax.tree_structure(model)
     def fun(m, r, k, x0=x0, solver_opt=solver_opt, t=t):
-        model = Flow(SpringMassDamper(m, r, k), **solver_opt)
+        model = pytree_def.unflatten((m, r, k))
         x_true, _ = model(x0, t)
         return x_true
 
@@ -87,7 +95,7 @@ def test_can_compute_jacfwd_with_implicit_methods():
 def test_fit_with_bounded_parameters():
     # data
     t = np.linspace(0, 1, 100)
-    x0 = [0.5, 0.5]
+    x0 = (0.5, 0.5)
     solver_opt = dict(step=PIDController(rtol=1e-5, atol=1e-7))
     true_model = Flow(
         LotkaVolterra(alpha=2 / 3, beta=4 / 3, gamma=1.0, delta=1.0), **solver_opt
@@ -124,9 +132,12 @@ def test_fit_with_bounded_parameters_and_ndarrays():
                 [self.alpha * x - self.beta * x * y, delta * x * y - gamma * y]
             )
 
+        def output(self, x, u, t):
+            return x
+
     # data
     t = np.linspace(0, 1, 100)
-    x0 = [0.5, 0.5]
+    x0 = np.array([0.5, 0.5])
     solver_opt = dict(step=PIDController(rtol=1e-5, atol=1e-7))
     true_model = Flow(
         LotkaVolterra(alpha=2 / 3, beta=4 / 3, delta_gamma=jnp.array([1.0, 1.0])),

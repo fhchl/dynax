@@ -159,6 +159,7 @@ def _least_squares(
 # x = [np.array([x1, x2, x3, ...]), np.array([y1, y2, y3, ....])]
 
 
+# could all the math with the outputs be simplified by flattening and stacking y?
 def fit_least_squares(
     model: AbstractEvolution,
     t: NDArrayLike,

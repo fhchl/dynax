@@ -96,6 +96,9 @@ class LotkaVolterra(DynamicalSystem):
         dy = self.delta * x * y - self.gamma * y
         return dx, dy
 
+    def output(self, x, u, t):
+        return x
+
 
 class SpringMassWithBoucWenHysteresis(DynamicalSystem):
     """https://en.wikipedia.org/wiki/Bouc%E2%80%93Wen_model_of_hysteresis"""
