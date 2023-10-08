@@ -163,7 +163,7 @@ def test_fit_multiple_shooting_with_input(num_shots):
     # data
     t = np.linspace(0, 10, 10000)
     u = np.sin(1 * 2 * np.pi * t)
-    x0 = [1.0, 0.0]
+    x0 = (1.0, 0.0)
     true_model = Flow(SpringMassDamper(1.0, 2.0, 3.0))
     x_true, _ = true_model(x0, t, u)
     # fit
@@ -174,7 +174,7 @@ def test_fit_multiple_shooting_with_input(num_shots):
         x_true,
         x0,
         u,
-        continuity_penalty=1,
+        continuity_penalty=1.,
         num_shots=num_shots,
         verbose=2,
     ).result
@@ -192,7 +192,7 @@ def test_fit_multiple_shooting_with_input(num_shots):
 def test_fit_multiple_shooting_without_input(num_shots):
     # data
     t = np.linspace(0, 1, 1000)
-    x0 = [0.5, 0.5]
+    x0 = (0.5, 0.5)
     solver_opt = dict(step=PIDController(rtol=1e-3, atol=1e-6))
     true_model = Flow(
         LotkaVolterra(alpha=2 / 3, beta=4 / 3, gamma=1.0, delta=1.0), **solver_opt
@@ -203,7 +203,7 @@ def test_fit_multiple_shooting_without_input(num_shots):
         LotkaVolterra(alpha=1.0, beta=1.0, gamma=1.5, delta=2.0), **solver_opt
     )
     pred_model = fit_multiple_shooting(
-        init_model, t, x_true, x0, num_shots=num_shots, continuity_penalty=1
+        init_model, t, x_true, x0, num_shots=num_shots, continuity_penalty=1.
     ).result
     # check result
     x_pred, _ = pred_model(x0, t)

@@ -46,6 +46,9 @@ class SpringMassDamper(DynamicalSystem):
         dx2 = (u - self.r * x2 - self.k * x1) / self.m
         return dx1, dx2
 
+    def output(self, x, u, t):
+        return x
+
 
 class NonlinearDrag(ControlAffine):
     """Spring-mass-damper system with nonlin drag.
