@@ -221,7 +221,7 @@ def test_transfer_function():
     sr = 100
     f = np.linspace(0, sr / 2, 100)
     s = 2 * np.pi * f * 1j
-    H = jax.vmap(transfer_function(sys))(s)[:, 0, 0]
+    H = jax.vmap(transfer_function(sys, x=(0., 0.), u=0.))(s)[:, 0, 0]
     H_true = 1 / (sys.m * s**2 + sys.r * s + sys.k)
     npt.assert_array_almost_equal(H, H_true)
 

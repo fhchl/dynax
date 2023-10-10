@@ -111,7 +111,7 @@ class DynamicalSystem(eqx.Module):
         self,
         x: Optional[PyTree] = None,
         u: Optional[PyTree] = None,
-        t: Optional[Scalar] = None,
+        t: Optional[float] = None,
     ) -> "LinearSystem":
         """Compute the linearized system around a state, and input and time."""
         x = self.x0 if x is None else x

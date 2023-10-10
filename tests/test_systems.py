@@ -125,6 +125,18 @@ def test_linear_system():
     x_true = x(t, x0[0], uconst)
     npt.assert_array_almost_equal(x_true, x_pred[:, 0])
 
+    class A(DynamicalSystem):
+        def vector_field(self, x, u, t):
+            x1, x2 = x
+            return x2, x1
+        def output(self, x, u, t):
+            return x
+
+    x0 = (0.5, 0.5)
+    linsys = A().linearize(x0)
+    Flow(linsys)(x0, t=jnp.linspace(0, 0.5))
+
+
 
 def test_series():
     n1, m1, p1 = 4, 3, 2

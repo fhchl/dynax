@@ -40,7 +40,8 @@ class SpringMassDamper(DynamicalSystem):
     k: float
 
     def vector_field(self, x, u=None, t=None):
-        u = u.squeeze() if u is not None else 0
+        if u is None:
+            u = 0.
         x1, x2 = x
         dx1 = x2
         dx2 = (u - self.r * x2 - self.k * x1) / self.m

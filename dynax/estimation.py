@@ -25,7 +25,8 @@ from equinox.internal import ω
 from .evolution import AbstractEvolution
 from .system import DynamicalSystem
 from .util import mse, nmse, nrmse, value_and_jacfwd, tree_stack, tree_unstack
-
+import lineax as lx
+import equinox as eqx
 
 NDArrayLike = Union[Array, np.ndarray]
 
@@ -445,23 +446,44 @@ def fit_multiple_shooting(
     return res
 
 
-def transfer_function(sys: DynamicalSystem, to_states: bool = False, **kwargs):
+def transfer_function(
+    sys: DynamicalSystem,
+    x: Optional[PyTree] = None,
+    u: Optional[PyTree] = None,
+    t: Optional[float] = None,
+    to_states: bool = False,
+):
     """Compute transfer-function of linearized system."""
-    linsys = sys.linearize(**kwargs)
-    # TODO(pytree): This one is going to be tricky and this should be tackled first.
-    # When we evaluate H(s), we don't know the state structure. We could demand that
-    # x0, u0 and t0 are supplied?
+    x = sys.x0 if x is None else x
+    if x is None:
+        raise ValueError("Either x or sys.x0 must be specified.")
+
+    linsys = sys.linearize(x, u, t)
     A, B, C, D = linsys.A, linsys.B, linsys.C, linsys.D
 
-    def H(s: ArrayLike) -> Array:
+    # Convert to complex to make sure that structures for lx.linear_solve match
+    A = (A**ω * 0.j).ω
+    B = (B**ω * 0.j).ω
+    in_structure = jax.eval_shape(lambda: x)
+
+    def H(s):
         """Transfer-function at s."""
-        # TODO(pytree): Here, we are _required_ to materialize A, B, C, D, because this
-        # is otherwise very hard :/
-        identity = np.eye(linsys.n_states)
-        phi_B = jnp.linalg.solve(s * identity - A, B)
+        s = jnp.asarray(s, dtype=complex)
+        # out_struct = jax.eval_shape(lambda: jtu.tree_map(lambda x: x[:, 0], B))
+        # Iop = lx.IdentityLinearOperator(out_struct, out_struct)
+        # Aop = lx.PyTreeLinearOperator(A, out_struct)
+        Iop = lx.IdentityLinearOperator(in_structure, in_structure)
+        Aop = lx.FunctionLinearOperator(lambda x: tree_map(jnp.dot, A, x), in_structure)
+        # Don't understand: out_axes = 1 would throw an error here, but -1 works
+        sol = eqx.filter_vmap(
+            lx.linear_solve, in_axes=(None, 1), out_axes=-1
+        )(s * Iop - Aop, B)
+        phi_B = sol.value
         if to_states:
+            # X = (sI - A)^-1 B U
             return phi_B
-        return C.dot(phi_B) + D
+        # Y = (C (sI - A)^-1 B + D) U
+        return (jtu.tree_map(jnp.dot, C, phi_B)**ω + D**ω).ω
 
     return H
 
