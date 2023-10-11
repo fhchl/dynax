@@ -1,5 +1,6 @@
 """Classes for representing dynamical systems."""
 
+from abc import abstractmethod
 from collections.abc import Callable
 from dataclasses import field
 from typing import Optional
@@ -12,7 +13,7 @@ from equinox.internal import ω
 from jax import Array
 from jax.tree_util import tree_map, tree_structure
 from jax.typing import ArrayLike
-from jaxtyping import PyTree, Scalar, ScalarLike
+from jaxtyping import PyTree, ScalarLike
 
 
 def static_field(**kwargs):
@@ -55,6 +56,8 @@ def non_negative_field(min_val: float = 0.0, **kwargs):
     return boxed_field(lower=min_val, upper=np.inf, **kwargs)
 
 
+from jax._src.numpy.util import promote_dtypes_numeric
+
 def _linearize(f, h, x, u, t):
     """Linearize dx=f(x,u,t), y=h(x,u,t) around x, u and t."""
     A = jax.jacfwd(f, argnums=0)(x, u, t)
@@ -95,14 +98,15 @@ class DynamicalSystem(eqx.Module):
 
     x0: Optional[PyTree] = static_field(init=False, default=None)
 
+    @abstractmethod
     def vector_field(
-        self, x: PyTree, u: Optional[PyTree] = None, t: Optional[Scalar] = None
+        self, x: PyTree, u: Optional[ScalarLike] = None, t: Optional[ScalarLike] = None
     ) -> PyTree:
         """Compute the state derivative from current state, input and time."""
-        raise NotImplementedError
+        pass
 
     def output(
-        self, x: PyTree, u: Optional[PyTree] = None, t: Optional[Scalar] = None
+        self, x: PyTree, u: Optional[ScalarLike] = None, t: Optional[ScalarLike] = None
     ) -> PyTree:
         """Compute the output from current state, input and time."""
         return None
@@ -110,7 +114,7 @@ class DynamicalSystem(eqx.Module):
     def linearize(
         self,
         x: Optional[PyTree] = None,
-        u: Optional[PyTree] = None,
+        u: Optional[ScalarLike] = None,
         t: Optional[float] = None,
     ) -> "LinearSystem":
         """Compute the linearized system around a state, and input and time."""
@@ -175,21 +179,20 @@ class DynamicalSystem(eqx.Module):
     #   pass
 
 
-def _control_affine(bfun, Afun, x, u=None, t=None):
+def _control_affine(
+    bfun: Callable[[PyTree], PyTree],
+    Afun: Callable[[PyTree], PyTree],
+    x: PyTree,
+    u: Optional[ScalarLike] = None
+):
     b = bfun(x)
     A = Afun(x)
     if u is None or A is None:
         return b
-    if isinstance(u, (Scalar, ScalarLike)):
-        # elementwise multiply A with u
-        Au = tree_map(lambda Ai: Ai * u, A)
-    elif tree_structure(A) == tree_structure(u):
-        Au = tree_map(jnp.dot, A, u)
-    else:
-        raise ValueError(
-            f"If u isn't scalar, {bfun}(x) and u must have the same pytree structure"
-        )
-    return (b**ω + Au**ω).ω
+    # TODO(pytree): some casting to arrays is needed here, as otherwise the omegas behave
+    # weired. For np.ndarray a, a**ω is ω applied for each element resulting in a array
+    # of object
+    return (b**ω + A**ω * u).ω
 
 
 class ControlAffine(DynamicalSystem):
@@ -215,10 +218,10 @@ class ControlAffine(DynamicalSystem):
         return None
 
     def vector_field(self, x, u=None, t=None):
-        return _control_affine(self.f, self.g, x, u, t)
+        return _control_affine(self.f, self.g, x, u)
 
     def output(self, x, u=None, t=None):
-        return _control_affine(self.h, self.i, x, u, t)
+        return _control_affine(self.h, self.i, x, u)
 
 
 class LinearSystem(ControlAffine):
@@ -240,6 +243,33 @@ class LinearSystem(ControlAffine):
 
     def g(self, x: PyTree) -> PyTree:
         return self.B
+
+    def h(self, x: PyTree) -> PyTree:
+        return tree_map(jnp.dot, self.C, x)
+
+    def i(self, x: PyTree) -> PyTree:
+        return self.D
+
+
+class LinearFuncSystem(ControlAffine):
+    r"""A linear, time-invariant dynamical system.
+
+    .. math::
+
+        ẋ &= Ax + Bu \\
+        y &= Cx + Du
+
+    """
+    A: Callable
+    B: Optional[Callable] = None
+    C: Optional[Callable] = None
+    D: Optional[Callable] = None
+
+    def f(self, x: PyTree) -> PyTree:
+        return self.A(x)
+
+    def g(self, x: PyTree) -> PyTree:
+        return self.B(x)
 
     def h(self, x: PyTree) -> PyTree:
         return tree_map(jnp.dot, self.C, x)

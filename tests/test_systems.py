@@ -139,7 +139,7 @@ def test_linear_system():
 
 
 def test_series():
-    n1, m1, p1 = 4, 3, 2
+    n1, m1, p1 = 4, 1, 1
     np.random.seed(42)
     A1 = np.random.uniform(-5, 5, size=(n1, n1))
     B1 = np.random.uniform(-5, 5, size=(n1, m1))
@@ -153,7 +153,7 @@ def test_series():
     D2 = np.random.uniform(-5, 5, size=(p2, m2))
     sys2 = LinearSystem(A2, B2, C2, D2)
     sys = SeriesSystem(sys1, sys2)
-    linsys = sys.linearize(x=(np.zeros(n1), np.zeros(n2)), u=np.zeros(m1))
+    linsys = sys.linearize(x=(np.zeros(n1), np.zeros(n2)), u=0)
     assert tree_equal(
         linsys.A, ((A1, np.zeros((n1, n2))), (B2.dot(C1), A2))
     )
