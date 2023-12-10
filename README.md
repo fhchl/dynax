@@ -4,18 +4,17 @@ _"Dynamical systems in JAX"_
 
 [![Run tests](https://github.com/fhchl/dynax/actions/workflows/run_tests.yml/badge.svg)](https://github.com/fhchl/dynax/actions/workflows/run_tests.yml)
 
-__This is WIP!__
+__This is WIP. Expect things to break!__
 
 This package allows for straight-forward simulation, fitting and linearization of dynamical systems 
 by combing [JAX][jax], [Diffrax][diffrax], [Equinox][equinox], and [scipy.optimize][scipy]. Its main features
 include:
 
 - estimation of ODE parameters and their covariance via the prediction-error method
-- estimation of linear ODE parameters via matching of transfer-functions
-- fitting of multiple experiments
-- fitting with multiple shooting
-- input-output linearization of continuous-time input-affine systems with well-defined relative degree
-- input-output linearization of discrete-time systems with well-defined relative degree
+- estimation of linear ODE parameters via matching of frequency-response functions
+- estimation through multiple experiments
+- estimation with a poor man's multiple shooting
+- input-output linearization of continuous- and discrete-time input-affine systems with well-defined relative degree
 - estimation of a system's relative-degree
 
 See [example](examples) and [test](tests) folders for some documentation. 
