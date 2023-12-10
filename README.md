@@ -17,7 +17,7 @@ include:
 - input-output linearization of continuous- and discrete-time input-affine systems with well-defined relative degree
 - estimation of a system's relative-degree
 
-See [example](examples) and [test](tests) folders for some documentation. 
+Documentation is on its way. Until then, have a look at the [example](examples) and [test](tests) folders.
 
 
 ## Installing
