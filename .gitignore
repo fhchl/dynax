@@ -11,3 +11,5 @@ docs/generated
 .pytype
 .ruff_cache
 .mypy_cache
+.ipynb_checkpoints
+.virtual_documents
