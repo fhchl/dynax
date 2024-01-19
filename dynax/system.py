@@ -69,24 +69,19 @@ class DynamicalSystem(eqx.Module):
         ẋ &= f(x, u, t) \\
         y &= h(x, u, t)
 
-    Subclasses must set values for attributes n_states, n_inputs, and
-    n_outputs, and implement the `vector_field` method. Use the `output` method to
-    describe measurent equations. By default, the total state is returned as output.
+    Subclasses must set values for attributes n_states, n_inputs, and implement the 
+    `vector_field` method. Use the optional `output` method to describe measurent 
+    equations. Otherwise, the total state is returned as output.
 
     In most cases, it is not needed to define a custom __init__ method, as
-    `DynamicalSystem` is a dataclass. If subclasses define an __init__ method, they must
-    call `self.__post_init__()` at its end.
-
+    `DynamicalSystem` is a dataclass.
+    
     Example::
 
         class IntegratorAndGain(DynamicalSystem):
             n_states = 1
             n_inputs = 1
             gain: float
-
-            def __init__(self, gain):
-                self.gain = gain
-                self.__post_init__()
 
             def vector_field(self, x, u, t):
                 dx = u
@@ -96,24 +91,24 @@ class DynamicalSystem(eqx.Module):
                 return self.gain*x
 
     """
-    # computed automatically
-    n_outputs: int = static_field(init=False)
     # these attributes should be set by subclasses
     n_states: int = static_field(init=False)
     n_inputs: int = static_field(init=False)
 
-    def __post_init__(self):
+    def __check_init__(self):
         # Check that required attributes are initialized
         required_attrs = ["n_states", "n_inputs"]
         for attr in required_attrs:
             if not hasattr(self, attr):
                 raise AttributeError(f"Attribute '{attr}' not initialized.")
 
+    @property
+    def n_outputs(self):
         # Compute output size
         x = jax.ShapeDtypeStruct((self.n_states,), jnp.float64)
         u = jax.ShapeDtypeStruct((self.n_inputs,), jnp.float64)
         t = 1.0
-        self.n_outputs = jax.eval_shape(self.output, x, u, t).size
+        return jax.eval_shape(self.output, x, u, t).size
 
     def vector_field(self, x, u=None, t=None):
         """Compute state derivative."""
@@ -235,7 +230,6 @@ class LinearSystem(DynamicalSystem):
         self.D = D
         self.n_states = A.shape[0]
         self.n_inputs = B.shape[1]
-        self.__post_init__()
 
     def vector_field(self, x, u=None, t=None):
         x = jnp.atleast_1d(x)
@@ -300,7 +294,6 @@ class SeriesSystem(DynamicalSystem):
         self._sys2 = sys2
         self.n_states = sys1.n_states + sys2.n_states
         self.n_inputs = sys1.n_inputs
-        self.__post_init__()
 
     def vector_field(self, x, u=None, t=None):
         x1 = x[: self._sys1.n_states]
@@ -335,7 +328,6 @@ class FeedbackSystem(DynamicalSystem):
         self._fbsys = fbsys
         self.n_states = sys.n_states + fbsys.n_states
         self.n_inputs = sys.n_inputs
-        self.__post_init__()
 
     def vector_field(self, x, u=None, t=None):
         if u is None:
@@ -379,7 +371,6 @@ class StaticStateFeedbackSystem(DynamicalSystem):
         self._feedbacklaw = staticmethod(v)
         self.n_states = sys.n_states
         self.n_inputs = sys.n_inputs
-        self.__post_init__()
 
     def vector_field(self, x, u=None, t=None):
         if u is None:
@@ -426,7 +417,6 @@ class DynamicStateFeedbackSystem(DynamicalSystem):
         self._feedbacklaw = v
         self.n_states = sys.n_states + sys2.n_states
         self.n_inputs = sys.n_inputs
-        self.__post_init__()
 
     def vector_field(self, xz, u=None, t=None):
         if u is None:

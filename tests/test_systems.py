@@ -61,12 +61,8 @@ class SecondOrder(DynamicalSystem):
 
     b: float
     c: float
-
-    def __init__(self, b, c):
-        self.b = b
-        self.c = c
-        self.n_states = 2
-        self.n_inputs = 1
+    n_states = 2
+    n_inputs = 1
 
     def vector_field(self, x, u=None, t=None):
         """ddx + b dx + c x = u as first order with x1=x and x2=dx."""
