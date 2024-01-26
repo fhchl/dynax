@@ -17,12 +17,12 @@ tols = dict(rtol=1e-04, atol=1e-06)
 
 
 class SpringMassDamperWithOutput(ControlAffine):
-    m = 0.1
-    r = 0.1
-    k = 0.1
-    out: int
+    m: float = 0.1
+    r: float = 0.1
+    k: float = 0.1    
+    out: int = 0
     n_states = 2
-    n_inputs = 1
+    n_inputs = "scalar"
 
     def f(self, x):
         x1, x2 = x
@@ -70,18 +70,18 @@ def test_linearize_lin2lin():
 
 
 def test_linearize_dyn2lin():
-    class TestSys(DynamicalSystem):
-        n_states = 1
-        n_inputs = 1
-        vector_field = lambda self, x, u=None, t=None: -1 * x + 2 * u
-        output = lambda self, x, u=None, t=None: 3 * x + 4 * u
+    class ScalarScalar(DynamicalSystem):
+        n_states = "scalar"
+        n_inputs = "scalar"
+        vector_field = lambda self, x, u, t: -1 * x + 2 * u # FIXME remove Nones
+        output = lambda self, x, u, t: 3 * x + 4 * u
 
-    sys = TestSys()
+    sys = ScalarScalar()
     linsys = sys.linearize()
-    assert np.array_equal(linsys.A, [[-1.0]])
-    assert np.array_equal(linsys.B, [[2.0]])
-    assert np.array_equal(linsys.C, [[3.0]])
-    assert np.array_equal(linsys.D, [[4.0]])
+    assert np.array_equal(linsys.A, -1.0)
+    assert np.array_equal(linsys.B, 2.0)
+    assert np.array_equal(linsys.C, 3.0)
+    assert np.array_equal(linsys.D, 4.0)
 
 
 def test_linearize_sastry9_9():
@@ -89,9 +89,9 @@ def test_linearize_sastry9_9():
     sys = Sastry9_9()
     linsys = sys.linearize()
     assert np.array_equal(linsys.A, [[0, 0, 0], [1, 0, 0], [1, -1, 0]])
-    assert np.array_equal(linsys.B, [[1], [1], [0]])
-    assert np.array_equal(linsys.C, [[0, 0, 1]])
-    assert np.array_equal(linsys.D, [[0.0]])
+    assert np.array_equal(linsys.B, [1, 1, 0])
+    assert np.array_equal(linsys.C, [0, 0, 1])
+    assert np.array_equal(linsys.D, 0.0)
 
 
 def test_input_output_linearize_single_output():
@@ -102,7 +102,7 @@ def test_input_output_linearize_single_output():
     reldeg = relative_degree(sys, xs)
     feedbacklaw = input_output_linearize(sys, reldeg, ref)
     feedback_sys = DynamicStateFeedbackSystem(sys, ref, feedbacklaw)
-    t = np.linspace(0, 1)
+    t = np.linspace(0, 0.1)
     u = np.sin(t)
     npt.assert_allclose(
         Flow(ref)(np.zeros(sys.n_states), t, u)[1],

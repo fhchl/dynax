@@ -21,7 +21,7 @@ from scipy.optimize._optimize import MemoizeJac
 
 from .evolution import AbstractEvolution
 from .system import DynamicalSystem
-from .util import mse, nmse, nrmse, value_and_jacfwd
+from .util import broadcast_right, mse, nmse, nrmse, value_and_jacfwd
 
 
 def _get_bounds(module: eqx.Module) -> tuple[list, list]:
@@ -244,6 +244,7 @@ def fit_least_squares(
     def residual_term(params):
         model = unravel(params)
         if batched:
+            # this can use pmap, if batch size is smaller than CPU cores
             model = jax.vmap(model)
         # FIXME: ucoeffs not supported for Map
         _, pred_y = model(x0, t=t, ucoeffs=ucoeffs)
@@ -406,17 +407,21 @@ def transfer_function(sys: DynamicalSystem, to_states: bool = False, **kwargs):
 
 
 def estimate_spectra(
-    u: ArrayLike, y: ArrayLike, sr: int, nperseg: int
+    u: NDArray, y: NDArray, sr: float, nperseg: int
 ) -> tuple[NDArray, NDArray, NDArray]:
     """Estimate cross and autospectral densities."""
-    u = np.asarray(u)
-    y = np.asarray(y)
-    if u.ndim == 1:
-        u = u[:, None]
-    if y.ndim == 1:
-        y = y[:, None]
-    f, S_yu = sig.csd(u[:, None, :], y[:, :, None], fs=sr, nperseg=nperseg, axis=0)
-    _, S_uu = sig.welch(u[:, None, :], fs=sr, nperseg=nperseg, axis=0)
+    u_ = np.asarray(u)
+    y_ = np.asarray(y)
+    # Prep for correct broadcasting in sig.csd
+    if u_.ndim == 1:
+        u_ = u_[:, None]
+    if y_.ndim == 1:
+        y_ = y_[:, None]
+    f, S_yu = sig.csd(u_[:, None, :], y_[:, :, None], fs=sr, nperseg=nperseg, axis=0)
+    _, S_uu = sig.welch(u, fs=sr, nperseg=nperseg, axis=0)
+    # Reshape back with dimensions of arguments
+    S_yu = S_yu.reshape((nperseg // 2 + 1,) + y.shape[1:] + u.shape[1:])
+    S_uu = S_uu.reshape((nperseg // 2 + 1,) + u.shape[1:])
     return f, S_yu, S_uu
 
 
@@ -424,7 +429,7 @@ def fit_csd_matching(
     sys: DynamicalSystem,
     u: ArrayLike,
     y: ArrayLike,
-    sr: int,
+    sr: float = 1.0,
     nperseg: int = 1024,
     reg: float = 0,
     x_scale: bool = True,
@@ -434,7 +439,7 @@ def fit_csd_matching(
     **kwargs,
 ) -> OptimizeResult:
     """Estimate parameters of linearized system by matching cross-spectral densities."""
-    f, Syu, Suu = estimate_spectra(u, y, sr, nperseg)
+    f, Syu, Suu = estimate_spectra(u, y, sr=sr, nperseg=nperseg)
 
     if not fit_dc:
         # remove dc term
@@ -457,8 +462,9 @@ def fit_csd_matching(
     def residuals(params):
         sys = unravel(params)
         H = transfer_function(sys)
-        Gyx_pred = jax.vmap(H)(s)
-        Syu_pred = Gyx_pred * Suu
+        Gyu_pred = jax.vmap(H)(s)
+        # FIXME: there are some bugs here, run pytest...
+        Syu_pred = Gyu_pred * broadcast_right(Suu, Gyu_pred)
         r = (Syu - Syu_pred) * weight
         r = jnp.concatenate((jnp.real(r), jnp.imag(r)))
         return r.reshape(-1)

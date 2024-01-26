@@ -2,14 +2,16 @@
 
 from collections.abc import Callable
 from dataclasses import field
+from typing import Literal
 
 import equinox as eqx
 import jax
 import jax.numpy as jnp
 import numpy as np
 from jax import Array
+from jax.typing import ArrayLike
 
-from .util import ssmatrix
+from .util import dim2shape, ssmatrix
 
 
 def _linearize(f, h, x0, u0, t0):
@@ -80,7 +82,7 @@ class DynamicalSystem(eqx.Module):
 
         class IntegratorAndGain(DynamicalSystem):
             n_states = 1
-            n_inputs = 1
+            n_inputs = "scalar"
             gain: float
 
             def vector_field(self, x, u, t):
@@ -92,8 +94,8 @@ class DynamicalSystem(eqx.Module):
 
     """
     # these attributes should be set by subclasses
-    n_states: int = static_field(init=False)
-    n_inputs: int = static_field(init=False)
+    n_states: int | Literal["scalar"] = static_field(init=False)
+    n_inputs: int | Literal["scalar"] = static_field(init=False)
 
     def __check_init__(self):
         # Check that required attributes are initialized
@@ -102,13 +104,21 @@ class DynamicalSystem(eqx.Module):
             if not hasattr(self, attr):
                 raise AttributeError(f"Attribute '{attr}' not initialized.")
 
-    @property
-    def n_outputs(self):
-        # Compute output size
-        x = jax.ShapeDtypeStruct((self.n_states,), jnp.float64)
-        u = jax.ShapeDtypeStruct((self.n_inputs,), jnp.float64)
+        # Check that vector_field returns Arrays or scalars and not PyTrees        
+        x = jax.ShapeDtypeStruct(dim2shape(self.n_states), jnp.float64)
+        u = jax.ShapeDtypeStruct(dim2shape(self.n_inputs), jnp.float64)
         t = 1.0
-        return jax.eval_shape(self.output, x, u, t).size
+        out = jax.eval_shape(self.vector_field, x, u, t)
+        if not isinstance(out, jax.ShapeDtypeStruct):
+            raise ValueError(f"vector_field must return arrays or scalars, not {type(out)}")
+
+    @property
+    def n_outputs(self) -> int | Literal["scalar"]:
+        # Compute output size
+        x = jax.ShapeDtypeStruct(dim2shape(self.n_states), jnp.float64)
+        u = jax.ShapeDtypeStruct(dim2shape(self.n_inputs), jnp.float64)
+        y = jax.eval_shape(self.output, x, u, t=1.0)
+        return "scalar" if y.ndim == 0 else y.shape[0]
 
     def vector_field(self, x, u=None, t=None):
         """Compute state derivative."""
@@ -121,15 +131,10 @@ class DynamicalSystem(eqx.Module):
     def linearize(self, x0=None, u0=None, t=None) -> "LinearSystem":
         """Compute the approximate linearized system around a point."""
         if x0 is None:
-            x0 = jnp.zeros(self.n_states)
+            x0 = jnp.zeros(dim2shape(self.n_states))
         if u0 is None:
-            u0 = jnp.zeros(self.n_inputs)
+            u0 = jnp.zeros(dim2shape(self.n_inputs))
         A, B, C, D = _linearize(self.vector_field, self.output, x0, u0, t)
-        # jax creates empty arrays
-        if B.size == 0:
-            B = np.zeros((self.n_states, self.n_inputs))
-        if D.size == 0:
-            D = np.zeros((C.shape[0], self.n_inputs))
         return LinearSystem(A, B, C, D)
 
     # def obs_ident_mat(self, x0, u=None, t=None):
@@ -184,7 +189,9 @@ class DynamicalSystem(eqx.Module):
     #   return O_i
 
     # def test_observability():
-    #   pass
+    #   pass# This allows to us to guess the shapes of the state-space mawhen given
+    # as trices 1d-arrays
+    #, we interpet them asumn vectors.
 
 
 # TODO: have output_internals, that makes methods return tuple
@@ -210,40 +217,38 @@ class LinearSystem(DynamicalSystem):
     C: Array
     D: Array
 
-    def __init__(self, A: Array, B: Array, C: Array, D: Array):
-        """
-        Args:
-            A, B, C, D: system matrices of proper dimensions
+    def __init__(self, A: ArrayLike, B: ArrayLike, C: ArrayLike, D: ArrayLike):
+        self.A = jnp.array(A)
+        self.B = jnp.array(B)
+        self.C = jnp.array(C)
+        self.D = jnp.array(D)
 
-        """
-        A = ssmatrix(A)
-        C = ssmatrix(C)
-        B = ssmatrix(B)
-        D = ssmatrix(D)
-        assert A.ndim == B.ndim == C.ndim == D.ndim == 2
-        assert A.shape[0] == A.shape[1] == B.shape[0] == C.shape[1]
-        assert D.shape[0] == C.shape[0]
-        assert D.shape[1] == B.shape[1]
-        self.A = A
-        self.B = B
-        self.C = C
-        self.D = D
-        self.n_states = A.shape[0]
-        self.n_inputs = B.shape[1]
+        # Extract number of states and inputs from matrices
+        self.n_states = "scalar" if self.A.ndim == 0 else self.A.shape[0]
+        if self.n_states == "scalar":
+            if self.B.ndim == 0:
+                self.n_inputs = "scalar"
+            elif self.B.ndim == 1:
+                self.n_inputs = self.B.size
+            else:
+                raise ValueError("Dimension mismatch.")
+        else:
+            if self.B.ndim == 1:
+                self.n_inputs = "scalar"
+            elif self.B.ndim == 2:
+                self.n_inputs = self.B.shape[1]
+            else:
+                raise ValueError("Dimension mismatch.")
 
     def vector_field(self, x, u=None, t=None):
-        x = jnp.atleast_1d(x)
         out = self.A.dot(x)
         if u is not None:
-            u = jnp.atleast_1d(u)
             out += self.B.dot(u)
         return out
 
     def output(self, x, u=None, t=None):
-        x = jnp.atleast_1d(x)
         out = self.C.dot(x)
         if u is not None:
-            u = jnp.atleast_1d(u)
             out += self.D.dot(u)
         return out
 

@@ -14,9 +14,9 @@ class PlasticFlowLinElastic(DynamicalSystem):
     alpha: float
     sigma_0: float
     n_states = 2
-    n_inputs = 1
+    n_inputs = "scalar"
 
-    def vector_field(self, x, u=None, t=None):
+    def vector_field(self, x, u, t=None):
         S, E = x
         return jnp.array(
             [
@@ -42,10 +42,9 @@ class SpringMassDamper(DynamicalSystem):
     r: float
     k: float
     n_states = 2
-    n_inputs = 1
+    n_inputs = "scalar"
 
-    def vector_field(self, x, u=None, t=None):
-        u = u.squeeze() if u is not None else 0
+    def vector_field(self, x, u, t=None):
         x1, x2 = x
         return jnp.array([x2, (u - self.r * x2 - self.k * x1) / self.m])
 
@@ -63,7 +62,7 @@ class NonlinearDrag(ControlAffine):
     m: float
     outputs: list[int] = static_field(default_factory=lambda: [0])
     n_states = 2
-    n_inputs = 1
+    n_inputs = "scalar"
 
     def f(self, x):
         x1, x2 = x
@@ -82,7 +81,7 @@ class Sastry9_9(ControlAffine):
     """Sastry Example 9.9"""
 
     n_states = 3
-    n_inputs = 1
+    n_inputs = "scalar"
 
     def f(self, x):
         return jnp.array([0.0, x[0] + x[1] ** 2, x[0] - x[1]])

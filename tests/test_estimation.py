@@ -84,7 +84,7 @@ def test_can_compute_jacfwd_with_implicit_methods():
 
     def fun(m, r, k, x0=x0, solver_opt=solver_opt, t=t):
         model = Flow(SpringMassDamper(m, r, k), **solver_opt)
-        x_true, _ = model(x0, t)
+        x_true, _ = model(x0, t, u=np.zeros_like(t))
         return x_true
 
     jac = jax.jacfwd(fun, argnums=(0, 1, 2))
@@ -217,7 +217,7 @@ def test_transfer_function():
     sr = 100
     f = np.linspace(0, sr / 2, 100)
     s = 2 * np.pi * f * 1j
-    H = jax.vmap(transfer_function(sys))(s)[:, 0, 0]
+    H = jax.vmap(transfer_function(sys))(s)[:, 0]
     H_true = 1 / (sys.m * s**2 + sys.r * s + sys.k)
     npt.assert_array_almost_equal(H, H_true)
 
@@ -245,3 +245,4 @@ def test_csd_matching():
         rtol=1e-1,
         atol=1e-1,
     )
+

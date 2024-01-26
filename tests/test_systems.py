@@ -62,7 +62,7 @@ class SecondOrder(DynamicalSystem):
     b: float
     c: float
     n_states = 2
-    n_inputs = 1
+    n_inputs = 0
 
     def vector_field(self, x, u=None, t=None):
         """ddx + b dx + c x = u as first order with x1=x and x2=dx."""
@@ -114,10 +114,10 @@ def test_forward_model_lin_sys():
 
     x0 = jnp.array([1, 0])  # x(t=0)=1, dx(t=0)=0
     t = np.linspace(0, 1)
-    u = np.ones_like(t) * uconst
+    u = np.ones(t.shape + (1,)) * uconst
     model = Flow(sys, step=dfx.PIDController(rtol=1e-7, atol=1e-9))
     x_pred = model(x0, t, u)[1]
-    x_true = x(t, *x0, uconst)
+    x_true = x(t, x0[0], x0[1], uconst)
     assert np.allclose(x_true, x_pred)
 
 
@@ -125,7 +125,7 @@ def test_discrete_forward_model():
     b = 2
     c = 1  # critical damping as b**2 == 4*c
     t = jnp.arange(50)
-    u = jnp.sin(1 / len(t) * 2 * np.pi * t)
+    u = jnp.sin(1 / len(t) * 2 * np.pi * t)[:, None]  # single input
     x0 = jnp.array([1.0, 0.0])
     A = jnp.array([[0, 1], [-c, -b]])
     B = jnp.array([[0], [1]])

@@ -19,11 +19,11 @@ def relative_degree(
     """Estimate relative degree of system on region xs."""
     # TODO: when ControlAffine has y = h(x) + i(x)u, include test for n = 0,
     # i.e. i(x) == 0 for all x in xs.
-    assert sys.n_inputs == 1
+    assert sys.n_inputs in ["scalar", 1]
     if output is None:
         # Make sure system has single output
         msg = f"Output is None, but system has {sys.n_outputs} outputs."
-        assert sys.n_outputs == 1, msg
+        assert sys.n_outputs in ["scalar", 1], msg
         h = sys.h
     else:
         h = lambda *args, **kwargs: sys.h(*args, **kwargs)[output]
@@ -69,10 +69,12 @@ def input_output_linearize(
         Only single-input-single-output systems are currently supported.
 
     """
-    assert sys.n_inputs == ref.n_inputs == 1, "systems must be single input"
+    assert sys.n_inputs == ref.n_inputs, "systems habe same input dimension"
+    assert sys.n_inputs in [1, "scalar"]
 
     if output is None:
-        assert sys.n_outputs == ref.n_outputs == 1, "systems must be single output"
+        assert sys.n_outputs == ref.n_outputs, "systems must have same output dimension"
+        assert sys.n_outputs in [1, "scalar"]
         h = sys.h
         A, b, c = ref.A, ref.B, ref.C
     else:
@@ -142,8 +144,8 @@ class LinearizingSystem(DynamicalSystem):
             raise ValueError("Only single input systems supported.")
         self.sys = sys
         self.refsys = refsys
-        self.n_outputs = self.n_inputs = 1
-        self.n_states = self.sys.n_states + self.refsys.n_states
+        self.n_inputs = "scalar"
+        self.n_states = self.sys.n_states + self.refsys.n_states  # FIXME: support "scalar"
         self.feedbacklaw = feedbacklaw
         if feedbacklaw is None:
             self.feedbacklaw = input_output_linearize(
