@@ -53,6 +53,7 @@ def input_output_linearize(
     ref: LinearSystem,
     output: Optional[int] = None,
     asymptotic: Optional[Sequence] = None,
+    reg: Optional[float] = None
 ) -> Callable[[Array, Array, float], float]:
     """Construct input-output linearizing feedback law.
 
@@ -63,6 +64,8 @@ def input_output_linearize(
         output: specify linearizing output if systems have multiple outputs
         asymptotic: If `None`, compute the exactly linearizing law. Otherwise,
             a sequence of length `reldeg` defining the tracking behaviour.
+        reg: parameter that control the linearization effort. Only effective if 
+            asymptotic is not None.
 
     Note:
         Relative degree of `ref` must be same or higher than degree of `sys`.
@@ -114,7 +117,12 @@ def input_output_linearize(
                     for ai, Lfih, cAi in zip(alphas, Lfihs, cAis)
                 ]
             )
-            return ((y_reldeg_ref - y_reldeg - jnp.sum(ae0s)) / LgLfnm1h(x)).squeeze()
+            error = (y_reldeg_ref - y_reldeg - jnp.sum(ae0s))
+            if reg is None:
+                return (error / LgLfnm1h(x)).squeeze()
+            else:
+                l = LgLfnm1h(x)
+                return (error * l / (l + reg)).squeeze()
 
     return feedbacklaw
 
