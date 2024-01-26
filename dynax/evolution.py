@@ -13,17 +13,10 @@ from .system import DynamicalSystem
 from .util import broadcast_right, dim2shape
 
 
-try:
-    # TODO: remove when upgrading to diffrax > v0.2
-    DefaultAdjoint = dfx.NoAdjoint
-except AttributeError:
-    DefaultAdjoint = dfx.DirectAdjoint
-
-
 class AbstractEvolution(eqx.Module):
     """Abstract base-class for evolutions."""
 
-    def __call__(self, x0: ArrayLike, t: ArrayLike, u: ArrayLike, **kwargs):
+    def __call__(self, x0: ArrayLike, t: Array, u: Array, **kwargs):
         raise NotImplementedError
 
 
@@ -45,11 +38,10 @@ class Flow(AbstractEvolution):
     def __call__(
         self,
         x0: ArrayLike,
-        t: ArrayLike,
-        u: Optional[ArrayLike] = None,
+        t: Array,
+        u: Optional[Array] = None,
         ufun: Optional[Callable[[float], Array]] = None,
         ucoeffs: Optional[tuple[PyTree, PyTree, PyTree, PyTree]] = None,
-        squeeze: bool = True,
         **diffeqsolve_kwargs,
     ) -> tuple[Array, Array]:
         """Solve initial value problem for state and output trajectories."""
@@ -90,7 +82,7 @@ class Flow(AbstractEvolution):
             stepsize_controller=self.step,
             saveat=dfx.SaveAt(ts=t),
             max_steps=50 * len(t),
-            adjoint=DefaultAdjoint(),
+            adjoint=dfx.DirectAdjoint(),
             dt0=self.dt0 if self.dt0 is not None else t[1],
         )
         diffeqsolve_default_options |= diffeqsolve_kwargs
@@ -108,11 +100,6 @@ class Flow(AbstractEvolution):
         # Compute output
         y = jax.vmap(self.system.output)(x, u, t)
 
-        # Remove singleton dimensions
-        if squeeze:
-            x = x.squeeze()
-            y = y.squeeze()
-
         return x, y
 
 
@@ -127,7 +114,6 @@ class Map(AbstractEvolution):
         t: Optional[Array] = None,
         u: Optional[Array] = None,
         num_steps: Optional[int] = None,
-        squeeze: bool = True,
     ):
         """Solve discrete map."""
         x0 = jnp.asarray(x0)
@@ -164,8 +150,5 @@ class Map(AbstractEvolution):
 
         # Compute output
         y = jax.vmap(self.system.output)(x)
-        if squeeze:
-            # Remove singleton dimensions
-            x = x.squeeze()
-            y = y.squeeze()
+
         return x, y

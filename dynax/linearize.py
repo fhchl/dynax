@@ -94,7 +94,7 @@ def input_output_linearize(
         def feedbacklaw(x: Array, z: Array, v: float) -> float:
             y_reldeg_ref = cAn.dot(z) + cAnm1b * v
             y_reldeg = Lfnh(x)
-            return ((y_reldeg_ref - y_reldeg) / LgLfnm1h(x)).squeeze()
+            return (y_reldeg_ref - y_reldeg) / LgLfnm1h(x)
 
     else:
         msg = f"asymptotic must be of length {reldeg=} but, {len(asymptotic)=}"
@@ -113,16 +113,16 @@ def input_output_linearize(
             y_reldeg = Lfnh(x)
             ae0s = jnp.array(
                 [
-                    ai * (Lfih(x) - cAi.dot(z))
+                    ai * (cAi.dot(z) - Lfih(x))
                     for ai, Lfih, cAi in zip(alphas, Lfihs, cAis)
                 ]
             )
-            error = (y_reldeg_ref - y_reldeg - jnp.sum(ae0s))
+            error = (y_reldeg_ref - y_reldeg + jnp.sum(ae0s))
             if reg is None:
-                return (error / LgLfnm1h(x)).squeeze()
+                return error / LgLfnm1h(x)
             else:
                 l = LgLfnm1h(x)
-                return (error * l / (l + reg)).squeeze()
+                return error * l / (l + reg)
 
     return feedbacklaw
 
