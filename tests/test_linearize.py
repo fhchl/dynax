@@ -19,7 +19,7 @@ tols = dict(rtol=1e-04, atol=1e-06)
 class SpringMassDamperWithOutput(ControlAffine):
     m: float = 0.1
     r: float = 0.1
-    k: float = 0.1    
+    k: float = 0.1
     out: int = 0
     n_states = 2
     n_inputs = "scalar"
@@ -73,7 +73,7 @@ def test_linearize_dyn2lin():
     class ScalarScalar(DynamicalSystem):
         n_states = "scalar"
         n_inputs = "scalar"
-        vector_field = lambda self, x, u, t: -1 * x + 2 * u # FIXME remove Nones
+        vector_field = lambda self, x, u, t: -1 * x + 2 * u  # FIXME remove Nones
         output = lambda self, x, u, t: 3 * x + 4 * u
 
     sys = ScalarScalar()

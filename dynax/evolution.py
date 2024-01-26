@@ -28,12 +28,9 @@ class AbstractEvolution(eqx.Module):
 
 
 def check_shape(shape, dim, arg):
-    if (
-        not (dim == "scalar" and shape != ()) and 
-        not (shape[1:] == (dim,))
-    ):
+    if not (dim == "scalar" and shape != ()) and not (shape[1:] == (dim,)):
         raise ValueError(f"Argument {arg} of shape {shape} is size {dim}.")
-    
+
 
 class Flow(AbstractEvolution):
     """Evolution function for continous-time dynamical system."""
@@ -80,7 +77,7 @@ class Flow(AbstractEvolution):
             raise ValueError("Must specify one of u, ufun, or ucoeffs.")
 
         # Check shape of ufun return values
-        out = jax.eval_shape(_ufun, 0.)
+        out = jax.eval_shape(_ufun, 0.0)
         if not isinstance(out, jax.ShapeDtypeStruct):
             raise ValueError(f"ufun must return Arrays, not {type(out)}.")
         else:

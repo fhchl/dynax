@@ -104,13 +104,15 @@ class DynamicalSystem(eqx.Module):
             if not hasattr(self, attr):
                 raise AttributeError(f"Attribute '{attr}' not initialized.")
 
-        # Check that vector_field returns Arrays or scalars and not PyTrees        
+        # Check that vector_field returns Arrays or scalars and not PyTrees
         x = jax.ShapeDtypeStruct(dim2shape(self.n_states), jnp.float64)
         u = jax.ShapeDtypeStruct(dim2shape(self.n_inputs), jnp.float64)
         t = 1.0
         out = jax.eval_shape(self.vector_field, x, u, t)
         if not isinstance(out, jax.ShapeDtypeStruct):
-            raise ValueError(f"vector_field must return arrays or scalars, not {type(out)}")
+            raise ValueError(
+                f"vector_field must return arrays or scalars, not {type(out)}"
+            )
 
     @property
     def n_outputs(self) -> int | Literal["scalar"]:
@@ -191,7 +193,7 @@ class DynamicalSystem(eqx.Module):
     # def test_observability():
     #   pass# This allows to us to guess the shapes of the state-space mawhen given
     # as trices 1d-arrays
-    #, we interpet them asumn vectors.
+    # , we interpet them asumn vectors.
 
 
 # TODO: have output_internals, that makes methods return tuple

@@ -145,7 +145,9 @@ class LinearizingSystem(DynamicalSystem):
         self.sys = sys
         self.refsys = refsys
         self.n_inputs = "scalar"
-        self.n_states = self.sys.n_states + self.refsys.n_states  # FIXME: support "scalar"
+        self.n_states = (
+            self.sys.n_states + self.refsys.n_states
+        )  # FIXME: support "scalar"
         self.feedbacklaw = feedbacklaw
         if feedbacklaw is None:
             self.feedbacklaw = input_output_linearize(

@@ -6,6 +6,7 @@ import jax.numpy as jnp
 from jaxtyping import Array, ArrayLike
 from typing import Literal
 
+
 def ssmatrix(data: ArrayLike, axis: int = 0) -> Array:
     """Convert argument to a (possibly empty) 2D state space matrix.
 
@@ -117,5 +118,3 @@ def broadcast_right(arr, target):
 
 def dim2shape(x: int | Literal["scalar"]) -> tuple:
     return () if x == "scalar" else (x,)
-
-
