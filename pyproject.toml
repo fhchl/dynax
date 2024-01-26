@@ -5,16 +5,10 @@ description = "Dynamical systems with JAX!"
 readme = "README.md"
 requires-python =">=3.9"
 license = {file = "LICENSE"}
-authors = [
-  {name = "Franz M. Heuchel", email = "franz.heuchel@pm.me"},
-]
+authors = [{name = "Franz M. Heuchel", email = "franz.heuchel@pm.me"}]
 keywords = ["jax", "dynamical-systems", "system-identification", "linearization"]
 urls = {repository = "https://github.com/fhchl/dynax"}
-dependencies = [
-    "jax>=0.4.13,<0.5",
-    "diffrax>=0.5,<0.6",
-    "equinox>=0.11,<0.12",
-]
+dependencies = ["jax>=0.4.23", "diffrax>=0.5"]
 
 [project.optional-dependencies]
 dev = [
@@ -29,7 +23,10 @@ dev = [
 ]
 
 [tool.pytest.ini_options]
-addopts = "--pdbcls=IPython.terminal.debugger:Pdb"
+addopts = [
+    "--pdbcls=IPython.terminal.debugger:Pdb",
+    # "--jaxtyping-packages=dynax,beartype.beartype(conf=beartype.BeartypeConf(strategy=beartype.BeartypeStrategy.On))"
+]
 
 [build-system]
 requires = ["hatchling"]
