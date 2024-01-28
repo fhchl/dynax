@@ -131,18 +131,16 @@ def test_discrete_forward_model():
     B = jnp.array([[0], [1]])
     C = jnp.array([[1, 0]])
     D = jnp.zeros((1, 1))
-
     # test just input
     sys = LinearSystem(A, B, C, D)
     model = Map(sys)
     x, y = model(x0, u=u)  # ours
     scipy_sys = dlti(A, B, C, D)
     _, scipy_y, scipy_x = dlsim(scipy_sys, u, x0=x0)
-    npt.assert_allclose(scipy_y, y, **tols)
+    npt.assert_allclose(scipy_y[:, 0], y, **tols)
     npt.assert_allclose(scipy_x, x, **tols)
-
     # test input and time (results should be same)
     x, y = model(x0, u=u, t=t)
     scipy_t, scipy_y, scipy_x = dlsim(scipy_sys, u, x0=x0, t=t)
-    npt.assert_allclose(scipy_y, y, **tols)
+    npt.assert_allclose(scipy_y[:, 0], y, **tols)
     npt.assert_allclose(scipy_x, x, **tols)
