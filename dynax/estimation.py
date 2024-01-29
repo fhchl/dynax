@@ -164,41 +164,6 @@ def fit_least_squares(
 
     Parameters can be constrained via the `*_field` functions.
 
-    Args:
-        model: Flow instance holding initial parameter estimates
-        t: Times at which `y` is given
-        y: Target outputs of system
-        x0: Initial state
-        u: Pptional system input
-        batched: If True, interpret `t`, `y`, `x0`, `u` as holding multiple
-            experiments stacked along the first axis.
-        sigma: A 1-D sequence with values of the standard deviation of the measurement
-            error for each output of `model.system`. If None, `sigma` will be set to
-            the rms values of each measurement in `y`, which makes the cost
-            scale-invariant to magnitude differences between measurements.
-        absolute_sigma: If True, `sigma` is used in an absolute sense and the estimated
-            parameter covariance `pcov` reflects these absolute values. If False
-            (default), only the relative magnitudes of the `sigma` values matter and
-            `sigma` is scaled to match the sample variance of the residuals after the
-            fit.
-        reg_val: Weight of the l2 penalty term.
-        reg_bias: If "initial", bias the parameter estimates towards the values in
-            `model`.
-        verbose_mse: Scale cost to mean-squared-error for easier interpretation.
-        kwargs: Optional parameters for `scipy.optimize.least_squares`.
-
-    Returns:
-        `OptimizeResult` as returned by `scipy.optimize.least_squares` with the
-        following additional attributes defined:
-
-            result: `model` with estimated parameters.
-            cov: Covariance matrix of the parameter estimate.
-            y_pred: Model prediction at optimum.
-            key_paths: List of key_paths that index the corresponding entries in `cov`,
-                `jac`, and `x`.
-            mse: Mean-squared-error.
-            nmse: Normalized mean-squared-error.
-            nrmse: Normalized root-mean-squared-error.
 
     """
     t = jnp.asarray(t)
@@ -463,7 +428,6 @@ def fit_csd_matching(
         sys = unravel(params)
         H = transfer_function(sys)
         Gyu_pred = jax.vmap(H)(s)
-        # FIXME: there are some bugs here, run pytest...
         Syu_pred = Gyu_pred * broadcast_right(Suu, Gyu_pred)
         r = (Syu - Syu_pred) * weight
         r = jnp.concatenate((jnp.real(r), jnp.imag(r)))
