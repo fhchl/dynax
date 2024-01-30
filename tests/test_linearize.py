@@ -95,11 +95,11 @@ def test_linearize_dyn2lin():
         n_states = "scalar"
         n_inputs = "scalar"
         
-    def vector_field(self, x, u, t):
-        return -1 * x + 2 * u
+        def vector_field(self, x, u, t):
+            return -1 * x + 2 * u
 
-    def output(self, x, u, t):
-        return 3 * x + 4 * u
+        def output(self, x, u, t):
+            return 3 * x + 4 * u
 
     sys = ScalarScalar()
     linsys = sys.linearize()
