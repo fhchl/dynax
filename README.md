@@ -15,7 +15,7 @@ include:
 - estimation from multiple experiments
 - estimation with a poor man's multiple shooting
 - input-output linearization of continuous-time input affine systems
-- input-output linearization of discrete-time systems [example](examples/linearize_discrete_time)
+- input-output linearization of discrete-time systems ([example](examples/linearize_discrete_time))
 - estimation of a system's relative-degree
 
 Documentation is on its way. Until then, have a look at the [example](examples) and [test](tests) folders.
