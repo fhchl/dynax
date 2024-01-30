@@ -14,7 +14,8 @@ include:
 - estimation of linear ODE parameters via matching of frequency-response functions
 - estimation from multiple experiments
 - estimation with a poor man's multiple shooting
-- input-output linearization of continuous- and discrete-time input-affine systems with well-defined relative degree
+- input-output linearization of continuous-time input affine systems
+- input-output linearization of discrete-time systems [example](examples/linearize_discrete_time)
 - estimation of a system's relative-degree
 
 Documentation is on its way. Until then, have a look at the [example](examples) and [test](tests) folders.
@@ -22,7 +23,7 @@ Documentation is on its way. Until then, have a look at the [example](examples) 
 
 ## Installing
 
-Requires Python 3.9+, JAX 0.4.13+, Equinox 0.10.10+ and Diffrax 0.4.0+. With a 
+Requires Python 3.9+, JAX 0.4.23+, Equinox 0.11+ and Diffrax 0.5+. With a 
 suitable version of jaxlib installed:
 
     pip install .

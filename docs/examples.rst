@@ -2,9 +2,7 @@ Examples
 ========
 
 .. toctree::
-
-    index
-    ../examples/fit_ode.ipynb
+    :maxdepth: 2
 
 Have a look at the notebooks on the left or the following scripts.
 

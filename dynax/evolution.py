@@ -4,8 +4,6 @@ import diffrax as dfx
 import equinox as eqx
 import jax
 import jax.numpy as jnp
-import numpy as np
-from jax._src.config import _validate_default_device
 from jaxtyping import Array, ArrayLike, PyTree
 
 from .interpolation import spline_it
@@ -149,6 +147,6 @@ class Map(AbstractEvolution):
         _, x = jax.lax.scan(scan_fun, x0, inputs, length=num_steps)
 
         # Compute output
-        y = jax.vmap(self.system.output)(x)
+        y = jax.vmap(self.system.output)(x, u, t)
 
         return x, y

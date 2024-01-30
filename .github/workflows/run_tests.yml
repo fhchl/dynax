@@ -1,12 +1,12 @@
 name: Tests
 
-on: [pull_request, push]
+on: [pull_request]
 
 jobs:
   run-tests:
     strategy:
       matrix:
-        python-version: [ "3.9", "3.10", "3.11" ]
+        python-version: [ "3.10", "3.11", "3.12" ]
         os: [ ubuntu-latest ]
       fail-fast: false
     runs-on: ${{ matrix.os }}
@@ -24,6 +24,6 @@ jobs:
 
       - name: Test with pytest
         run: |
-          python -m pip install jaxlib==0.4.16
+          python -m pip install jaxlib==0.4.23
           python -m pip install .[dev]
           python -m pytest --runslow --durations=0

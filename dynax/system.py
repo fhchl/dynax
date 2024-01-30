@@ -11,7 +11,7 @@ import numpy as np
 from jax import Array
 from jax.typing import ArrayLike
 
-from .util import dim2shape, ssmatrix
+from .util import dim2shape
 
 
 def _linearize(f, h, x0, u0, t0):
@@ -398,7 +398,7 @@ class DynamicStateFeedbackSystem(DynamicalSystem):
 
         ẋ &= f_1(x, v(x, z, u), t) \\
         ż &= f_2(z, r, t) \\
-        y &= h(x, u, t)
+        y &= h_1(x, u, t)
 
     """
 
