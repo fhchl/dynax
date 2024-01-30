@@ -30,7 +30,7 @@ class NonlinearDrag(ControlAffine):
 
     # Set the number of states (order of system), the number of in- and outputs.
     n_states = 2
-    n_inputs = 1
+    n_inputs = "scalar"
 
     # Define the dynamical system via the methods f, g, and h
     def f(self, x):
