@@ -1,17 +1,16 @@
+import jax.numpy as jnp
 import matplotlib.pyplot as plt
+import numpy as np
+from equinox.nn import GRUCell
+from jax.random import PRNGKey
 
 from dynax import (
-    DynamicalSystem,
-    Map,
     discrete_relative_degree,
     DiscreteLinearizingSystem,
+    DynamicalSystem,
     LinearSystem,
+    Map,
 )
-from equinox.nn import GRUCell
-import jax
-import jax.numpy as jnp
-import numpy as np
-from jax.random import PRNGKey
 
 
 # A nonlinear discrete-time system.
@@ -89,5 +88,3 @@ plt.figure()
 plt.plot(linearizing_inputs, label="linearizing input")
 plt.legend()
 plt.show()
-
-

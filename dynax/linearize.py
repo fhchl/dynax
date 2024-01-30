@@ -170,11 +170,10 @@ def discrete_input_output_linearize(
     reldeg: int,
     ref: DynamicalSystem,
     output: Optional[int] = None,
-    solver: Optional[optx.AbstractRootFinder]  = None,
+    solver: Optional[optx.AbstractRootFinder] = None,
 ) -> Callable[[Array, Array, float, float], float]:
-    """Construct the input-output linearizing feedback law for a discrete-time system.
-    """
-    
+    """Construct the input-output linearizing feedback for a discrete-time system."""
+
     # Lee 2022, Chap. 7.4
     f = lambda x, u: sys.vector_field(x, u)
     h = sys.output
@@ -186,7 +185,7 @@ def discrete_input_output_linearize(
         _output = lambda x: x
     else:
         _output = lambda x: x[output]
-        
+
     if solver is None:
         solver = optx.Newton(rtol=1e-6, atol=1e-6)
 
@@ -202,7 +201,10 @@ def discrete_input_output_linearize(
 
     def feedbacklaw(x: Array, z: Array, v: float, u_prev: float):
         def fn(u, args):
-            return (_output(h(propagate(f, reldeg, x, u))) - y_reldeg_ref(z, v)).squeeze()
+            return (
+                _output(h(propagate(f, reldeg, x, u))) - y_reldeg_ref(z, v)
+            ).squeeze()
+
         u = optx.root_find(fn, solver, u_prev).value
         return u
 

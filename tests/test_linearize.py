@@ -94,7 +94,7 @@ def test_linearize_dyn2lin():
     class ScalarScalar(DynamicalSystem):
         n_states = "scalar"
         n_inputs = "scalar"
-        
+
         def vector_field(self, x, u, t):
             return -1 * x + 2 * u
 
@@ -164,7 +164,7 @@ class Lee7_4_5(DynamicalSystem):
     def output(self, x, u=None, t=None):
         return x[0]
 
-    
+
 def test_discrete_input_output_linearize():
     sys = Lee7_4_5()
     refsys = sys.linearize()
@@ -176,7 +176,7 @@ def test_discrete_input_output_linearize():
     feedback_sys = DiscreteLinearizingSystem(sys, refsys, reldeg)
     t = np.linspace(0, 0.001, 10)
     u = np.cos(t) * 0.1
-    _, v = Map(feedback_sys)(np.zeros(2+2+1), t, u)
+    _, v = Map(feedback_sys)(np.zeros(2 + 2 + 1), t, u)
     _, y = Map(sys)(np.zeros(2), t, u)
     _, y_ref = Map(refsys)(np.zeros(2), t, u)
 

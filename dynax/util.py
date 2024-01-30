@@ -1,10 +1,10 @@
 import functools
+from typing import Literal
 
 import equinox
 import jax
 import jax.numpy as jnp
 from jaxtyping import Array, ArrayLike
-from typing import Literal
 
 
 def ssmatrix(data: ArrayLike, axis: int = 0) -> Array:
