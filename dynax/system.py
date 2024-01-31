@@ -97,6 +97,7 @@ class DynamicalSystem(eqx.Module):
     # these attributes should be set by subclasses
     n_states: int | Literal["scalar"] = static_field(init=False)
     n_inputs: int | Literal["scalar"] = static_field(init=False)
+    initial_state: Array | None = static_field(default=None)
 
     def __check_init__(self):
         # Check that required attributes are initialized

@@ -144,3 +144,15 @@ def test_discrete_forward_model():
     scipy_t, scipy_y, scipy_x = dlsim(scipy_sys, u, x0=x0, t=t)
     npt.assert_allclose(scipy_y, y, **tols)
     npt.assert_allclose(scipy_x, x, **tols)
+
+        
+def test_initial_state():
+    class Sys(DynamicalSystem):
+        n_states = "scalar"
+        n_inputs = "scalar"
+
+        def vector_field(self, x, u, t=None):
+            return x * 0.1 + u
+
+    Sys(initial_state=1)
+            
