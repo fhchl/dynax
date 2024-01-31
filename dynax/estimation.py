@@ -150,7 +150,7 @@ def fit_least_squares(
     model: AbstractEvolution,
     t: ArrayLike,
     y: ArrayLike,
-    x0: ArrayLike,
+    x0: Optional[ArrayLike] = None,
     u: Optional[ArrayLike] = None,
     batched: bool = False,
     sigma: Optional[ArrayLike] = None,
@@ -168,7 +168,11 @@ def fit_least_squares(
     """
     t = jnp.asarray(t)
     y = jnp.asarray(y)
-    x0 = jnp.asarray(x0)
+
+    if x0 is not None:
+        x0 = jnp.asarray(x0)
+    else:
+        x0 = model.system.initial_state
 
     if batched:
         # First axis holds experiments, second axis holds time.
@@ -212,7 +216,7 @@ def fit_least_squares(
             # this can use pmap, if batch size is smaller than CPU cores
             model = jax.vmap(model)
         # FIXME: ucoeffs not supported for Map
-        _, pred_y = model(x0, t=t, ucoeffs=ucoeffs)
+        _, pred_y = model(t=t, ucoeffs=ucoeffs, initial_state=x0)
         res = (y - pred_y) * weight
         return res.reshape(-1)
 
@@ -246,7 +250,7 @@ def fit_multiple_shooting(
     model: AbstractEvolution,
     t: ArrayLike,
     y: ArrayLike,
-    x0: ArrayLike,
+    x0: Optional[ArrayLike] = None,
     u: Optional[Union[Callable[[float], Array], ArrayLike]] = None,
     num_shots: int = 1,
     continuity_penalty: float = 0.1,
@@ -273,7 +277,11 @@ def fit_multiple_shooting(
     """
     t = jnp.asarray(t)
     y = jnp.asarray(y)
-    x0 = jnp.asarray(x0)
+
+    if x0 is not None:
+        x0 = jnp.asarray(x0)
+    else:
+        x0 = model.system.initial_state
 
     if u is None:
         msg = (
@@ -332,7 +340,7 @@ def fit_multiple_shooting(
     def residuals(params):
         x0s, model = unravel(params)
         x0s = jnp.concatenate((x0[None], x0s), axis=0)
-        xs_pred, ys_pred = jax.vmap(model)(x0s, t=ts0, ucoeffs=ucoeffs)
+        xs_pred, ys_pred = jax.vmap(model)(t=ts0, ucoeffs=ucoeffs, initial_state=x0s)
         # output residual
         res_y = ((ys - ys_pred) / std_y).reshape(-1)
         res_y = res_y / np.sqrt(len(res_y))
@@ -362,7 +370,7 @@ def transfer_function(sys: DynamicalSystem, to_states: bool = False, **kwargs):
 
     def H(s: complex):
         """Transfer-function at s."""
-        identity = np.eye(linsys.n_states)
+        identity = np.eye(linsys.initial_state.size)
         phi_B = jnp.linalg.solve(s * identity - A, B)
         if to_states:
             return phi_B
