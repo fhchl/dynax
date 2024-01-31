@@ -116,7 +116,7 @@ def input_output_linearize(
             ae0s = jnp.array(
                 [
                     ai * (cAi.dot(z) - Lfih(x))
-                    for ai, Lfih, cAi in zip(alphas, Lfihs, cAis)
+                    for ai, Lfih, cAi in zip(alphas, Lfihs, cAis, strict=True)
                 ]
             )
             error = y_reldeg_ref - y_reldeg + jnp.sum(ae0s)

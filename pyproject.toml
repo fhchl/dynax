@@ -3,7 +3,7 @@ name = "dynax"
 version = "0.0.2"
 description = "Dynamical systems with JAX!"
 readme = "README.md"
-requires-python =">=3.9"
+requires-python =">=3.10"
 license = {file = "LICENSE"}
 authors = [{name = "Franz M. Heuchel", email = "franz.heuchel@pm.me"}]
 keywords = ["jax", "dynamical-systems", "system-identification", "linearization"]
@@ -13,11 +13,9 @@ dependencies = ["jax>=0.4.23", "diffrax>=0.5"]
 [project.optional-dependencies]
 dev = [
     "pytest",
-    "coverage",
     "matplotlib",
     "sphinx",
     "sphinxcontrib-bibtex",
-    "sphinx_rtd_theme",
     "nbsphinx",
     "pre-commit",
 ]
@@ -34,21 +32,21 @@ build-backend = "hatchling.build"
 
 [tool.ruff]
 select = ["E", "F", "I001", "B"]
-ignore = ["E402", "E721", "E731", "E741", "F722"]
+ignore = [
+    "E402", # Module level import not at top of file
+    "E721", # Do not compare types, use 'isinstance()'
+    "E731", # Do not assign a lambda expression, use a def (E731)
+    "E741", # Do not use variables named 'I', 'O', or 'l'
+]
 ignore-init-module-imports = true
 fixable = ["I001", "F401"]
 line-length = 88
 src = ["dynax", "tests", "examples"]
+force-exclude = true
+extend-include = ["*.ipynb"]
 
 [tool.ruff.isort]
 combine-as-imports = true
 lines-after-imports = 2
 order-by-type = false
 known-first-party = ["dynax"]
-
-[tool.isort]
-profile = "black"
-combine_as_imports = true
-lines_after_imports = 2
-order_by_type = false
-known_first_party = ["dynax"]

@@ -93,6 +93,7 @@ class DynamicalSystem(eqx.Module):
                 return self.gain*x
 
     """
+
     # these attributes should be set by subclasses
     n_states: int | Literal["scalar"] = static_field(init=False)
     n_inputs: int | Literal["scalar"] = static_field(init=False)
