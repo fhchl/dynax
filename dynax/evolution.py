@@ -69,18 +69,18 @@ class Flow(AbstractEvolution):
             initial_state = self.system.initial_state
 
         # Prepare input function.
-        if u is None and ufun is None and ucoeffs is None and self.system.n_inputs == 0:
-            _ufun = lambda t: jnp.empty((0,))
-        elif ucoeffs is not None:
+        if ucoeffs is not None:
             path = dfx.CubicInterpolation(t, ucoeffs)
             _ufun = path.evaluate
-        elif callable(u):
+        elif callable(ufun):
             _ufun = u
         elif u is not None:
             u = jnp.asarray(u)
             if len(t) != u.shape[0]:
                 raise ValueError("t and u must have matching first dimension.")
             _ufun = spline_it(t, u)
+        elif self.system.n_inputs == 0:
+            _ufun = lambda t: jnp.empty((0,))
         else:
             raise ValueError("Must specify one of u, ufun, or ucoeffs.")
 
