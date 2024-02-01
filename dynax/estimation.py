@@ -13,7 +13,7 @@ import numpy as np
 import scipy.signal as sig
 from jax import Array
 from jax.flatten_util import ravel_pytree
-from jax.typing import ArrayLike
+from jaxtyping import ArrayLike
 from numpy.typing import NDArray
 from scipy.linalg import pinvh
 from scipy.optimize import least_squares, OptimizeResult
