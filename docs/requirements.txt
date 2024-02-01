@@ -1,0 +1,10 @@
+nbsphinx
+sphinx-autobuild
+sphinx-autodoc-typehints
+sphinx
+sphinxcontrib-bibtex
+sphinxcontrib-aafig
+furo
+./
+jaxlib
+
