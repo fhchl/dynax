@@ -3,6 +3,7 @@
 _"Dynamical systems in JAX"_
 
 [![Run tests](https://github.com/fhchl/dynax/actions/workflows/run_tests.yml/badge.svg)](https://github.com/fhchl/dynax/actions/workflows/run_tests.yml)
+[![Documentation Status](https://readthedocs.org/projects/dynax/badge/?version=latest)](https://dynax.readthedocs.io/en/latest/?badge=latest)
 
 __This is WIP. Expect things to break!__
 
