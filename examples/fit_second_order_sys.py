@@ -29,7 +29,7 @@ class NonlinearDrag(ControlAffine):
     k: float
 
     # Set the number of states (order of system), the number of in- and outputs.
-    n_states = 2
+    initial_state = jnp.zeros(2)
     n_inputs = "scalar"
 
     # Define the dynamical system via the methods f, g, and h
@@ -57,8 +57,7 @@ t_train = np.linspace(0, 10, 1000)
 samplerate = 1 / t_train[1]
 np.random.seed(42)
 u_train = np.random.normal(size=len(t_train))
-initial_x = [0.0, 0.0]
-x_train, y_train = true_model(initial_x, t_train, u_train)
+x_train, y_train = true_model(t_train, u_train)
 
 # create our model system with some initial parameters
 initial_sys = NonlinearDrag(m=1.0, r=1.0, r2=1.0, k=1.0)
@@ -76,12 +75,12 @@ print("linear params fitted:", initial_sys)
 init_model = Flow(initial_sys)
 # Fit all parameters with previously estimated parameters as a starting guess.
 pred_model = fit_least_squares(
-    model=init_model, t=t_train, y=y_train, x0=initial_x, u=u_train, verbose=0
+    model=init_model, t=t_train, y=y_train, u=u_train, verbose=0
 ).result
 print("fitted system:", pred_model.system)
 
 # check the results
-x_pred, y_pred = pred_model(initial_x, t_train, u_train)
+x_pred, y_pred = pred_model(t_train, u_train)
 assert np.allclose(x_train, x_pred)
 
 plt.plot(t_train, x_train, "--", label="target")

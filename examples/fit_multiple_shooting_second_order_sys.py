@@ -35,7 +35,7 @@ class NonlinearDrag(ControlAffine):
     k: float
 
     # Set the number of states (order of system), the number of inputs
-    n_states = 2
+    initial_state = jnp.zeros(2)
     n_inputs = "scalar"
 
     # Define the dynamical system via the methods f, g, and h
@@ -68,8 +68,7 @@ u_train = np.sum(
     ),
     axis=0,
 )
-initial_x = [0.0, 0.0]
-x_train, y_train = true_model(initial_x, t_train, u_train)
+x_train, y_train = true_model(t_train, u_train)
 
 # create our model system with some initial parameters
 initial_sys = NonlinearDrag(m=1.0, r=1.0, r2=1.0, k=1.0)
@@ -83,7 +82,6 @@ res = fit_multiple_shooting(
     model=init_model,
     t=t_train,
     y=y_train,
-    x0=initial_x,
     u=u_train,
     verbose=2,
     num_shots=num_shots,
@@ -96,10 +94,10 @@ us = res.us
 print("fitted system:", tree_pformat(model.system))
 
 # check the results
-x_pred, y_pred = model(initial_x, t_train, u_train)
+x_pred, y_pred = model(t_train, u_train)
 
 # plot
-xs_pred, _ = jax.vmap(model)(x0s, ts0, us)
+xs_pred, _ = jax.vmap(model)(ts0, us, initial_state=x0s)
 plt.plot(t_train, x_train, "k--", label="target")
 for i in range(num_shots):
     plt.plot(ts[i], xs_pred[i], label="multiple shooting", color=f"C{i}")

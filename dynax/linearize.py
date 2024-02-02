@@ -226,8 +226,8 @@ class DiscreteLinearizingSystem(DynamicalSystem, _CoupledSystemMixin):
 
     def __init__(
         self,
-        sys: ControlAffine,
-        refsys: LinearSystem,
+        sys: DynamicalSystem,
+        refsys: DynamicalSystem,
         reldeg: int,
         **fb_kwargs,
     ):

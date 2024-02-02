@@ -20,9 +20,10 @@ class Recurrent(DynamicalSystem):
     n_inputs = "scalar"
 
     def __init__(self, hidden_size, *, key):
-        input_size = 1
-        self.cell = GRUCell(input_size, hidden_size, use_bias=False, key=key)
-        self.n_states = hidden_size
+        self.cell = GRUCell(
+            input_size=1, hidden_size=hidden_size, use_bias=False, key=key
+        )
+        self.initial_state = jnp.zeros(hidden_size)
 
     def vector_field(self, x, u, t=None):
         return self.cell(jnp.array([u]), x)
@@ -51,14 +52,14 @@ inputs = 0.1 * jnp.concatenate((jnp.array([0.1, 0.2, 0.3]), jnp.zeros(10)))
 # degree of the nonlinear system. Here we test for the relative degree with a set of
 # points and inputs.
 reldeg = discrete_relative_degree(
-    system, np.random.normal(size=(inputs.size, system.n_states)), inputs
+    system, np.random.normal(size=(len(inputs),) + system.initial_state.shape), inputs
 )
 print("Relative degree of nonlinear system:", reldeg)
 print(
     "Relative degree of reference system:",
     discrete_relative_degree(
         reference_system,
-        np.random.normal(size=(inputs.size, reference_system.n_states)),
+        np.random.normal(size=(len(inputs),) + reference_system.initial_state.shape),
         inputs,
     ),
 )
@@ -69,14 +70,12 @@ linearizing_system = DiscreteLinearizingSystem(system, reference_system, reldeg)
 
 # The output of this system when driven with the reference input is the linearizing
 # input. The coupled system as an extra state used internally.
-_, linearizing_inputs = Map(linearizing_system)(
-    jnp.zeros(system.n_states + reference_system.n_states + 1), u=inputs
-)
+_, linearizing_inputs = Map(linearizing_system)(u=inputs)
 
 # Lets simulate the original system, the linear reference and the linearized system.
-states_orig, output_orig = Map(system)(x0=jnp.zeros(hidden_size), u=inputs)
-_, output_ref = Map(reference_system)(x0=jnp.zeros(reference_system.n_states), u=inputs)
-_, output_linearized = Map(system)(jnp.zeros(hidden_size), u=linearizing_inputs)
+states_orig, output_orig = Map(system)(u=inputs)
+_, output_ref = Map(reference_system)(u=inputs)
+_, output_linearized = Map(system)(u=linearizing_inputs)
 
 assert np.allclose(output_ref, output_linearized)
 
