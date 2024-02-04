@@ -42,10 +42,9 @@ class Flow(AbstractEvolution):
     """Evolution for continous-time dynamical systems."""
 
     solver: dfx.AbstractAdaptiveSolver = eqx.static_field(default_factory=dfx.Dopri5)
-    step: dfx.AbstractStepSizeController = eqx.static_field(
-        default_factory=dfx.ConstantStepSize
-    )  # TODO: replace with adaptive step size
-    dt0: Optional[float] = eqx.static_field(default=None)
+    stepsize_controller: dfx.AbstractStepSizeController = eqx.static_field(
+        default_factory=lambda: dfx.ConstantStepSize()
+    )
 
     def __call__(
         self,
@@ -95,11 +94,15 @@ class Flow(AbstractEvolution):
         # Solve ODE.
         diffeqsolve_default_options = dict(
             solver=self.solver,
-            stepsize_controller=self.step,
+            stepsize_controller=self.stepsize_controller,
             saveat=dfx.SaveAt(ts=t),
             max_steps=50 * len(t),  # completely arbitrary number of steps
             adjoint=dfx.DirectAdjoint(),
-            dt0=self.dt0 if self.dt0 is not None else t[1],
+            dt0=(
+                t[1]
+                if isinstance(self.stepsize_controller, dfx.ConstantStepSize)
+                else None
+            ),
         )
         diffeqsolve_default_options |= diffeqsolve_kwargs
         vector_field = lambda t, x, self: self.system.vector_field(x, _ufun(t), t)

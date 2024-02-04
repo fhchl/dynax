@@ -102,7 +102,7 @@ class LotkaVolterra(DynamicalSystem):
     gamma: float = non_negative_field()
     delta: float = non_negative_field()
 
-    initial_state = jnp.ones(2)
+    initial_state = jnp.ones(2) * 0.5
     n_inputs = 0
 
     def vector_field(self, x, u=None, t=None):

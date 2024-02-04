@@ -92,7 +92,7 @@ def _compute_covariance(
 
 def _least_squares(
     f: Callable[[Array], Array],
-    x0: NDArray,
+    init_params: Array,
     bounds: tuple[list, list],
     reg_term: Optional[Callable[[Array], Array]] = None,
     x_scale: bool = True,
@@ -105,7 +105,7 @@ def _least_squares(
         # Add regularization term
         _f = f
         _reg_term = reg_term  # https://github.com/python/mypy/issues/7268
-        f = lambda x: jnp.concatenate((_f(x), _reg_term(x)))
+        f = lambda params: jnp.concatenate((_f(params), _reg_term(params)))
 
     if verbose_mse:
         # Scale cost to mean-squared error
@@ -117,15 +117,17 @@ def _least_squares(
 
     if x_scale:
         # Scale parameters and bounds by initial values
-        norm = np.where(np.asarray(x0) != 0, np.abs(x0), 1)
-        x0 = x0 / norm
+        norm = np.where(np.asarray(init_params) != 0, np.abs(init_params), 1)
+        init_params = init_params / norm
         ___f = f
-        f = lambda x: ___f(x * norm)
+        f = lambda params: ___f(params * norm)
         bounds = (np.array(bounds[0]) / norm, np.array(bounds[1]) / norm)
 
     fun = MemoizeJac(jax.jit(lambda x: value_and_jacfwd(f, x)))
     jac = fun.derivative
-    res = least_squares(fun, x0, bounds=bounds, jac=jac, x_scale="jac", **kwargs)
+    res = least_squares(
+        fun, init_params, bounds=bounds, jac=jac, x_scale="jac", **kwargs
+    )
 
     if x_scale:
         # Unscale parameters
@@ -139,8 +141,8 @@ def _least_squares(
 
     if reg_term is not None:
         # Remove regularization from residuals and Jacobian and cost
-        res.fun = res.fun[: -len(x0)]
-        res.jac = res.jac[: -len(x0)]
+        res.fun = res.fun[: -len(init_params)]
+        res.jac = res.jac[: -len(init_params)]
         res.cost = np.sum(res.fun**2) / 2
 
     return res
@@ -150,7 +152,6 @@ def fit_least_squares(
     model: AbstractEvolution,
     t: ArrayLike,
     y: ArrayLike,
-    x0: Optional[ArrayLike] = None,
     u: Optional[ArrayLike] = None,
     batched: bool = False,
     sigma: Optional[ArrayLike] = None,
@@ -168,11 +169,6 @@ def fit_least_squares(
     """
     t = jnp.asarray(t)
     y = jnp.asarray(y)
-
-    if x0 is not None:
-        x0 = jnp.asarray(x0)
-    else:
-        x0 = model.system.initial_state
 
     if batched:
         # First axis holds experiments, second axis holds time.
@@ -216,7 +212,7 @@ def fit_least_squares(
             # this can use pmap, if batch size is smaller than CPU cores
             model = jax.vmap(model)
         # FIXME: ucoeffs not supported for Map
-        _, pred_y = model(t=t, ucoeffs=ucoeffs, initial_state=x0)
+        _, pred_y = model(t=t, ucoeffs=ucoeffs)
         res = (y - pred_y) * weight
         return res.reshape(-1)
 
@@ -250,7 +246,6 @@ def fit_multiple_shooting(
     model: AbstractEvolution,
     t: ArrayLike,
     y: ArrayLike,
-    x0: Optional[ArrayLike] = None,
     u: Optional[Union[Callable[[float], Array], ArrayLike]] = None,
     num_shots: int = 1,
     continuity_penalty: float = 0.1,
@@ -278,11 +273,6 @@ def fit_multiple_shooting(
     t = jnp.asarray(t)
     y = jnp.asarray(y)
 
-    if x0 is not None:
-        x0 = jnp.asarray(x0)
-    else:
-        x0 = model.system.initial_state
-
     if u is None:
         msg = (
             f"t, y must have same number of samples, but have shapes "
@@ -308,11 +298,13 @@ def fit_multiple_shooting(
     t = t[:num_samples]
     y = y[:num_samples]
 
+    n_states = len(model.system.initial_state)
+
     # TODO: use numpy for everything that is not jitted
     # Divide signals into segments.
     ts = _moving_window(t, num_samples_per_segment, num_samples_per_segment - 1)
     ys = _moving_window(y, num_samples_per_segment, num_samples_per_segment - 1)
-    x0s = np.zeros((num_shots - 1, len(x0)))
+    x0s = np.zeros((num_shots - 1, n_states))
 
     ucoeffs = None
     if u is not None:
@@ -329,8 +321,8 @@ def fit_multiple_shooting(
     std_y = np.std(y, axis=0)
     parameter_bounds = _get_bounds(model)
     state_bounds = (
-        (num_shots - 1) * len(x0) * [-np.inf],
-        (num_shots - 1) * len(x0) * [np.inf],
+        (num_shots - 1) * n_states * [-np.inf],
+        (num_shots - 1) * n_states * [np.inf],
     )
     bounds = (
         state_bounds[0] + parameter_bounds[0],
@@ -339,7 +331,7 @@ def fit_multiple_shooting(
 
     def residuals(params):
         x0s, model = unravel(params)
-        x0s = jnp.concatenate((x0[None], x0s), axis=0)
+        x0s = jnp.concatenate((model.system.initial_state[None], x0s), axis=0)
         xs_pred, ys_pred = jax.vmap(model)(t=ts0, ucoeffs=ucoeffs, initial_state=x0s)
         # output residual
         res_y = ((ys - ys_pred) / std_y).reshape(-1)
@@ -353,7 +345,7 @@ def fit_multiple_shooting(
     res = _least_squares(residuals, init_params, bounds, x_scale=False, **kwargs)
 
     x0s, res.result = unravel(res.x)
-    res.x0s = np.asarray(jnp.concatenate((x0[None], x0s), axis=0))
+    res.x0s = jnp.concatenate((res.result.system.initial_state[None], x0s), axis=0)
     res.ts = np.asarray(ts)
     res.ts0 = np.asarray(ts0)
 
