@@ -28,7 +28,8 @@ class SpringMassDamperWithOutput(ControlAffine):
     r: float = 0.1
     k: float = 0.1
     out: int = 0
-    n_states = 2
+
+    initial_state = jnp.zeros(2)
     n_inputs = "scalar"
 
     def f(self, x):
@@ -92,7 +93,7 @@ def test_linearize_lin2lin():
 
 def test_linearize_dyn2lin():
     class ScalarScalar(DynamicalSystem):
-        n_states = "scalar"
+        initial_state = jnp.array(0.0)
         n_inputs = "scalar"
 
         def vector_field(self, x, u, t):
@@ -123,15 +124,15 @@ def test_input_output_linearize_single_output():
     """Feedback linearized system equals system linearized around x0."""
     sys = NonlinearDrag(0.1, 0.1, 0.1, 0.1)
     ref = sys.linearize()
-    xs = np.random.normal(size=(100, sys.n_states))
+    xs = np.random.normal(size=(100,) + sys.initial_state.shape)
     reldeg = relative_degree(sys, xs)
     feedbacklaw = input_output_linearize(sys, reldeg, ref)
     feedback_sys = DynamicStateFeedbackSystem(sys, ref, feedbacklaw)
-    t = np.linspace(0, 0.1)
-    u = np.sin(t)
+    t = jnp.linspace(0, 0.1)
+    u = jnp.sin(t)
     npt.assert_allclose(
-        Flow(ref)(np.zeros(sys.n_states), t, u)[1],
-        Flow(feedback_sys)(np.zeros(feedback_sys.n_states), t, u)[1],
+        Flow(ref)(t, u)[1],
+        Flow(feedback_sys)(t, u)[1],
         **tols,
     )
 
@@ -142,19 +143,19 @@ def test_input_output_linearize_multiple_outputs():
     ref = sys.linearize()
     for out_idx in range(2):
         out_idx = 1
-        xs = np.random.normal(size=(100, sys.n_states))
+        xs = np.random.normal(size=(100,) + sys.initial_state.shape)
         reldeg = relative_degree(sys, xs, output=out_idx)
         feedbacklaw = input_output_linearize(sys, reldeg, ref, output=out_idx)
         feedback_sys = DynamicStateFeedbackSystem(sys, ref, feedbacklaw)
-        t = np.linspace(0, 1)
-        u = np.sin(t) * 0.1
-        y_ref = Flow(ref)(np.zeros(sys.n_states), t, u)[1]
-        y = Flow(feedback_sys)(np.zeros(feedback_sys.n_states), t, u)[1]
+        t = jnp.linspace(0, 1)
+        u = jnp.sin(t) * 0.1
+        y_ref = Flow(ref)(t, u)[1]
+        y = Flow(feedback_sys)(t, u)[1]
         npt.assert_allclose(y_ref[:, out_idx], y[:, out_idx], **tols)
 
 
 class Lee7_4_5(DynamicalSystem):
-    n_states = 2
+    initial_state = jnp.zeros(2)
     n_inputs = "scalar"
 
     def vector_field(self, x, u, t=None):
@@ -174,10 +175,10 @@ def test_discrete_input_output_linearize():
     assert reldeg == 2
 
     feedback_sys = DiscreteLinearizingSystem(sys, refsys, reldeg)
-    t = np.linspace(0, 0.001, 10)
-    u = np.cos(t) * 0.1
-    _, v = Map(feedback_sys)(np.zeros(2 + 2 + 1), t, u)
-    _, y = Map(sys)(np.zeros(2), t, u)
-    _, y_ref = Map(refsys)(np.zeros(2), t, u)
+    t = jnp.linspace(0, 0.001, 10)
+    u = jnp.cos(t) * 0.1
+    _, v = Map(feedback_sys)(t, u)
+    _, y = Map(sys)(t, u)
+    _, y_ref = Map(refsys)(t, u)
 
     npt.assert_allclose(y_ref, y, **tols)

@@ -11,7 +11,13 @@ import optimistix as optx
 from jaxtyping import Array
 
 from .derivative import lie_derivative
-from .system import ControlAffine, DynamicalSystem, LinearSystem
+from .system import (
+    _CoupledSystemMixin,
+    ControlAffine,
+    DynamicalSystem,
+    DynamicStateFeedbackSystem,
+    LinearSystem,
+)
 
 
 # TODO: make this a method of ControlAffine
@@ -211,39 +217,43 @@ def discrete_input_output_linearize(
     return feedbacklaw
 
 
-class DiscreteLinearizingSystem(DynamicalSystem):
+class DiscreteLinearizingSystem(DynamicalSystem, _CoupledSystemMixin):
     r"""Dynamics computing linearizing feedback as output."""
 
-    sys: ControlAffine
-    refsys: LinearSystem
-    feedbacklaw: Callable
+    _v: Callable
 
     n_inputs = "scalar"
 
-    def __init__(self, sys, refsys, reldeg, linearizing_output=None):
+    def __init__(
+        self,
+        sys: DynamicalSystem,
+        refsys: DynamicalSystem,
+        reldeg: int,
+        **fb_kwargs,
+    ):
         if sys.n_inputs != "scalar":
             raise ValueError("Only single input systems supported.")
-        self.sys = sys
-        self.refsys = refsys
-        self.n_states = self.sys.n_states + self.refsys.n_states + 1
-        self.feedbacklaw = discrete_input_output_linearize(
-            sys, reldeg, refsys, linearizing_output
+        self._sys1 = sys
+        self._sys2 = refsys
+        self.initial_state = jnp.append(
+            self._pack_states(self._sys1.initial_state, self._sys2.initial_state), 0.0
         )
+        self._v = discrete_input_output_linearize(sys, reldeg, refsys, **fb_kwargs)
 
-    def vector_field(self, x, u, t=None):
-        x, z, v_last = x[: self.sys.n_states], x[self.sys.n_states : -1], x[-1]
-        v = self.feedbacklaw(x, z, u, v_last)
-        xn = self.sys.vector_field(x, v)
-        zn = self.refsys.vector_field(z, u)
-        return jnp.concatenate((xn, zn, jnp.array([v])))
+    def vector_field(self, x, u=None, t=None):
+        (x, z), v_last = self._unpack_states(x[:-1]), x[-1]
+        v = self._v(x, z, u, v_last)
+        xn = self._sys1.vector_field(x, v)
+        zn = self._sys2.vector_field(z, u)
+        return jnp.append(self._pack_states(xn, zn), v)
 
-    def output(self, x, u, t=None):
-        x, z, v_last = x[: self.sys.n_states], x[self.sys.n_states : -1], x[-1]
-        v = self.feedbacklaw(x, z, u, v_last)  # FIXME: feedback law called twice
+    def output(self, x, u=None, t=None):
+        (x, z), v_last = self._unpack_states(x[:-1]), x[-1]
+        v = self._v(x, z, u, v_last)  # FIXME: feedback law called twice
         return v
 
 
-class LinearizingSystem(DynamicalSystem):
+class LinearizingSystem(DynamicStateFeedbackSystem):
     r"""Coupled ODE of nonlinear dynamics, linear reference and io linearizing law.
 
     .. math::
@@ -259,10 +269,6 @@ class LinearizingSystem(DynamicalSystem):
 
     """
 
-    sys: ControlAffine
-    refsys: LinearSystem
-    feedbacklaw: Callable[[Array, Array, float], float]
-
     n_inputs = "scalar"
 
     def __init__(
@@ -270,29 +276,12 @@ class LinearizingSystem(DynamicalSystem):
         sys: ControlAffine,
         refsys: LinearSystem,
         reldeg: int,
-        feedbacklaw: Optional[Callable] = None,
-        linearizing_output: Optional[int] = None,
+        **fb_kwargs,
     ):
-        self.sys = sys
-        self.refsys = refsys
-        self.n_states = (
-            self.sys.n_states + self.refsys.n_states
-        )  # FIXME: support "scalar"
-        if callable(feedbacklaw):
-            self.feedbacklaw = feedbacklaw
-        else:
-            self.feedbacklaw = input_output_linearize(
-                sys, reldeg, refsys, linearizing_output
-            )
-
-    def vector_field(self, x, u=None, t=None):
-        x, z = x[: self.sys.n_states], x[self.sys.n_states :]
-        y = self.feedbacklaw(x, z, u)
-        dx = self.sys.vector_field(x, y)
-        dz = self.refsys.vector_field(z, u)
-        return jnp.concatenate((dx, dz))
+        v = input_output_linearize(sys, reldeg, refsys, **fb_kwargs)
+        super().__init__(sys, refsys, v)
 
     def output(self, x, u, t=None):
-        x, z = x[: self.sys.n_states], x[self.sys.n_states :]
-        ur = self.feedbacklaw(x, z, u)
-        return ur
+        x, z = self._unpack_states(x)
+        v = self._v(x, z, u)
+        return v

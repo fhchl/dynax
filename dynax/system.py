@@ -1,5 +1,6 @@
 """Classes for representing dynamical systems."""
 
+from abc import abstractmethod
 from collections.abc import Callable
 from dataclasses import field
 from typing import Literal
@@ -9,7 +10,7 @@ import jax
 import jax.numpy as jnp
 import numpy as np
 from jax import Array
-from jax.typing import ArrayLike
+from jaxtyping import ArrayLike
 
 from .util import dim2shape
 
@@ -48,7 +49,7 @@ def boxed_field(lower: float, upper: float, **kwargs):
 
 
 def free_field(**kwargs):
-    """Remove the value constrained from attribute, e.g. when subclassing."""
+    """Remove the value constraint from attribute, e.g. when subclassing."""
     try:
         metadata = dict(kwargs["metadata"])
     except KeyError:
@@ -61,6 +62,9 @@ def free_field(**kwargs):
 def non_negative_field(min_val: float = 0.0, **kwargs):
     """Mark a parameter as non-negative."""
     return boxed_field(lower=min_val, upper=np.inf, **kwargs)
+
+
+# TODO: make abstract
 
 
 class DynamicalSystem(eqx.Module):
@@ -94,47 +98,54 @@ class DynamicalSystem(eqx.Module):
 
     """
 
-    # these attributes should be set by subclasses
-    n_states: int | Literal["scalar"] = static_field(init=False)
+    initial_state: Array = static_field(init=False)
     n_inputs: int | Literal["scalar"] = static_field(init=False)
 
     def __check_init__(self):
         # Check that required attributes are initialized
-        required_attrs = ["n_states", "n_inputs"]
+        required_attrs = ["initial_state", "n_inputs"]
         for attr in required_attrs:
             if not hasattr(self, attr):
                 raise AttributeError(f"Attribute '{attr}' not initialized.")
 
         # Check that vector_field returns Arrays or scalars and not PyTrees
-        x = jax.ShapeDtypeStruct(dim2shape(self.n_states), jnp.float64)
+        x = self.initial_state
         u = jax.ShapeDtypeStruct(dim2shape(self.n_inputs), jnp.float64)
-        t = 1.0
-        out = jax.eval_shape(self.vector_field, x, u, t)
-        if not isinstance(out, jax.ShapeDtypeStruct):
+        try:
+            dx = jax.eval_shape(self.vector_field, x, u, t=1.0)
+            y = jax.eval_shape(self.output, x, u, t=1.0)
+        except Exception as e:
             raise ValueError(
-                f"vector_field must return arrays or scalars, not {type(out)}"
+                "Can not evaluate output shapes. Check your definitions!"
+            ) from e
+        if not isinstance(dx, jax.ShapeDtypeStruct):
+            raise ValueError(
+                f"vector_field must return arrays or scalars, not {type(dx)}"
             )
+        if not isinstance(y, jax.ShapeDtypeStruct):
+            raise ValueError(f"outpuut must return arrays or scalars, not {type(y)}")
+
+    @abstractmethod
+    def vector_field(self, x, u=None, t=None) -> Array:
+        """Compute state derivative."""
+        raise NotImplementedError
+
+    def output(self, x, u=None, t=None) -> Array:
+        """Compute output."""
+        return x
 
     @property
     def n_outputs(self) -> int | Literal["scalar"]:
         # Compute output size
-        x = jax.ShapeDtypeStruct(dim2shape(self.n_states), jnp.float64)
+        x = self.initial_state
         u = jax.ShapeDtypeStruct(dim2shape(self.n_inputs), jnp.float64)
         y = jax.eval_shape(self.output, x, u, t=1.0)
         return "scalar" if y.ndim == 0 else y.shape[0]
 
-    def vector_field(self, x, u=None, t=None):
-        """Compute state derivative."""
-        raise NotImplementedError
-
-    def output(self, x, u=None, t=None):
-        """Compute output."""
-        return x
-
     def linearize(self, x0=None, u0=None, t=None) -> "LinearSystem":
         """Compute the approximate linearized system around a point."""
         if x0 is None:
-            x0 = jnp.zeros(dim2shape(self.n_states))
+            x0 = self.initial_state
         if u0 is None:
             u0 = jnp.zeros(dim2shape(self.n_inputs))
         A, B, C, D = _linearize(self.vector_field, self.output, x0, u0, t)
@@ -226,34 +237,38 @@ class LinearSystem(DynamicalSystem):
         self.C = jnp.array(C)
         self.D = jnp.array(D)
 
-        # Extract number of states and inputs from matrices
-        self.n_states = "scalar" if self.A.ndim == 0 else self.A.shape[0]
-        if self.n_states == "scalar":
+    @property
+    def initial_state(self) -> Array:  # type: ignore
+        return jnp.array(0) if self.A.ndim == 0 else jnp.zeros(self.A.shape[0])
+
+    @property
+    def n_inputs(self) -> int | Literal["scalar"]:  # type: ignore
+        if self.initial_state.ndim == 0:
             if self.B.ndim == 0:
-                self.n_inputs = "scalar"
+                return "scalar"
             elif self.B.ndim == 1:
-                self.n_inputs = self.B.size
-            else:
-                raise ValueError("Dimension mismatch.")
+                return self.B.size
         else:
             if self.B.ndim == 1:
-                self.n_inputs = "scalar"
+                return "scalar"
             elif self.B.ndim == 2:
-                self.n_inputs = self.B.shape[1]
-            else:
-                raise ValueError("Dimension mismatch.")
+                return self.B.shape[1]
+        raise ValueError("Dimension mismatch.")
 
-    def vector_field(self, x, u=None, t=None):
+    def vector_field(self, x, u=None, t=None) -> Array:
         out = self.A.dot(x)
         if u is not None:
             out += self.B.dot(u)
         return out
 
-    def output(self, x, u=None, t=None):
+    def output(self, x, u=None, t=None) -> Array:
         out = self.C.dot(x)
         if u is not None:
             out += self.D.dot(u)
         return out
+
+
+# TODO: make abstract
 
 
 class ControlAffine(DynamicalSystem):
@@ -275,7 +290,6 @@ class ControlAffine(DynamicalSystem):
     def h(self, x):
         return x
 
-    # FIXME: remove time dependence
     def vector_field(self, x, u=None, t=None):
         if u is None:
             u = 0
@@ -285,73 +299,122 @@ class ControlAffine(DynamicalSystem):
         return self.h(x)
 
 
-class SeriesSystem(DynamicalSystem):
-    """Two systems in series."""
-
+class _CoupledSystemMixin(eqx.Module):
     _sys1: DynamicalSystem
     _sys2: DynamicalSystem
+
+    def _pack_states(self, x1, x2) -> Array:
+        return jnp.concatenate(
+            (
+                jnp.atleast_1d(x1),
+                jnp.atleast_1d(x2),
+            )
+        )
+
+    def _unpack_states(self, x):
+        sys1_size = (
+            1
+            if jnp.ndim(self._sys1.initial_state) == 0
+            else self._sys1.initial_state.size
+        )
+        return (
+            x[:sys1_size].reshape(self._sys1.initial_state.shape),
+            x[sys1_size:].reshape(self._sys2.initial_state.shape),
+        )
+
+
+class SeriesSystem(DynamicalSystem, _CoupledSystemMixin):
+    r"""Two systems in series.
+
+    .. math::
+
+        ẋ_1 &= f_1(x_1, u, t)   \\
+        y_1 &= h_1(x_1, u, t)   \\
+        ẋ_2 &= f_2(x_2, y1, t)  \\
+        y_2 &= h_2(x_2, y1, t)
+
+    .. aafig::
+    
+               +------+      +------+
+        u --+->+ sys1 +--y1->+ sys2 +--> y2
+               +------+      +------+
+
+    """
 
     def __init__(self, sys1: DynamicalSystem, sys2: DynamicalSystem):
         """
         Args:
             sys1: system with n outputs
             sys2: system with n inputs
+
         """
-        assert sys1.n_outputs == sys2.n_inputs, "in- and outputs don't match"
         self._sys1 = sys1
         self._sys2 = sys2
-        self.n_states = sys1.n_states + sys2.n_states
+        self.initial_state = self._pack_states(sys1.initial_state, sys2.initial_state)
         self.n_inputs = sys1.n_inputs
 
     def vector_field(self, x, u=None, t=None):
-        x1 = x[: self._sys1.n_states]
-        x2 = x[self._sys1.n_states :]
+        x1, x2 = self._unpack_states(x)
         y1 = self._sys1.output(x1, u, t)
         dx1 = self._sys1.vector_field(x1, u, t)
         dx2 = self._sys2.vector_field(x2, y1, t)
-        return jnp.concatenate((jnp.atleast_1d(dx1), jnp.atleast_1d(dx2)))
+        return self._pack_states(dx1, dx2)
 
     def output(self, x, u=None, t=None):
-        x1 = x[: self._sys1.n_states]
-        x2 = x[self._sys1.n_states :]
+        x1, x2 = self._unpack_states(x)
         y1 = self._sys1.output(x1, u, t)
         y2 = self._sys2.output(x2, y1, t)
         return y2
 
 
-class FeedbackSystem(DynamicalSystem):
-    """Two systems connected via feedback."""
+class FeedbackSystem(DynamicalSystem, _CoupledSystemMixin):
+    r"""Two systems connected via feedback.
+    
+    .. math::
 
-    _sys: DynamicalSystem
-    _fbsys: DynamicalSystem
+        ẋ_1 &= f_1(x_1, u + y_2, t) \\
+        y_1 &= h_1(x_1, t)          \\
+        ẋ_2 &= f_2(x_2, y_1, t)     \\
+        y_2 &= h_2(x_2, y_1, t)     \\
 
-    def __init__(self, sys: DynamicalSystem, fbsys: DynamicalSystem):
+    .. aafig::
+    
+               +------+
+        u --+->+ sys1 +--+-> y1
+            ^  +------+  |
+            |            |
+          y2|  +------+  |
+            +--+ sys2 |<-+
+               +------+
+
+    """
+
+    def __init__(self, sys1: DynamicalSystem, sys2: DynamicalSystem):
         """
         Args:
-            sys: system in forward path
-            fbsys: system in feedback path
+            sys1: system in forward path with n inputs
+            sys2: system in feedback path with n outputs
 
         """
-        self._sys = sys
-        self._fbsys = fbsys
-        self.n_states = sys.n_states + fbsys.n_states
-        self.n_inputs = sys.n_inputs
+        self._sys1 = sys1
+        self._sys2 = sys2
+        self.initial_state = self._pack_states(sys1.initial_state, sys2.initial_state)
+        self.n_inputs = sys1.n_inputs
 
     def vector_field(self, x, u=None, t=None):
         if u is None:
-            u = np.zeros(self._sys.n_inputs)
-        x1 = x[: self._sys.n_states]
-        x2 = x[self._sys.n_states :]
-        y1 = self._sys.output(x1, None, t)
-        y2 = self._fbsys.output(x2, y1, t)
-        dx1 = self._sys.vector_field(x1, u + y2, t)
-        dx2 = self._fbsys.vector_field(x2, y1, t)
-        dx = jnp.concatenate((jnp.atleast_1d(dx1), jnp.atleast_1d(dx2)))
+            u = np.zeros(dim2shape(self._sys1.n_inputs))
+        x1, x2 = self._unpack_states(x)
+        y1 = self._sys1.output(x1, None, t)
+        y2 = self._sys2.output(x2, y1, t)
+        dx1 = self._sys1.vector_field(x1, u + y2, t)
+        dx2 = self._sys2.vector_field(x2, y1, t)
+        dx = self._pack_states(dx1, dx2)
         return dx
 
     def output(self, x, u=None, t=None):
-        x1 = x[: self._sys.n_states]
-        y = self._sys.output(x1, None, t)
+        x1, _ = self._unpack_states(x)
+        y = self._sys1.output(x1, None, t)
         return y
 
 
@@ -360,15 +423,26 @@ class StaticStateFeedbackSystem(DynamicalSystem):
 
     .. math::
 
-        ẋ &= f(x, v(x, u), t) \\
+        ẋ &= f(x, v(x), t) \\
         y &= h(x, u, t)
+
+    .. aafig::
+    
+                           +-----+
+        u --+------------->+ sys +----> y
+            ^              +--+--+  
+            |                 | 
+            |                 | x   
+            |  +--------+     |
+            +--+ "v(x)" +<----+
+               +--------+
 
     """
 
     _sys: DynamicalSystem
-    _feedbacklaw: Callable
+    _v: Callable[[Array], Array]
 
-    def __init__(self, sys: DynamicalSystem, v: Callable[[Array, Array], Array]):
+    def __init__(self, sys: DynamicalSystem, v: Callable[[Array], Array]):
         """
         Args:
             sys: system with vector field `f` and output `h`
@@ -376,14 +450,12 @@ class StaticStateFeedbackSystem(DynamicalSystem):
 
         """
         self._sys = sys
-        self._feedbacklaw = staticmethod(v)
-        self.n_states = sys.n_states
+        self._v = staticmethod(v)
+        self.initial_state = sys.initial_state
         self.n_inputs = sys.n_inputs
 
     def vector_field(self, x, u=None, t=None):
-        if u is None:
-            u = np.zeros(self._sys.n_inputs)
-        v = self._feedbacklaw(x, u)
+        v = self._v(x)
         dx = self._sys.vector_field(x, v, t)
         return dx
 
@@ -392,50 +464,60 @@ class StaticStateFeedbackSystem(DynamicalSystem):
         return y
 
 
-class DynamicStateFeedbackSystem(DynamicalSystem):
+class DynamicStateFeedbackSystem(DynamicalSystem, _CoupledSystemMixin):
     r"""System with dynamic state-feedback.
 
     .. math::
+    
+        ẋ_1 &= f_1(x_1, v(x_1, x_2, u), t) \\
+        ẋ_2 &= f_2(x_2, u, t)              \\
+        y   &= h_1(x_1, u, t)
 
-        ẋ &= f_1(x, v(x, z, u), t) \\
-        ż &= f_2(z, r, t) \\
-        y &= h_1(x, u, t)
+    .. aafig::
+    
+              +--------------+     +-----+
+        u -+->+ v(x1, x2, u) +--v->+ sys +-> y
+           |  +-+-------+----+     +--+--+   
+           |    ^       ^             |
+           |    | x2    |      x1     |
+           |    |       +-------------+
+           |  +------+              
+           +->+ sys2 |                   
+              +------+     
 
     """
 
-    _sys: DynamicalSystem
-    _sys2: DynamicalSystem
-    _feedbacklaw: Callable[[Array, Array, float], float]
+    _v: Callable[[Array, Array, float], float]
 
     def __init__(
         self,
-        sys: DynamicalSystem,
+        sys1: DynamicalSystem,
         sys2: DynamicalSystem,
-        v: Callable[[Array, Array, float], float],
+        v: Callable[[Array, Array, Array | float], float],
     ):
         r"""
         Args:
-            sys: system with vector field :math:`f_1` and output :math:`h`
+            sys1: system with vector field :math:`f_1` and output :math:`h`
             sys2: system with vector field :math:`f_2`
             v: dynamic feedback law :math:`v`
 
         """
-        self._sys = sys
+        self._sys1 = sys1
         self._sys2 = sys2
-        self._feedbacklaw = v
-        self.n_states = sys.n_states + sys2.n_states
-        self.n_inputs = sys.n_inputs
+        self._v = staticmethod(v)
+        self.initial_state = self._pack_states(sys1.initial_state, sys2.initial_state)
+        self.n_inputs = sys1.n_inputs
 
-    def vector_field(self, xz, u=None, t=None):
+    def vector_field(self, x, u=None, t=None):
         if u is None:
-            u = np.zeros(self._sys.n_inputs)
-        x, z = xz[: self._sys.n_states], xz[self._sys.n_states :]
-        v = self._feedbacklaw(x, z, u)
-        dx = self._sys.vector_field(x, v, t)
-        dz = self._sys2.vector_field(z, u, t)
+            u = np.zeros(dim2shape(self._sys1.n_inputs))
+        x1, x2 = self._unpack_states(x)
+        v = self._v(x1, x2, u)
+        dx = self._sys1.vector_field(x1, v, t)
+        dz = self._sys2.vector_field(x2, u, t)
         return jnp.concatenate((dx, dz))
 
-    def output(self, xz, u=None, t=None):
-        x = xz[: self._sys.n_states]
-        y = self._sys.output(x, u, t)
+    def output(self, x, u=None, t=None):
+        x1, _ = self._unpack_states(x)
+        y = self._sys1.output(x1, u, t)
         return y

@@ -1,10 +1,11 @@
 """Example: fit a second-order nonlinear system to data."""
 
+
 import jax.numpy as jnp
 import matplotlib.pyplot as plt
 import numpy as np
 
-from dynax import ControlAffine, fit_csd_matching, fit_least_squares, Flow
+from dynax import ControlAffine, fit_csd_matching, fit_least_squares, Flow, free_field
 
 
 # Define a dynamical system of the form
@@ -28,8 +29,10 @@ class NonlinearDrag(ControlAffine):
     r2: float
     k: float
 
-    # Set the number of states (order of system), the number of in- and outputs.
-    initial_state = jnp.zeros(2)
+    # The initial_state attribute is static by default. If we want to make it learnable
+    # we must declare it using the `free_field` function.
+    initial_state: jnp.ndarray = free_field(init=True)
+
     n_inputs = "scalar"
 
     # Define the dynamical system via the methods f, g, and h
@@ -47,7 +50,9 @@ class NonlinearDrag(ControlAffine):
 
 
 # initiate a dynamical system representing the some "true" parameters
-true_system = NonlinearDrag(m=1.0, r=2.0, r2=0.1, k=4.0)
+true_system = NonlinearDrag(
+    m=1.0, r=2.0, r2=0.1, k=4.0, initial_state=jnp.array([1.0, 1.0])
+)
 # combine ODE system with ODE solver (Dopri5 and constant stepsize by default)
 true_model = Flow(true_system)
 print("true system:", true_system)
@@ -60,7 +65,9 @@ u_train = np.random.normal(size=len(t_train))
 x_train, y_train = true_model(t_train, u_train)
 
 # create our model system with some initial parameters
-initial_sys = NonlinearDrag(m=1.0, r=1.0, r2=1.0, k=1.0)
+initial_sys = NonlinearDrag(
+    m=1.0, r=1.0, r2=1.0, k=1.0, initial_state=jnp.array([0.0, 0.0])
+)
 print("initial system:", initial_sys)
 
 # If we have long-duration, wide-band input data we can fit the linear
@@ -83,7 +90,7 @@ print("fitted system:", pred_model.system)
 x_pred, y_pred = pred_model(t_train, u_train)
 assert np.allclose(x_train, x_pred)
 
-plt.plot(t_train, x_train, "--", label="target")
-plt.plot(t_train, x_pred, label="prediction")
+plt.plot(t_train, x_train, label="target")
+plt.plot(t_train, x_pred, "--", label="prediction")
 plt.legend()
 plt.show()

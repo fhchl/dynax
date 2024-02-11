@@ -13,7 +13,8 @@ class PlasticFlowLinElastic(DynamicalSystem):
     kappa: float = non_negative_field()
     alpha: float
     sigma_0: float
-    n_states = 2
+
+    initial_state = jnp.zeros(2)
     n_inputs = "scalar"
 
     def vector_field(self, x, u, t=None):
@@ -41,7 +42,8 @@ class SpringMassDamper(DynamicalSystem):
     m: float
     r: float
     k: float
-    n_states = 2
+
+    initial_state = jnp.zeros(2)
     n_inputs = "scalar"
 
     def vector_field(self, x, u, t=None):
@@ -61,7 +63,8 @@ class NonlinearDrag(ControlAffine):
     k: float
     m: float
     outputs: list[int] = static_field(default_factory=lambda: [0])
-    n_states = 2
+
+    initial_state = jnp.zeros(2)
     n_inputs = "scalar"
 
     def f(self, x):
@@ -80,7 +83,7 @@ class NonlinearDrag(ControlAffine):
 class Sastry9_9(ControlAffine):
     """Sastry Example 9.9"""
 
-    n_states = 3
+    initial_state = jnp.zeros(3)
     n_inputs = "scalar"
 
     def f(self, x):
@@ -94,12 +97,13 @@ class Sastry9_9(ControlAffine):
 
 
 class LotkaVolterra(DynamicalSystem):
-    n_states = 2
-    n_inputs = 0
     alpha: float = non_negative_field()
     beta: float = non_negative_field()
     gamma: float = non_negative_field()
     delta: float = non_negative_field()
+
+    initial_state = jnp.ones(2) * 0.5
+    n_inputs = 0
 
     def vector_field(self, x, u=None, t=None):
         x, y = x
@@ -117,6 +121,8 @@ class SpringMassWithBoucWenHysteresis(DynamicalSystem):
     gamma: float = non_negative_field()
     n: float = non_negative_field(min_val=1.0)
     a: float = boxed_field(0.0, 1.0)
+
+    initial_state = jnp.zeros(3)
 
     def vector_field(self, x, u=None, t=None):
         if u is None:

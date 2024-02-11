@@ -5,7 +5,7 @@ experiments
 .coverage
 htmlcov
 build
-docs/source/_build
+_build
 docs/generated
 *.pytest_cache
 .pytype
