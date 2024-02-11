@@ -1,6 +1,7 @@
 nbsphinx
 sphinx-autobuild
 sphinx-autodoc-typehints
+sphinx-rtd-theme
 sphinx
 sphinxcontrib-bibtex
 sphinxcontrib-aafig
