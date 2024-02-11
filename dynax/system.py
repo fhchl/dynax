@@ -49,7 +49,7 @@ def boxed_field(lower: float, upper: float, **kwargs):
 
 
 def free_field(**kwargs):
-    """Remove the value constrained from attribute, e.g. when subclassing."""
+    """Remove the value constraint from attribute, e.g. when subclassing."""
     try:
         metadata = dict(kwargs["metadata"])
     except KeyError:
