@@ -12,6 +12,7 @@ by combing [JAX][jax], [Diffrax][diffrax], [Equinox][equinox], and [scipy.optimi
 include:
 
 - estimation of ODE parameters and their covariance via the prediction-error method ([example](examples/fit_ode.ipynb))
+- estimation of the initial state ([example](examples/fit_initial_state.py)
 - estimation of linear ODE parameters via matching of frequency-response functions
 - estimation from multiple experiments
 - estimation with a poor man's multiple shooting
