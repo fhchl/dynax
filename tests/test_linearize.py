@@ -55,7 +55,7 @@ def test_relative_degree():
 
 def test_discrete_relative_degree():
     xs = np.random.normal(size=(100, 2))
-    us = np.random.normal(size=(100, 1))
+    us = np.random.normal(size=(100))
 
     sys = SpringMassDamperWithOutput(out=0)
     assert discrete_relative_degree(sys, xs, us) == 2

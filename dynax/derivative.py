@@ -9,7 +9,6 @@ import scipy.special
 from jax.experimental.jet import jet
 
 
-@lru_cache
 def lie_derivative(f, h, n=1):
     r"""Return n-th directional derivative of h along f.
 

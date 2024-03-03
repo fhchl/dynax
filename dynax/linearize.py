@@ -21,24 +21,25 @@ from .system import (
 
 
 # TODO: make this a method of ControlAffine
-def relative_degree(
-    sys: ControlAffine, xs, max_reldeg=10, output: Optional[int] = None
-) -> int:
+def relative_degree(sys: ControlAffine, xs: Array, output: Optional[int] = None) -> int:
     """Estimate relative degree of system on region xs."""
-    # TODO: when ControlAffine has y = h(x) + i(x)u, include test for n = 0,
-    # i.e. i(x) == 0 for all x in xs.
-    assert sys.n_inputs in ["scalar", 1]
+    if sys.n_inputs not in ["scalar", 1]:
+        raise ValueError("System must be single input.")
     if output is None:
         # Make sure system has single output
-        msg = f"Output is None, but system has {sys.n_outputs} outputs."
-        assert sys.n_outputs in ["scalar", 1], msg
+        if sys.n_outputs not in ["scalar", 1]:
+            raise ValueError(f"Output is None, but system has {sys.n_outputs} outputs.")
         h = sys.h
     else:
         h = lambda *args, **kwargs: sys.h(*args, **kwargs)[output]
 
-    for n in range(1, max_reldeg + 1):
-        LgLfn1h = lie_derivative(sys.g, lie_derivative(sys.f, h, n - 1))
-        res = jax.vmap(LgLfn1h)(xs)
+    max_reldeg = jnp.size(sys.initial_state)
+    for n in range(0, max_reldeg + 1):
+        if n == 0:
+            res = jax.vmap(sys.i)(xs)
+        else:
+            LgLfn1h = lie_derivative(sys.g, lie_derivative(sys.f, h, n - 1))
+            res = jax.vmap(LgLfn1h)(xs)
         if np.all(res == 0.0):
             continue
         elif np.all(res != 0.0):
@@ -62,7 +63,7 @@ def input_output_linearize(
     output: Optional[int] = None,
     asymptotic: Optional[Sequence] = None,
     reg: Optional[float] = None,
-) -> Callable[[Array, Array, float], float]:
+) -> Callable[[Array, Array, float], Array]:
     """Construct input-output linearizing feedback law.
 
     Args:
@@ -80,7 +81,7 @@ def input_output_linearize(
         Only single-input-single-output systems are currently supported.
 
     """
-    assert sys.n_inputs == ref.n_inputs, "systems habe same input dimension"
+    assert sys.n_inputs == ref.n_inputs, "systems have same input dimension"
     assert sys.n_inputs in [1, "scalar"]
 
     if output is None:
@@ -99,24 +100,28 @@ def input_output_linearize(
 
     if asymptotic is None:
 
-        def feedbacklaw(x: Array, z: Array, v: float) -> float:
+        def feedbacklaw(x: Array, z: Array, v: float) -> Array:
             y_reldeg_ref = cAn.dot(z) + cAnm1b * v
             y_reldeg = Lfnh(x)
-            return (y_reldeg_ref - y_reldeg) / LgLfnm1h(x)
+            out = (y_reldeg_ref - y_reldeg) / LgLfnm1h(x)
+            return out if sys.n_inputs != "scalar" else out.squeeze()
 
     else:
-        msg = f"asymptotic must be of length {reldeg=} but, {len(asymptotic)=}"
-        assert len(asymptotic) == reldeg, msg
+        if len(asymptotic) != reldeg:
+            raise ValueError(
+                f"asymptotic must be of length {reldeg=} but, {len(asymptotic)=}"
+            )
 
         coeffs = np.concatenate(([1], asymptotic))
-        msg = "Polynomial must be Hurwitz"
-        assert np.all(np.real(np.roots(coeffs)) <= 0)
+        if not np.all(np.real(np.roots(coeffs)) <= 0):
+            raise ValueError("Polynomial must be Hurwitz")
+
         alphas = asymptotic
 
         cAis = [c.dot(np.linalg.matrix_power(A, i)) for i in range(reldeg)]
         Lfihs = [lie_derivative(sys.f, h, i) for i in range(reldeg)]
 
-        def feedbacklaw(x: Array, z: Array, v: float) -> float:
+        def feedbacklaw(x: Array, z: Array, v: float) -> Array:
             y_reldeg_ref = cAn.dot(z) + cAnm1b * v
             y_reldeg = Lfnh(x)
             ae0s = jnp.array(
@@ -127,10 +132,11 @@ def input_output_linearize(
             )
             error = y_reldeg_ref - y_reldeg + jnp.sum(ae0s)
             if reg is None:
-                return error / LgLfnm1h(x)
+                out = error / LgLfnm1h(x)
             else:
                 l = LgLfnm1h(x)
-                return error * l / (l + reg)
+                out = error * l / (l + reg)
+            return out if sys.n_inputs != "scalar" else out.squeeze()
 
     return feedbacklaw
 

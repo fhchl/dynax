@@ -75,13 +75,13 @@ class DynamicalSystem(eqx.Module):
         ẋ &= f(x, u, t) \\
         y &= h(x, u, t)
 
-    Subclasses must set values for attributes n_states, n_inputs, and implement the 
-    `vector_field` method. Use the optional `output` method to describe measurent 
+    Subclasses must set values for attributes n_states, n_inputs, and implement the
+    `vector_field` method. Use the optional `output` method to describe measurent
     equations. Otherwise, the total state is returned as output.
 
     In most cases, it is not needed to define a custom __init__ method, as
     `DynamicalSystem` is a dataclass.
-    
+
     Example::
 
         class IntegratorAndGain(DynamicalSystem):
@@ -108,7 +108,7 @@ class DynamicalSystem(eqx.Module):
             if not hasattr(self, attr):
                 raise AttributeError(f"Attribute '{attr}' not initialized.")
 
-        # Check that vector_field returns Arrays or scalars and not PyTrees
+        # Check that vector_field and output returns Arrays or scalars and not PyTrees
         x = self.initial_state
         u = jax.ShapeDtypeStruct(dim2shape(self.n_inputs), jnp.float64)
         try:
@@ -118,12 +118,11 @@ class DynamicalSystem(eqx.Module):
             raise ValueError(
                 "Can not evaluate output shapes. Check your definitions!"
             ) from e
-        if not isinstance(dx, jax.ShapeDtypeStruct):
-            raise ValueError(
-                f"vector_field must return arrays or scalars, not {type(dx)}"
-            )
-        if not isinstance(y, jax.ShapeDtypeStruct):
-            raise ValueError(f"outpuut must return arrays or scalars, not {type(y)}")
+        for val, func in zip((dx, y), ("vector_field, output")):  # noqa: B905
+            if not isinstance(val, jax.ShapeDtypeStruct):
+                raise ValueError(
+                    f"{func} must return arrays or scalars, not {type(val)}"
+                )
 
     @abstractmethod
     def vector_field(self, x, u=None, t=None) -> Array:
@@ -212,7 +211,44 @@ class DynamicalSystem(eqx.Module):
 #       (x, pytree_interal_states_x)
 
 
-class LinearSystem(DynamicalSystem):
+class ControlAffine(DynamicalSystem):
+    r"""A control-affine dynamical system.
+
+    .. math::
+
+        ẋ &= f(x) + g(x)u \\
+        y &= h(x) + i(x)u
+
+    """
+
+    @abstractmethod
+    def f(self, x: Array) -> Array:
+        pass
+
+    @abstractmethod
+    def g(self, x: Array) -> Array:
+        pass
+
+    def h(self, x: Array) -> Array:
+        return x
+
+    def i(self, x: Array) -> Array:
+        return jnp.array(0.0)
+
+    def vector_field(self, x, u=None, t=None):
+        out = self.f(x)
+        if u is not None:
+            out += self.g(x).dot(u)
+        return out
+
+    def output(self, x, u=None, t=None):
+        out = self.h(x)
+        if u is not None:
+            out += self.i(x).dot(u)
+        return out
+
+
+class LinearSystem(ControlAffine):
     r"""A linear, time-invariant dynamical system.
 
     .. math::
@@ -221,10 +257,6 @@ class LinearSystem(DynamicalSystem):
         y &= Cx + Du
 
     """
-
-    # TODO: could be subclass of control-affine? Two blocking problems:
-    # - may h depend on u? Needed for D. If so, then one could compute
-    #   relative degree.
 
     A: Array
     B: Array
@@ -255,48 +287,17 @@ class LinearSystem(DynamicalSystem):
                 return self.B.shape[1]
         raise ValueError("Dimension mismatch.")
 
-    def vector_field(self, x, u=None, t=None) -> Array:
-        out = self.A.dot(x)
-        if u is not None:
-            out += self.B.dot(u)
-        return out
-
-    def output(self, x, u=None, t=None) -> Array:
-        out = self.C.dot(x)
-        if u is not None:
-            out += self.D.dot(u)
-        return out
-
-
-# TODO: make abstract
-
-
-class ControlAffine(DynamicalSystem):
-    r"""A control-affine dynamical system.
-
-    .. math::
-
-        ẋ &= f(x) + g(x)u \\
-        y &= h(x)
-
-    """
-
     def f(self, x):
-        raise NotImplementedError
+        return self.A.dot(x)
 
     def g(self, x):
-        raise NotImplementedError
+        return self.B
 
     def h(self, x):
-        return x
+        return self.C.dot(x)
 
-    def vector_field(self, x, u=None, t=None):
-        if u is None:
-            u = 0
-        return self.f(x) + self.g(x) * u
-
-    def output(self, x, u=None, t=None):
-        return self.h(x)
+    def i(self, x):
+        return self.D
 
 
 class _CoupledSystemMixin(eqx.Module):
@@ -334,7 +335,7 @@ class SeriesSystem(DynamicalSystem, _CoupledSystemMixin):
         y_2 &= h_2(x_2, y1, t)
 
     .. aafig::
-    
+
                +------+      +------+
         u --+->+ sys1 +--y1->+ sys2 +--> y2
                +------+      +------+
@@ -369,7 +370,7 @@ class SeriesSystem(DynamicalSystem, _CoupledSystemMixin):
 
 class FeedbackSystem(DynamicalSystem, _CoupledSystemMixin):
     r"""Two systems connected via feedback.
-    
+
     .. math::
 
         ẋ_1 &= f_1(x_1, u + y_2, t) \\
@@ -378,7 +379,7 @@ class FeedbackSystem(DynamicalSystem, _CoupledSystemMixin):
         y_2 &= h_2(x_2, y_1, t)     \\
 
     .. aafig::
-    
+
                +------+
         u --+->+ sys1 +--+-> y1
             ^  +------+  |
@@ -427,12 +428,12 @@ class StaticStateFeedbackSystem(DynamicalSystem):
         y &= h(x, u, t)
 
     .. aafig::
-    
+
                            +-----+
         u --+------------->+ sys +----> y
-            ^              +--+--+  
-            |                 | 
-            |                 | x   
+            ^              +--+--+
+            |                 |
+            |                 | x
             |  +--------+     |
             +--+ "v(x)" +<----+
                +--------+
@@ -468,22 +469,22 @@ class DynamicStateFeedbackSystem(DynamicalSystem, _CoupledSystemMixin):
     r"""System with dynamic state-feedback.
 
     .. math::
-    
+
         ẋ_1 &= f_1(x_1, v(x_1, x_2, u), t) \\
         ẋ_2 &= f_2(x_2, u, t)              \\
         y   &= h_1(x_1, u, t)
 
     .. aafig::
-    
+
               +--------------+     +-----+
         u -+->+ v(x1, x2, u) +--v->+ sys +-> y
-           |  +-+-------+----+     +--+--+   
+           |  +-+-------+----+     +--+--+
            |    ^       ^             |
            |    | x2    |      x1     |
            |    |       +-------------+
-           |  +------+              
-           +->+ sys2 |                   
-              +------+     
+           |  +------+
+           +->+ sys2 |
+              +------+
 
     """
 
