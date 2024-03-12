@@ -44,7 +44,7 @@ def lie_derivatives_jet(f, h, n=1):
     def liefun(x):
         # taylor coefficients of x(t) = ϕₜ(x_0)
         x_primals = [x]
-        x_series = [jnp.zeros_like(x) for k in range(n)]
+        x_series = [jnp.zeros_like(x) for _ in range(n)]
         for k in range(n):
             # taylor coefficients of z(t) = f(x(t))
             z_primals, z_series = jet(f, x_primals, (x_series,))
