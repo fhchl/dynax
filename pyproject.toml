@@ -2,7 +2,7 @@
 name = "dynax"
 version = "0.0.2"
 description = "Dynamical systems with JAX!"
-readme = "README.md"
+readme = "README.rst"
 requires-python =">=3.10"
 license = {file = "LICENSE"}
 authors = [{name = "Franz M. Heuchel", email = "franz.heuchel@pm.me"}]
