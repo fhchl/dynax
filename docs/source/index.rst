@@ -22,16 +22,9 @@ linearization of dynamical systems. It combines `JAX`_,
 .. toctree::
    :maxdepth: 2
    :caption: Contents:
-
+   
+   quick-start
+   user-guide
    examples
    api
    references
-
-
-
-Indices and tables
-==================
-
-* :ref:`genindex`
-* :ref:`modindex`
-* :ref:`search`
