@@ -13,3 +13,4 @@ docs/generated
 .mypy_cache
 .ipynb_checkpoints
 .virtual_documents
+.helix
