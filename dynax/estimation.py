@@ -2,7 +2,7 @@
 
 import warnings
 from dataclasses import fields
-from typing import Any, Callable, Literal, Optional, Union
+from typing import Any, Callable, cast, Literal, Optional, Union
 
 import diffrax as dfx
 import equinox as eqx
@@ -24,8 +24,8 @@ from .system import DynamicalSystem
 from .util import broadcast_right, mse, nmse, nrmse, value_and_jacfwd
 
 
-def _get_bounds(module: eqx.Module) -> tuple[list, list]:
-    """Build flattened lists of lower and upper bounds."""
+def _get_bounds(module: eqx.Module) -> tuple[Array, Array]:
+    """Build flattened arrays of lower and upper parameter bounds."""
     lower_bounds = []
     upper_bounds = []
     for field_ in fields(module):
@@ -40,7 +40,7 @@ def _get_bounds(module: eqx.Module) -> tuple[list, list]:
             lower_bounds.extend(lbs)
             upper_bounds.extend(ubs)
         elif constraint := field_.metadata.get("constrained", False):
-            _, (lb, ub) = constraint
+            _, (lb, ub) = constraint  # type: ignore
             size = np.asarray(value).size
             lower_bounds.extend([lb] * size)
             upper_bounds.extend([ub] * size)
@@ -48,7 +48,7 @@ def _get_bounds(module: eqx.Module) -> tuple[list, list]:
             size = np.asarray(value).size
             lower_bounds.extend([-np.inf] * size)
             upper_bounds.extend([np.inf] * size)
-    return lower_bounds, upper_bounds
+    return jnp.asarray(lower_bounds), jnp.asarray(upper_bounds)
 
 
 def _key_paths(tree: Any, root: str = "tree") -> list[str]:
@@ -68,7 +68,7 @@ def _compute_covariance(
     if cov_prior is not None:
         # pcov = inv(JJ^T + Σₚ⁻¹)
         hess += np.linalg.inv(cov_prior)
-    pcov = pinvh(hess, rtol=rtol)
+    pcov = cast(NDArray, pinvh(hess, rtol=rtol))
 
     warn_cov = False
     if not absolute_sigma:
@@ -93,7 +93,7 @@ def _compute_covariance(
 def _least_squares(
     f: Callable[[Array], Array],
     init_params: Array,
-    bounds: tuple[list, list],
+    bounds: tuple[ArrayLike, ArrayLike],
     reg_term: Optional[Callable[[Array], Array]] = None,
     x_scale: bool = True,
     verbose_mse: bool = True,
@@ -126,7 +126,12 @@ def _least_squares(
     fun = MemoizeJac(jax.jit(lambda x: value_and_jacfwd(f, x)))
     jac = fun.derivative
     res = least_squares(
-        fun, init_params, bounds=bounds, jac=jac, x_scale="jac", **kwargs
+        fun,
+        init_params,
+        bounds=bounds,
+        jac=jac,
+        x_scale="jac",
+        **kwargs,  # type: ignore
     )
 
     if x_scale:
@@ -161,11 +166,12 @@ def fit_least_squares(
     verbose_mse: bool = True,
     **kwargs,
 ) -> OptimizeResult:
-    """Fit forward model with (regularized) nonlinear least-squares.
+    """Fit evolution model with (regularized, box-constrained) nonlinear least-squares.
 
-    Parameters can be constrained via the `*_field` functions.
+    Parameters of `model.system` can be constrained via the `*_field` functions. # TODO
 
-
+    Args:
+       model:
     """
     t = jnp.asarray(t)
     y = jnp.asarray(y)
