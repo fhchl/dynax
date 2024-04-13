@@ -1,6 +1,8 @@
 """Various functions for computing Lie derivatives."""
 
-from typing import Callable
+from __future__ import annotations  # delayed evaluation of annotations
+
+from typing import Callable, TypeAlias
 
 import jax
 import jax.numpy as jnp
@@ -10,14 +12,14 @@ from jax.experimental.jet import jet
 from jaxtyping import Scalar
 
 
-VectorFunc = Callable[[Array], Array]
-ScalarFunc = Callable[[Array], Scalar]
-VectorField = Callable[[Array, Scalar], Array]
-OutputFunc = Callable[[Array, Scalar], Array]
+VectorFunc: TypeAlias = Callable[[Array], Array]
+ScalarFunc: TypeAlias = Callable[[Array], Scalar]
+VectorField: TypeAlias = Callable[[Array, Scalar], Array]
+OutputFunc: TypeAlias = Callable[[Array, Scalar], Array]
 
 
 def lie_derivative(f: VectorFunc, h: ScalarFunc, n: int = 1) -> ScalarFunc:
-    r"""Return n-th directional derivative of h along f.
+    r"""Return the Lie (or directional) derivative of h along f.
 
     The Lie derivative is recursively defined as
 
@@ -40,8 +42,24 @@ def lie_derivative(f: VectorFunc, h: ScalarFunc, n: int = 1) -> ScalarFunc:
         )[1]
 
 
+def lie_derivative_jet(f: VectorFunc, h: ScalarFunc, n: int = 1) -> ScalarFunc:
+    """Compute the Lie derivative of h along f using Taylor-mode differentiation.
+
+    See :py:func:`lie_derivative_jet`.
+
+    """
+
+    def liefun(x: Array) -> Scalar:
+        return lie_derivatives_jet(f, h, n)(x)[-1]
+
+    return liefun
+
+
 def lie_derivatives_jet(f: VectorFunc, h: ScalarFunc, n: int = 1) -> VectorFunc:
-    """Compute Lie derivatives using Taylor-mode differentiation.
+    """Return all Lie derivatives up to order n using Taylor-mode differentiation.
+
+    This function is using using :py:func:`jax.jet`, which currently does not compose
+    with :py:func:`jax.grad`.
 
     See :cite:p:`robenackComputationLieDerivatives2005`.
 
@@ -62,14 +80,5 @@ def lie_derivatives_jet(f: VectorFunc, h: ScalarFunc, n: int = 1) -> VectorFunc:
         y_primals, y_series = jet(h, x_primals, (x_series,))
         Lfh = fac * jnp.array((y_primals, *y_series))
         return Lfh
-
-    return liefun
-
-
-def lie_derivative_jet(f: VectorFunc, h: ScalarFunc, n: int = 1) -> ScalarFunc:
-    """Compute first element of :py:func:`lie_derivative` using :py:func:`jax.jet`."""
-
-    def liefun(x: Array) -> Scalar:
-        return lie_derivatives_jet(f, h, n)(x)[-1]
 
     return liefun
