@@ -1,19 +1,33 @@
 from abc import abstractmethod
 from typing import Callable, cast, Optional
 
-import diffrax as dfx
-import equinox as eqx
 import jax
 import jax.numpy as jnp
-from jaxtyping import Array, PyTree
+from diffrax import (
+    AbstractAdaptiveSolver,
+    AbstractStepSizeController,
+    ConstantStepSize,
+    CubicInterpolation,
+    diffeqsolve,
+    DirectAdjoint,
+    Dopri5,
+    ODETerm,
+    SaveAt,
+)
+from equinox import Module, static_field
+from jax import Array
+from jaxtyping import PyTree
 
 from .interpolation import spline_it
 from .system import AbstractSystem
 from .util import broadcast_right, dim2shape
 
 
-class AbstractEvolution(eqx.Module):
-    """Abstract base-class for evolutions."""
+class AbstractEvolution(Module):
+    """Abstract base-class for evolutions.
+
+    from :py:class:`equinox.Module`.
+    """
 
     system: AbstractSystem
 
@@ -30,7 +44,7 @@ class AbstractEvolution(eqx.Module):
                 `system.initial_state`.
 
         Returns:
-            A tuple `(x, y)` of state and output trajectories.
+            A tuple `(x, y)` of state and output sequences.
 
         """
         raise NotImplementedError
@@ -46,9 +60,9 @@ class Flow(AbstractEvolution):
 
     """
 
-    solver: dfx.AbstractAdaptiveSolver = eqx.static_field(default_factory=dfx.Dopri5)
-    stepsize_controller: dfx.AbstractStepSizeController = eqx.static_field(
-        default_factory=lambda: dfx.ConstantStepSize()
+    solver: AbstractAdaptiveSolver = static_field(default_factory=Dopri5)
+    stepsize_controller: AbstractStepSizeController = static_field(
+        default_factory=lambda: ConstantStepSize()
     )
 
     def __call__(
@@ -68,7 +82,7 @@ class Flow(AbstractEvolution):
         Additional args:
             ufun: A function `t -> u` that returns the input at time `t`.
             ucoeffs: A tuple of coefficients for a cubic spline interpolation.
-            **diffeqsolve_kwargs: Additional arguments to pass to `diffrax.diffeqsolve`.
+            **diffeqsolve_kwargs: Additional arguments to pass to `diffeqsolve`.
         """
         )
         # Parse inputs.
@@ -83,7 +97,7 @@ class Flow(AbstractEvolution):
 
         # Prepare input function.
         if ucoeffs is not None:
-            path = dfx.CubicInterpolation(t, ucoeffs)
+            path = CubicInterpolation(t, ucoeffs)
             _ufun = path.evaluate
         elif callable(ufun):
             _ufun = u
@@ -109,19 +123,17 @@ class Flow(AbstractEvolution):
         diffeqsolve_default_options = dict(
             solver=self.solver,
             stepsize_controller=self.stepsize_controller,
-            saveat=dfx.SaveAt(ts=t),
+            saveat=SaveAt(ts=t),
             max_steps=50 * len(t),  # completely arbitrary number of steps
-            adjoint=dfx.DirectAdjoint(),
+            adjoint=DirectAdjoint(),
             dt0=(
-                t[1]
-                if isinstance(self.stepsize_controller, dfx.ConstantStepSize)
-                else None
+                t[1] if isinstance(self.stepsize_controller, ConstantStepSize) else None
             ),
         )
         diffeqsolve_default_options |= diffeqsolve_kwargs
         vector_field = lambda t, x, self: self.system.vector_field(x, _ufun(t), t)
-        term = dfx.ODETerm(vector_field)
-        x = dfx.diffeqsolve(
+        term = ODETerm(vector_field)
+        x = diffeqsolve(
             term,
             t0=t[0],
             t1=t[-1],

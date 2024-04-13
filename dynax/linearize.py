@@ -8,7 +8,7 @@ import jax
 import jax.numpy as jnp
 import numpy as np
 import optimistix as optx
-from jaxtyping import Array
+from jax import Array
 
 from .derivative import lie_derivative
 from .system import (
@@ -158,7 +158,7 @@ def discrete_relative_degree(
 ):
     """Estimate relative degree of discrete-time system on region xs.
 
-    Source: Lee, Linearization of Nonlinear Control Systems (2022), Def. 7.7
+    See :cite:p:`leeLinearizationNonlinearControl2022{def 7.7.}`.
 
     """
     f = sys.vector_field

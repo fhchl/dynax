@@ -17,6 +17,17 @@ dev = [
     "matplotlib",
     "pre-commit",
 ]
+docs = [
+    "nbsphinx",
+    "sphinx-autobuild",
+    "sphinx-autodoc-typehints",
+    "sphinx-rtd-theme",
+    "sphinx",
+    "sphinxcontrib-bibtex",
+    "sphinxcontrib-aafig",
+    "furo",
+    "jaxlib",
+]
 
 [tool.pytest.ini_options]
 addopts = [

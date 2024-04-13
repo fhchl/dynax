@@ -5,13 +5,13 @@ from collections.abc import Callable
 from dataclasses import field
 from typing import Literal
 
-import equinox as eqx
+import equinox
 import jax
 import jax.numpy as jnp
 import numpy as np
 from jax import Array
-from jaxtyping import ArrayLike
 
+from .custom_types import ArrayLike
 from .util import dim2shape
 
 
@@ -64,7 +64,7 @@ def non_negative_field(min_val: float = 0.0, **kwargs):
     return boxed_field(lower=min_val, upper=np.inf, **kwargs)
 
 
-class AbstractSystem(eqx.Module):
+class AbstractSystem(equinox.Module):
     r"""A continous-time dynamical system.
 
     .. math::
@@ -96,7 +96,9 @@ class AbstractSystem(eqx.Module):
     """
 
     initial_state: Array = static_field(init=False)
+    """Initial state vector."""
     n_inputs: int | Literal["scalar"] = static_field(init=False)
+    """Number of inputs."""
 
     def __check_init__(self):
         # Check that required attributes are initialized
@@ -122,24 +124,58 @@ class AbstractSystem(eqx.Module):
                 )
 
     @abstractmethod
-    def vector_field(self, x, u=None, t=None) -> Array:
-        """Compute state derivative."""
+    def vector_field(
+        self, x: Array, u: Array | None = None, t: float | None = None
+    ) -> Array:
+        """Compute state derivative.
+
+        Args:
+            x: State vector.
+            u: Optional input vector.
+            t: Optional time.
+
+        Returns:
+            State derivative.
+
+        """
         raise NotImplementedError
 
-    def output(self, x, u=None, t=None) -> Array:
-        """Compute output."""
+    def output(self, x: Array, u: Array | None = None, t: float | None = None) -> Array:
+        """Compute output.
+
+        Args:
+            x: State vector.
+            u: Optional input vector.
+            t: Optional time.
+
+        Returns:
+            System output.
+
+        """
         return x
 
     @property
     def n_outputs(self) -> int | Literal["scalar"]:
-        # Compute output size
+        """The size of the output vector."""
         x = self.initial_state
         u = jax.ShapeDtypeStruct(dim2shape(self.n_inputs), jnp.float64)
         y = jax.eval_shape(self.output, x, u, t=1.0)
         return "scalar" if y.ndim == 0 else y.shape[0]
 
-    def linearize(self, x0=None, u0=None, t=None) -> "LinearSystem":
-        """Compute the approximate linearized system around a point."""
+    def linearize(
+        self, x0: Array | None = None, u0: Array | None = None, t: float | None = None
+    ) -> "LinearSystem":
+        """Compute the approximate linearized system around a point.
+
+        Args:
+            x0: State at which to linearize.
+            u0: Input at which to linearize.
+            t: Time at which to linearize.
+
+        Returns:
+            Linearized system.
+
+        """
         if x0 is None:
             x0 = self.initial_state
         if u0 is None:
@@ -216,20 +252,28 @@ class ControlAffine(AbstractSystem):
         ẋ &= f(x) + g(x)u \\
         y &= h(x) + i(x)u
 
+    Subclasses must implement the `f` and `g` methods. Optionally, the `h` and `i`
+    methods can be implemented to describe measurement equations. By default, the full
+    state vector is returned as output.
+
     """
 
     @abstractmethod
     def f(self, x: Array) -> Array:
+        """The constant-input part of the vector field."""
         pass
 
     @abstractmethod
     def g(self, x: Array) -> Array:
+        """The input-proportional part of the vector field."""
         pass
 
     def h(self, x: Array) -> Array:
+        """The constant-input part of the output equation."""
         return x
 
     def i(self, x: Array) -> Array:
+        """The input-proportional part of the output equation."""
         return jnp.array(0.0)
 
     def vector_field(self, x, u=None, t=None):
@@ -253,12 +297,19 @@ class LinearSystem(ControlAffine):
         ẋ &= Ax + Bu \\
         y &= Cx + Du
 
+    Args:
+        A, B, C, D: System matrices of appropriate shape.
+
     """
 
     A: Array
+    """State matrix."""
     B: Array
+    """Input matrix."""
     C: Array
+    """Output matrix."""
     D: Array
+    """Feedthrough matrix."""
 
     def __init__(self, A: ArrayLike, B: ArrayLike, C: ArrayLike, D: ArrayLike):
         self.A = jnp.array(A)
@@ -297,7 +348,7 @@ class LinearSystem(ControlAffine):
         return self.D
 
 
-class _CoupledSystemMixin(eqx.Module):
+class _CoupledSystemMixin(equinox.Module):
     _sys1: AbstractSystem
     _sys2: AbstractSystem
 

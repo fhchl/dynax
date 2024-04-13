@@ -2,31 +2,33 @@
 
 from __future__ import annotations  # delayed evaluation of annotations
 
-from typing import Callable, TypeAlias
-
 import jax
 import jax.numpy as jnp
 import numpy as np
 from jax import Array
 from jax.experimental.jet import jet
-from jaxtyping import Scalar
 
-
-VectorFunc: TypeAlias = Callable[[Array], Array]
-ScalarFunc: TypeAlias = Callable[[Array], Scalar]
-VectorField: TypeAlias = Callable[[Array, Scalar], Array]
-OutputFunc: TypeAlias = Callable[[Array, Scalar], Array]
+from .custom_types import Scalar, ScalarFunc, VectorFunc
 
 
 def lie_derivative(f: VectorFunc, h: ScalarFunc, n: int = 1) -> ScalarFunc:
-    r"""Return the Lie (or directional) derivative of h along f.
+    r"""Return the Lie (or directional) derivative of `h` along `f`.
 
-    The Lie derivative is recursively defined as
+    The Lie derivative of order `n` is recursively defined as
 
     .. math::
 
         L_f^0 h(x) &= h(x) \\
         L_f^n h(x) &= (\nabla_x L_f^{n-1} h)(x)^T f(x)
+
+    Args:
+        f: Function from :math:`\mathbb{R}^n` to :math:`\mathbb{R}^n`.
+        h: Function from :math:`\mathbb{R}^n` to :math:`\mathbb{R}`.
+        n: Order of the Lie derivative.
+
+    Returns:
+        The `n`-th order Lie derivative (a function from :math:`\mathbb{R}^n` to
+        :math:`\mathbb{R}`).
 
     """
     if n < 0:
@@ -43,9 +45,9 @@ def lie_derivative(f: VectorFunc, h: ScalarFunc, n: int = 1) -> ScalarFunc:
 
 
 def lie_derivative_jet(f: VectorFunc, h: ScalarFunc, n: int = 1) -> ScalarFunc:
-    """Compute the Lie derivative of h along f using Taylor-mode differentiation.
+    """Compute the Lie derivative of `h` along `f` using Taylor-mode differentiation.
 
-    See :py:func:`lie_derivative_jet`.
+    Same parameters as :py:func:`lie_derivative`. Uses :py:func:`lie_derivatives_jet`.
 
     """
 
@@ -56,9 +58,9 @@ def lie_derivative_jet(f: VectorFunc, h: ScalarFunc, n: int = 1) -> ScalarFunc:
 
 
 def lie_derivatives_jet(f: VectorFunc, h: ScalarFunc, n: int = 1) -> VectorFunc:
-    """Return all Lie derivatives up to order n using Taylor-mode differentiation.
+    """Return all Lie derivatives up to order `n` using Taylor-mode differentiation.
 
-    This function is using using :py:func:`jax.jet`, which currently does not compose
+    Uses :py:func:`jax.experimental.jet.jet`, which currently does not compose
     with :py:func:`jax.grad`.
 
     See :cite:p:`robenackComputationLieDerivatives2005`.

@@ -4,7 +4,9 @@ from typing import Literal
 import equinox
 import jax
 import jax.numpy as jnp
-from jaxtyping import Array, ArrayLike
+from jax import Array
+
+from .custom_types import ArrayLike
 
 
 def ssmatrix(data: ArrayLike, axis: int = 0) -> Array:

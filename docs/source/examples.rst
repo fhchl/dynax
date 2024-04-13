@@ -6,12 +6,18 @@ Examples
 
 Have a look at the notebooks on the left or the following scripts.
 
-Fit a second order system
--------------------------
 
-.. literalinclude:: ../examples/fit_second_order_sys.py
+.. _example-fit-ode:
 
-Linearize a second order system
--------------------------------
+Fit a system of ordinary differential equations
+-----------------------------------------------
 
-.. literalinclude:: ../examples/linearize_second_order_sys_detailed.py
+.. literalinclude:: ../../examples/fit_ode.ipynb
+
+
+.. _example-fit-multiple-shooting:
+
+Fit a system with multiple shooting
+-----------------------------------
+
+.. literalinclude:: ../../examples/fit_multiple_shooting.py
