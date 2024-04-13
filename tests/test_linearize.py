@@ -3,10 +3,10 @@ import numpy as np
 import numpy.testing as npt
 
 from dynax import (
+    AbstractSystem,
     ControlAffine,
     discrete_relative_degree,
     DiscreteLinearizingSystem,
-    DynamicalSystem,
     DynamicStateFeedbackSystem,
     Flow,
     input_output_linearize,
@@ -92,7 +92,7 @@ def test_linearize_lin2lin():
 
 
 def test_linearize_dyn2lin():
-    class ScalarScalar(DynamicalSystem):
+    class ScalarScalar(AbstractSystem):
         initial_state = jnp.array(0.0)
         n_inputs = "scalar"
 
@@ -154,7 +154,7 @@ def test_input_output_linearize_multiple_outputs():
         npt.assert_allclose(y_ref[:, out_idx], y[:, out_idx], **tols)
 
 
-class Lee7_4_5(DynamicalSystem):
+class Lee7_4_5(AbstractSystem):
     initial_state = jnp.zeros(2)
     n_inputs = "scalar"
 

@@ -4,13 +4,13 @@ import numpy as np
 import numpy.testing as npt
 from scipy.signal import dlsim, dlti
 
-from dynax import DynamicalSystem, Flow, LinearSystem, Map
+from dynax import AbstractSystem, Flow, LinearSystem, Map
 
 
 tols = dict(rtol=1e-04, atol=1e-06)
 
 
-class SecondOrder(DynamicalSystem):
+class SecondOrder(AbstractSystem):
     """Second-order, linear system with constant coefficients."""
 
     b: float
@@ -102,7 +102,7 @@ def test_discrete_forward_model():
 
 
 def test_initial_state():
-    class Sys(DynamicalSystem):
+    class Sys(AbstractSystem):
         n_inputs = "scalar"
         initial_state = jnp.array(1.0)
 

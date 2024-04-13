@@ -5,16 +5,16 @@ from equinox.nn import GRUCell
 from jax.random import PRNGKey
 
 from dynax import (
+    AbstractSystem,
     discrete_relative_degree,
     DiscreteLinearizingSystem,
-    DynamicalSystem,
     LinearSystem,
     Map,
 )
 
 
 # A nonlinear discrete-time system.
-class Recurrent(DynamicalSystem):
+class Recurrent(AbstractSystem):
     cell: GRUCell
 
     n_inputs = "scalar"

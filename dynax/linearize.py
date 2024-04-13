@@ -13,8 +13,8 @@ from jaxtyping import Array
 from .derivative import lie_derivative
 from .system import (
     _CoupledSystemMixin,
+    AbstractSystem,
     ControlAffine,
-    DynamicalSystem,
     DynamicStateFeedbackSystem,
     LinearSystem,
 )
@@ -150,7 +150,7 @@ def propagate(f: Callable[[Array, float], Array], n: int, x: Array, u: float) ->
 
 
 def discrete_relative_degree(
-    sys: DynamicalSystem,
+    sys: AbstractSystem,
     xs: Array,
     us: Array,
     max_reldeg=10,
@@ -178,9 +178,9 @@ def discrete_relative_degree(
 
 
 def discrete_input_output_linearize(
-    sys: DynamicalSystem,
+    sys: AbstractSystem,
     reldeg: int,
-    ref: DynamicalSystem,
+    ref: AbstractSystem,
     output: Optional[int] = None,
     solver: Optional[optx.AbstractRootFinder] = None,
 ) -> Callable[[Array, Array, float, float], float]:
@@ -223,7 +223,7 @@ def discrete_input_output_linearize(
     return feedbacklaw
 
 
-class DiscreteLinearizingSystem(DynamicalSystem, _CoupledSystemMixin):
+class DiscreteLinearizingSystem(AbstractSystem, _CoupledSystemMixin):
     r"""Dynamics computing linearizing feedback as output."""
 
     _v: Callable
@@ -232,8 +232,8 @@ class DiscreteLinearizingSystem(DynamicalSystem, _CoupledSystemMixin):
 
     def __init__(
         self,
-        sys: DynamicalSystem,
-        refsys: DynamicalSystem,
+        sys: AbstractSystem,
+        refsys: AbstractSystem,
         reldeg: int,
         **fb_kwargs,
     ):

@@ -1,15 +1,15 @@
 import jax.numpy as jnp
 
 from .system import (
+    AbstractSystem,
     boxed_field,
     ControlAffine,
-    DynamicalSystem,
     non_negative_field,
     static_field,
 )
 
 
-class PlasticFlowLinElastic(DynamicalSystem):
+class PlasticFlowLinElastic(AbstractSystem):
     kappa: float = non_negative_field()
     alpha: float
     sigma_0: float
@@ -32,7 +32,7 @@ class PlasticFlowLinElastic(DynamicalSystem):
         return S
 
 
-class SpringMassDamper(DynamicalSystem):
+class SpringMassDamper(AbstractSystem):
     """Forced second-order linear spring-mass-damper system.
 
     .. math:: m x'' + r x' + k x = u.
@@ -96,7 +96,7 @@ class Sastry9_9(ControlAffine):
         return x[2]
 
 
-class LotkaVolterra(DynamicalSystem):
+class LotkaVolterra(AbstractSystem):
     alpha: float = non_negative_field()
     beta: float = non_negative_field()
     gamma: float = non_negative_field()
@@ -112,7 +112,7 @@ class LotkaVolterra(DynamicalSystem):
         )
 
 
-class SpringMassWithBoucWenHysteresis(DynamicalSystem):
+class SpringMassWithBoucWenHysteresis(AbstractSystem):
     """https://en.wikipedia.org/wiki/Bouc%E2%80%93Wen_model_of_hysteresis"""
 
     m: float = non_negative_field()  # kg

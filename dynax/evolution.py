@@ -8,19 +8,14 @@ import jax.numpy as jnp
 from jaxtyping import Array, PyTree
 
 from .interpolation import spline_it
-from .system import DynamicalSystem
+from .system import AbstractSystem
 from .util import broadcast_right, dim2shape
-
-
-def check_shape(shape, dim, arg):
-    if not (dim == "scalar" and shape != ()) and not (shape[1:] == (dim,)):
-        raise ValueError(f"Argument {arg} of shape {shape} is size {dim}.")
 
 
 class AbstractEvolution(eqx.Module):
     """Abstract base-class for evolutions."""
 
-    system: DynamicalSystem
+    system: AbstractSystem
 
     @abstractmethod
     def __call__(
@@ -29,17 +24,27 @@ class AbstractEvolution(eqx.Module):
         """Evolve an initial state along the vector field and compute output.
 
         Args:
-            t: The time periode over which to solve.
+            t: Times at which to evaluate the evolution.
             u: An optional input sequence of same length.
             initial_state: An optional, fixed initial state used instead of
                 `system.initial_state`.
+
+        Returns:
+            A tuple `(x, y)` of state and output trajectories.
 
         """
         raise NotImplementedError
 
 
 class Flow(AbstractEvolution):
-    """Evolution for continous-time dynamical systems."""
+    """Evolution for continous-time dynamical systems.
+
+    Args:
+        system: A dynamical system.
+        solver: A diffrax solver.
+        stepsize_controller: A diffrax stepsize controller.
+
+    """
 
     solver: dfx.AbstractAdaptiveSolver = eqx.static_field(default_factory=dfx.Dopri5)
     stepsize_controller: dfx.AbstractStepSizeController = eqx.static_field(
@@ -56,7 +61,16 @@ class Flow(AbstractEvolution):
         ucoeffs: Optional[tuple[PyTree, PyTree, PyTree, PyTree]] = None,
         **diffeqsolve_kwargs,
     ) -> tuple[Array, Array]:
-        """Solve initial value problem for state and output trajectories."""
+        (
+            super().__call__.__doc__
+            + """
+
+        Additional args:
+            ufun: A function `t -> u` that returns the input at time `t`.
+            ucoeffs: A tuple of coefficients for a cubic spline interpolation.
+            **diffeqsolve_kwargs: Additional arguments to pass to `diffrax.diffeqsolve`.
+        """
+        )
         # Parse inputs.
         t = jnp.asarray(t)
 

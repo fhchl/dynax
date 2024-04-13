@@ -1,8 +1,11 @@
-"""Functions for estimating parameters of dynamical systems."""
+"""Functions for estimating parameters of dynamical systems.
+
+Parameters of `model.system` can be constrained via the `*_field` functions.
+"""
 
 import warnings
 from dataclasses import fields
-from typing import Any, Callable, cast, Literal, Optional, Union
+from typing import Any, Callable, cast, Literal, Optional
 
 import diffrax as dfx
 import equinox as eqx
@@ -20,7 +23,7 @@ from scipy.optimize import least_squares, OptimizeResult
 from scipy.optimize._optimize import MemoizeJac
 
 from .evolution import AbstractEvolution
-from .system import DynamicalSystem
+from .system import AbstractSystem
 from .util import broadcast_right, mse, nmse, nrmse, value_and_jacfwd
 
 
@@ -129,9 +132,9 @@ def _least_squares(
         fun,
         init_params,
         bounds=bounds,
-        jac=jac,
-        x_scale="jac",
-        **kwargs,  # type: ignore
+        jac=jac,  # type: ignore
+        x_scale="jac",  # type: ignore
+        **kwargs,
     )
 
     if x_scale:
@@ -168,10 +171,37 @@ def fit_least_squares(
 ) -> OptimizeResult:
     """Fit evolution model with (regularized, box-constrained) nonlinear least-squares.
 
-    Parameters of `model.system` can be constrained via the `*_field` functions. # TODO
-
     Args:
-       model:
+        model: A concrete evolution object.
+        t: Times.
+        y: Output signal with time dimension along the first axis.
+        u: Input signal with time along the first axis.
+        batched: If true, `t`, `y`, and `u` must have an additional first axis of equal
+            length holding several trajectories.
+        sigma: If not `None`, the measurement standard deviation which is broadcasted
+            against `y`. Else, it is assumed that the outputs have similar
+            signal-to-noise ratios.
+        absolute_sigma: If True, `sigma` is used in an absolute sense and the estimated
+            parameter covariance pcov reflects these absolute values. Otherwise, only
+            the relative magnitudes of the sigma values matter.
+            See :func:`scipy.optimize.curve_fit`.
+        reg_val: The amount of L2 regularization.
+        reg_bias: Bias term in the L2 regularization. If "initial", uses the initial
+            parameters.
+        verbose_mse: If True, the cost is scaled to the mean-squared error.
+        kwargs: Optional parameters for `scipy.optimize.least_squares`.
+
+    Returns:
+        A Result object with the following additional attributes.
+
+        - `result`: The fitted model.
+        - `pcov`: The estimated covariance of the parameters.
+        - `y_pred`: The predicted outputs.
+        - `key_paths`: The tree paths to free parameters of the model.
+        - `mse`: The mean-squared error.
+        - `nmse`: The normalized mean-squared error.
+        - `nrmse`: The normalized root mean-squared error.
+
     """
     t = jnp.asarray(t)
     y = jnp.asarray(y)
@@ -252,29 +282,32 @@ def fit_multiple_shooting(
     model: AbstractEvolution,
     t: ArrayLike,
     y: ArrayLike,
-    u: Optional[Union[Callable[[float], Array], ArrayLike]] = None,
+    u: Optional[ArrayLike] = None,
     num_shots: int = 1,
     continuity_penalty: float = 0.1,
     **kwargs,
 ) -> OptimizeResult:
-    """Fit forward model with multiple shooting and nonlinear least-squares.
+    """Fit evolution model with multiple shooting.
 
     Args:
-        model: the forward model to fit
-        t: times at which `y` is given
-        y: target outputs of system
-        x0: initial state
-        u: a function that computes the input signal or an array input samples
-            at times `t`
-        num_shots: number of shots the training problem is divided into
-        continuity_penalty: weights the penalty for discontinuities of the
-            solution along shot boundaries
-        kwargs: optional parameters for `scipy.optimize.least_squares`
+        model: A concrete evolution object.
+        t: Times.
+        y: Outputs with time dimension along the first axis.
+        u: Inputs with time along the first axis.
+        num_shots: Number of shooting segments the training problem is divided into.
+        continuity_penalty: Weights the penalty for discontinuities of the
+            solution along shooting segment boundaries.
+        kwargs: Optional parameters for `scipy.optimize.least_squares`.
+
     Returns:
-        If `u` is not `None`, returns a tuple `(model, x0s, ts, us)`, where
-        `model` is the model with fitten parameters and `x0s`, `ts`, `us` are
-        the initial is an array of initial states, times, and inputs for each
-        shot. Else, return only `(model, x0s, ts, us)`.
+        A result object with the following additional attributes:
+
+        - `result`: The fitted model.
+        - `x0s`: The initial states of the shooting segments.
+        - `ts`: The times of the segments.
+        - `ts0`: The times of the segments relative to the start of each segment.
+        - `us`: The inputs of the segments (if `u` is not None).
+
     """
     t = jnp.asarray(t)
     y = jnp.asarray(y)
@@ -361,8 +394,19 @@ def fit_multiple_shooting(
     return res
 
 
-def transfer_function(sys: DynamicalSystem, to_states: bool = False, **kwargs):
-    """Compute transfer-function of linearized system."""
+def transfer_function(sys: AbstractSystem, to_states: bool = False, **kwargs):
+    """Compute transfer-function of the linearized system.
+
+    Args:
+        sys: A dynamical system.
+        to_states: If `True`, return the transfer-function between input and states.
+            Otherwise compute it between input and output.
+        kwargs: Optional arguments for `sys.linearize`.
+
+    Returns:
+        A function that computes the transfer-function at a given complex frequency.
+
+    """
     linsys = sys.linearize(**kwargs)
     A, B, C, D = linsys.A, linsys.B, linsys.C, linsys.D
 
@@ -380,7 +424,18 @@ def transfer_function(sys: DynamicalSystem, to_states: bool = False, **kwargs):
 def estimate_spectra(
     u: NDArray, y: NDArray, sr: float, nperseg: int
 ) -> tuple[NDArray, NDArray, NDArray]:
-    """Estimate cross and autospectral densities."""
+    """Estimate cross- and autospectral densities.
+
+    Args:
+        u: Input signal.
+        y: Output signal.
+        sr: Sampling rate.
+        nperseg: Number of samples per segment.
+
+    Returns:
+        The tuple (frequencies, cross-spectral density, autospectral density).
+
+    """
     u_ = np.asarray(u)
     y_ = np.asarray(y)
     # Prep for correct broadcasting in sig.csd
@@ -397,7 +452,7 @@ def estimate_spectra(
 
 
 def fit_csd_matching(
-    sys: DynamicalSystem,
+    sys: AbstractSystem,
     u: ArrayLike,
     y: ArrayLike,
     sr: float = 1.0,
@@ -409,7 +464,33 @@ def fit_csd_matching(
     fit_dc: bool = False,
     **kwargs,
 ) -> OptimizeResult:
-    """Estimate parameters of linearized system by matching cross-spectral densities."""
+    """Estimate parameters of linearized system by matching cross-spectral densities.
+
+    Args:
+        sys: A dynamical system.
+        u: Input signal.
+        y: Output signal.
+        sr: Sampling rate.
+        nperseg: Number of samples per segment.
+        reg: Regularization strength.
+        x_scale: If True, scale parameters by initial values.
+        verbose_mse: If True, scale cost to mean-squared error.
+        absolute_sigma: If True, use `sigma` in an absolute sense for covariance
+            estimation.
+        fit_dc: If True, fit the DC term.
+        kwargs: Optional parameters for `scipy.optimize.least_squares`.
+
+    Returns:
+        Result object with these additional attributes.
+
+        - `result`: The fitted model.
+        - `pcov`: The estimated covariance of the parameters.
+        - `key_paths`: The tree paths to free parameters of the model.
+        - `mse`: The mean-squared error.
+        - `nmse`: The normalized mean-squared error.
+        - `nrmse`: The normalized root mean-squared error.
+
+    """
     f, Syu, Suu = estimate_spectra(u, y, sr=sr, nperseg=nperseg)
 
     if not fit_dc:

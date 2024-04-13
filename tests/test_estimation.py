@@ -9,7 +9,7 @@ from jax import Array
 from jax.flatten_util import ravel_pytree
 
 from dynax import (
-    DynamicalSystem,
+    AbstractSystem,
     fit_csd_matching,
     fit_least_squares,
     fit_multiple_shooting,
@@ -123,7 +123,7 @@ def test_fit_with_bounded_parameters():
 
 def test_fit_with_bounded_parameters_and_ndarrays():
     # model
-    class LotkaVolterraBounded(DynamicalSystem):
+    class LotkaVolterraBounded(AbstractSystem):
         alpha: float
         beta: float
         delta_gamma: Array = non_negative_field()

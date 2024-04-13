@@ -64,10 +64,7 @@ def non_negative_field(min_val: float = 0.0, **kwargs):
     return boxed_field(lower=min_val, upper=np.inf, **kwargs)
 
 
-# TODO: make abstract
-
-
-class DynamicalSystem(eqx.Module):
+class AbstractSystem(eqx.Module):
     r"""A continous-time dynamical system.
 
     .. math::
@@ -80,11 +77,11 @@ class DynamicalSystem(eqx.Module):
     equations. Otherwise, the total state is returned as output.
 
     In most cases, it is not needed to define a custom __init__ method, as
-    `DynamicalSystem` is a dataclass.
+    `AbstractSystem` is a dataclass.
 
     Example::
 
-        class IntegratorAndGain(DynamicalSystem):
+        class IntegratorAndGain(AbstractSystem):
             n_states = 1
             n_inputs = "scalar"
             gain: float
@@ -211,7 +208,7 @@ class DynamicalSystem(eqx.Module):
 #       (x, pytree_interal_states_x)
 
 
-class ControlAffine(DynamicalSystem):
+class ControlAffine(AbstractSystem):
     r"""A control-affine dynamical system.
 
     .. math::
@@ -301,8 +298,8 @@ class LinearSystem(ControlAffine):
 
 
 class _CoupledSystemMixin(eqx.Module):
-    _sys1: DynamicalSystem
-    _sys2: DynamicalSystem
+    _sys1: AbstractSystem
+    _sys2: AbstractSystem
 
     def _pack_states(self, x1, x2) -> Array:
         return jnp.concatenate(
@@ -324,7 +321,7 @@ class _CoupledSystemMixin(eqx.Module):
         )
 
 
-class SeriesSystem(DynamicalSystem, _CoupledSystemMixin):
+class SeriesSystem(AbstractSystem, _CoupledSystemMixin):
     r"""Two systems in series.
 
     .. math::
@@ -342,7 +339,7 @@ class SeriesSystem(DynamicalSystem, _CoupledSystemMixin):
 
     """
 
-    def __init__(self, sys1: DynamicalSystem, sys2: DynamicalSystem):
+    def __init__(self, sys1: AbstractSystem, sys2: AbstractSystem):
         """
         Args:
             sys1: system with n outputs
@@ -368,7 +365,7 @@ class SeriesSystem(DynamicalSystem, _CoupledSystemMixin):
         return y2
 
 
-class FeedbackSystem(DynamicalSystem, _CoupledSystemMixin):
+class FeedbackSystem(AbstractSystem, _CoupledSystemMixin):
     r"""Two systems connected via feedback.
 
     .. math::
@@ -390,7 +387,7 @@ class FeedbackSystem(DynamicalSystem, _CoupledSystemMixin):
 
     """
 
-    def __init__(self, sys1: DynamicalSystem, sys2: DynamicalSystem):
+    def __init__(self, sys1: AbstractSystem, sys2: AbstractSystem):
         """
         Args:
             sys1: system in forward path with n inputs
@@ -419,7 +416,7 @@ class FeedbackSystem(DynamicalSystem, _CoupledSystemMixin):
         return y
 
 
-class StaticStateFeedbackSystem(DynamicalSystem):
+class StaticStateFeedbackSystem(AbstractSystem):
     r"""System with static state-feedback.
 
     .. math::
@@ -440,10 +437,10 @@ class StaticStateFeedbackSystem(DynamicalSystem):
 
     """
 
-    _sys: DynamicalSystem
+    _sys: AbstractSystem
     _v: Callable[[Array], Array]
 
-    def __init__(self, sys: DynamicalSystem, v: Callable[[Array], Array]):
+    def __init__(self, sys: AbstractSystem, v: Callable[[Array], Array]):
         """
         Args:
             sys: system with vector field `f` and output `h`
@@ -465,7 +462,7 @@ class StaticStateFeedbackSystem(DynamicalSystem):
         return y
 
 
-class DynamicStateFeedbackSystem(DynamicalSystem, _CoupledSystemMixin):
+class DynamicStateFeedbackSystem(AbstractSystem, _CoupledSystemMixin):
     r"""System with dynamic state-feedback.
 
     .. math::
@@ -492,8 +489,8 @@ class DynamicStateFeedbackSystem(DynamicalSystem, _CoupledSystemMixin):
 
     def __init__(
         self,
-        sys1: DynamicalSystem,
-        sys2: DynamicalSystem,
+        sys1: AbstractSystem,
+        sys2: AbstractSystem,
         v: Callable[[Array, Array, Array | float], float],
     ):
         r"""
