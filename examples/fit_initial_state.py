@@ -1,11 +1,16 @@
 """Example: fit a second-order nonlinear system to data."""
 
-
 import jax.numpy as jnp
 import matplotlib.pyplot as plt
 import numpy as np
 
-from dynax import ControlAffine, fit_csd_matching, fit_least_squares, Flow, free_field
+from dynax import (
+    AbstractControlAffine,
+    fit_csd_matching,
+    fit_least_squares,
+    Flow,
+    free_field,
+)
 
 
 # Define a dynamical system of the form
@@ -15,7 +20,7 @@ from dynax import ControlAffine, fit_csd_matching, fit_least_squares, Flow, free
 #
 # The `ControlAffine` class inherits from eqinox.Module which inherits from
 # `dataclasses.dataclass`.
-class NonlinearDrag(ControlAffine):
+class NonlinearDrag(AbstractControlAffine):
     """Spring-mass-damper system with nonliner drag.
 
     .. math:: m ẍ +  r ẋ + r2 ẋ |ẋ| + k x = u

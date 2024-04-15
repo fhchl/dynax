@@ -6,7 +6,7 @@ import jax.numpy as jnp
 import matplotlib.pyplot as plt
 import numpy as np
 
-from dynax import ControlAffine, fit_multiple_shooting, Flow
+from dynax import AbstractControlAffine, fit_multiple_shooting, Flow
 
 
 def tree_pformat(tree):
@@ -20,7 +20,7 @@ def tree_pformat(tree):
 #
 # The `ControlAffine` class inherits from eqinox.Module which inherits from
 # `dataclasses.dataclass`.
-class NonlinearDrag(ControlAffine):
+class NonlinearDrag(AbstractControlAffine):
     """Spring-mass-damper system with nonliner drag.
 
     .. math:: m ẍ +  r ẋ + r2 ẋ |ẋ| + k x = u

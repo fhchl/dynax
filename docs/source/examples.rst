@@ -7,6 +7,14 @@ Examples
 Have a look at the notebooks on the left or the following scripts.
 
 
+.. _example_models:
+
+Declaring ODE systems in Dynax
+------------------------------
+
+.. literalinclude:: ../../dynax/example_models.py
+
+
 .. _example-fit-ode:
 
 Fit a system of ordinary differential equations

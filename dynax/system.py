@@ -65,12 +65,21 @@ def non_negative_field(min_val: float = 0.0, **kwargs):
 
 
 class AbstractSystem(equinox.Module):
-    r"""A continous-time dynamical system.
+    r"""Base class for dynamical systems.
+
+    Can be continous
 
     .. math::
 
         ẋ &= f(x, u, t) \\
         y &= h(x, u, t)
+
+    or discrete
+
+    .. math::
+
+        x_{k+1} &= f(x_k, u_k, t) \\
+        y_k &= h(x_k, u_k, t)
 
     Subclasses must set values for attributes n_states, n_inputs, and implement the
     `vector_field` method. Use the optional `output` method to describe measurent
@@ -244,8 +253,8 @@ class AbstractSystem(equinox.Module):
 #       (x, pytree_interal_states_x)
 
 
-class ControlAffine(AbstractSystem):
-    r"""A control-affine dynamical system.
+class AbstractControlAffine(AbstractSystem):
+    r"""Base class for control-affine dynamical systems.
 
     .. math::
 
@@ -289,7 +298,7 @@ class ControlAffine(AbstractSystem):
         return out
 
 
-class LinearSystem(ControlAffine):
+class LinearSystem(AbstractControlAffine):
     r"""A linear, time-invariant dynamical system.
 
     .. math::

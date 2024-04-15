@@ -20,9 +20,9 @@ from .linearize import (
     relative_degree as relative_degree,
 )
 from .system import (
+    AbstractControlAffine as AbstractControlAffine,
     AbstractSystem as AbstractSystem,
     boxed_field as boxed_field,
-    ControlAffine as ControlAffine,
     DynamicStateFeedbackSystem as DynamicStateFeedbackSystem,
     FeedbackSystem as FeedbackSystem,
     free_field as free_field,

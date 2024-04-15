@@ -12,4 +12,3 @@ API documentation
     dynax.derivative
     dynax.interpolation
     dynax.util
-    dynax.example_models

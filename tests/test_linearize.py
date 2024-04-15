@@ -3,8 +3,8 @@ import numpy as np
 import numpy.testing as npt
 
 from dynax import (
+    AbstractControlAffine,
     AbstractSystem,
-    ControlAffine,
     discrete_relative_degree,
     DiscreteLinearizingSystem,
     DynamicStateFeedbackSystem,
@@ -23,7 +23,7 @@ from dynax.linearize import (
 tols = dict(rtol=1e-04, atol=1e-06)
 
 
-class SpringMassDamperWithOutput(ControlAffine):
+class SpringMassDamperWithOutput(AbstractControlAffine):
     m: float = 0.1
     r: float = 0.1
     k: float = 0.1

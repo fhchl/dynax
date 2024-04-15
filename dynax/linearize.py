@@ -13,15 +13,17 @@ from jax import Array
 from .derivative import lie_derivative
 from .system import (
     _CoupledSystemMixin,
+    AbstractControlAffine,
     AbstractSystem,
-    ControlAffine,
     DynamicStateFeedbackSystem,
     LinearSystem,
 )
 
 
 # TODO: make this a method of ControlAffine
-def relative_degree(sys: ControlAffine, xs: Array, output: Optional[int] = None) -> int:
+def relative_degree(
+    sys: AbstractControlAffine, xs: Array, output: Optional[int] = None
+) -> int:
     """Estimate relative degree of system on region xs."""
     if sys.n_inputs not in ["scalar", 1]:
         raise ValueError("System must be single input.")
@@ -57,7 +59,7 @@ def is_controllable(A, B) -> bool:
 
 
 def input_output_linearize(
-    sys: ControlAffine,
+    sys: AbstractControlAffine,
     reldeg: int,
     ref: LinearSystem,
     output: Optional[int] = None,
@@ -279,7 +281,7 @@ class LinearizingSystem(DynamicStateFeedbackSystem):
 
     def __init__(
         self,
-        sys: ControlAffine,
+        sys: AbstractControlAffine,
         refsys: LinearSystem,
         reldeg: int,
         **fb_kwargs,

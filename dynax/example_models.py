@@ -2,13 +2,16 @@ import jax.numpy as jnp
 
 from .custom_types import Array, Scalar
 from .system import (
+    AbstractControlAffine,
     AbstractSystem,
-    ControlAffine,
+    boxed_field,
+    free_field,
     non_negative_field,
     static_field,
 )
 
 
+# Define a general dynamical system by subclassing `AbstractSystem`.
 class SpringMassDamper(AbstractSystem):
     """Forced linear spring-mass-damper system.
 
@@ -16,13 +19,20 @@ class SpringMassDamper(AbstractSystem):
 
     """
 
+    # Define the system parameters as data fields.
     m: float
+    """Mass."""
     r: float
+    """Linear drag."""
     k: float
+    """Stiffness."""
 
+    # The following two fields are aleady defined in `AbstractSystem`. Thus, their
+    # type declarations can be left out.
     initial_state = jnp.zeros(2)
     n_inputs = "scalar"
 
+    # Define the vector field of the system by implementing the `vector_field` method.
     def vector_field(self, x: Array, u: Scalar, t=None) -> Array:
         """The vector field.
 
@@ -39,8 +49,14 @@ class SpringMassDamper(AbstractSystem):
         x1, x2 = x
         return jnp.array([x2, (u - self.r * x2 - self.k * x1) / self.m])
 
+    # This class does not override the `AbstractSystem.output` method. The output is
+    # then the full state vector by default.
 
-class NonlinearDrag(ControlAffine):
+
+# Systems that have a control affine structure can subclass `AbstractControlAffine` and
+# implement the `f`, `g`, and `h` methods. Such systems can often be input-output
+# linearized with the functions in `dynax.linearizate`.
+class NonlinearDrag(AbstractControlAffine):
     """Forced spring-mass-damper system with nonlin drag.
 
     .. math:: m x'' +  r x' + r_2 x'|x'| + k x = u.
@@ -55,6 +71,10 @@ class NonlinearDrag(ControlAffine):
     """Stiffness."""
     m: float
     """Mass."""
+
+    # We can define additional dataclass fields that do not represent trainable
+    # model parameters using the `static_field` function. This function tells JAX that
+    # the field is a constant and should not be differentiated by.
     outputs: list[int] = static_field(default_factory=lambda: [0])
     """Indeces of state vectors that are outputs. Defaults to `[0]`."""
 
@@ -64,7 +84,7 @@ class NonlinearDrag(ControlAffine):
     def f(self, x: Array) -> Array:
         """Constant-input part of the vector field.
 
-        .. math: ẋ = [x_2, (-r x_2 - r_2 |x_2| x_2 - k x_1) / m]^T.
+        .. math: f(x) = [x_2, (-r x_2 - r_2 |x_2| x_2 - k x_1) / m]^T.
 
         """
         x1, x2 = x
@@ -75,16 +95,21 @@ class NonlinearDrag(ControlAffine):
     def g(self, x: Array) -> Array:
         """Input-proportional part of the vector field.
 
-        .. math: ẋ = [0, 1 / m]^T.
+        .. math: g(x) = [0, 1 / m]^T.
 
         """
         return jnp.array([0.0, 1.0 / self.m])
 
     def h(self, x: Array) -> Array:
+        """Output function.
+
+        .. math: y = h(x) = {x_j | j ∈ outputs}.
+
+        """
         return x[jnp.array(self.outputs)]
 
 
-class Sastry9_9(ControlAffine):
+class Sastry9_9(AbstractControlAffine):
     r"""Example 9.9 in :cite:t:`sastry2013nonlinear`.
 
     .. math::
@@ -120,12 +145,16 @@ class LotkaVolterra(AbstractSystem):
 
     """
 
-    alpha: float = non_negative_field()
-    beta: float = non_negative_field()
-    gamma: float = non_negative_field()
-    delta: float = non_negative_field()
+    # The values of parameters can be constrained by initializing them with the
+    # `non_negative_field` and `boxed_field` functions
+    alpha: float = boxed_field(0, jnp.inf, default=0.0)
+    beta: float = boxed_field(0, jnp.inf, default=0.0)
+    gamma: float = boxed_field(0, jnp.inf, default=0.0)
+    delta: float = non_negative_field(default=0.0)  # same as boxed_field(0, jnp.inf)
 
     initial_state = jnp.ones(2) * 0.5
+
+    # Systems without inputs should set n_inputs to zero.
     n_inputs = 0
 
     def vector_field(self, x, u=None, t=None):
@@ -133,3 +162,20 @@ class LotkaVolterra(AbstractSystem):
         return jnp.array(
             [self.alpha * x - self.beta * x * y, self.delta * x * y - self.gamma * y]
         )
+
+
+# We can also subclass already defined systems to further change their behaviour.
+class LotkaVolterraWithTrainableInitialState(LotkaVolterra):
+    # We can release parameter constraints with `free_field`. This will remove
+    # the metadata on the corresponding field, indcating that this parameter is
+    # unconstrained.
+    alpha: float = free_field(default=1.0)
+
+    # In constrast, the following line will not change the constraint on beta parameter,
+    # only its default value, as the metadata of the field is unchanged.
+    beta = 1.0
+
+    # Here we redeclare the initial_state field to be trainable. When default values
+    # with the *_field functions are set to mutable values (which funnily includes
+    # jax.Array), one must use the `default_factory` argument.
+    initial_state: Array = free_field(default_factory=lambda: jnp.ones(2) * 0.5)
