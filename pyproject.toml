@@ -3,20 +3,20 @@ name = "dynax"
 version = "0.0.2"
 description = "Dynamical systems with JAX!"
 readme = "README.rst"
-requires-python =">=3.10"
-license = {file = "LICENSE"}
-authors = [{name = "Franz M. Heuchel", email = "franz.heuchel@pm.me"}]
-keywords = ["jax", "dynamical-systems", "system-identification", "linearization"]
-urls = {repository = "https://github.com/fhchl/dynax"}
-dependencies = ["jax>=0.4.23", "diffrax>=0.5"]
+requires-python = ">=3.10"
+license = { file = "LICENSE" }
+authors = [{ name = "Franz M. Heuchel", email = "franz.heuchel@pm.me" }]
+keywords = [
+    "jax",
+    "dynamical-systems",
+    "system-identification",
+    "linearization",
+]
+urls = { repository = "https://github.com/fhchl/dynax" }
+dependencies = ["jax<=0.4.23", "diffrax>=0.5", "scipy<=1.12"]
 
 [project.optional-dependencies]
-dev = [
-    "pytest",
-    "jupyter",
-    "matplotlib",
-    "pre-commit",
-]
+dev = ["pytest", "jupyter", "matplotlib", "pre-commit"]
 docs = [
     "nbsphinx",
     "sphinx-autobuild",
