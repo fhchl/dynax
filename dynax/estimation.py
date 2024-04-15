@@ -28,7 +28,7 @@ from .system import AbstractSystem
 from .util import broadcast_right, mse, nmse, nrmse, value_and_jacfwd
 
 
-def _get_bounds(module: eqx.Module) -> tuple[Array, Array]:
+def _get_bounds(module: eqx.Module) -> tuple[list[float], list[float]]:
     """Build flattened arrays of lower and upper parameter bounds."""
     lower_bounds = []
     upper_bounds = []
@@ -52,7 +52,7 @@ def _get_bounds(module: eqx.Module) -> tuple[Array, Array]:
             size = np.asarray(value).size
             lower_bounds.extend([-np.inf] * size)
             upper_bounds.extend([np.inf] * size)
-    return jnp.asarray(lower_bounds), jnp.asarray(upper_bounds)
+    return list(lower_bounds), list(upper_bounds)
 
 
 def _key_paths(tree: Any, root: str = "tree") -> list[str]:

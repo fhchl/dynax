@@ -1,7 +1,6 @@
 import typing
 from typing import Callable, TypeAlias
 
-import jax.typing
 import jaxtyping
 
 
@@ -12,8 +11,8 @@ if typing.TYPE_CHECKING:
     from jax import Array as Array
     from jax.typing import ArrayLike as ArrayLike
 
-    Scalar: TypeAlias = jax.Array
-    ScalarLike: TypeAlias = jax.typing.ArrayLike
+    Scalar: TypeAlias = Array
+    ScalarLike: TypeAlias = ArrayLike
 elif generating_docs:
     # In the docs.
     class Scalar:
@@ -33,10 +32,11 @@ elif generating_docs:
         cls.__qualname__ = cls.__name__
 else:
     # At runtime.
-    Array = jax.typing.Array
-    ArrayLike = jax.typing.ArrayLike
-    Scalar = jaxtyping.Shaped[jax.typing.Array, ""]
-    ScalarLike = jaxtyping.Shaped[jax.typing.ArrayLike, ""]
+    from jax import Array
+    from jax.typing import ArrayLike as ArrayLike
+
+    Scalar = jaxtyping.Shaped[Array, ""]
+    ScalarLike = jaxtyping.Shaped[ArrayLike, ""]
 
 
 VectorFunc: TypeAlias = Callable[[Array], Array]
