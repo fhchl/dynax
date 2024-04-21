@@ -1,15 +1,15 @@
 import diffrax as dfx
-import equinox as eqx
+import equinox
 import jax.numpy as jnp
 from jax import Array
 
 
-class InterpolationFunction(eqx.Module):
+class InterpolationFunction(equinox.Module):
     """Interpolating cubic-spline function."""
 
     path: dfx.CubicInterpolation
 
-    def __init__(self, ts, xs):
+    def __init__(self, ts: Array, xs: Array):
         ts = jnp.asarray(ts)
         xs = jnp.asarray(xs)
         if len(ts) != xs.shape[0]:
@@ -17,16 +17,19 @@ class InterpolationFunction(eqx.Module):
         coeffs = dfx.backward_hermite_coefficients(ts, xs)
         self.path = dfx.CubicInterpolation(ts, coeffs)
 
-    def __call__(self, t):
+    def __call__(self, t: float) -> Array:
         return self.path.evaluate(t)
 
 
-def spline_it(t: Array, x: Array) -> InterpolationFunction:
+def spline_it(ts: Array, xs: Array) -> InterpolationFunction:
     """Create an interpolating cubic-spline function.
 
     Args:
-        t: Times.
-        u: Data points with first axis having the same length as `t`.
+        ts: Time sequence.
+        xs: Data points with first axis having the same length as `t`.
+
+    Returns:
+        A function `f(t)` that computes the interpolated value at time `t`.
 
     """
-    return InterpolationFunction(t, x)
+    return InterpolationFunction(ts, xs)
