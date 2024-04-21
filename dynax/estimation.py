@@ -200,13 +200,13 @@ def fit_least_squares(
         A Result object with the following additional attributes.
 
         - `result`: Fitted model.
-        - `pcov`: EsFed covariance of the parameters.
-        - `y_pred`Edicted outputs.
+        - `pcov`: Covariance matrix of the predicted parameters.
+        - `y_pred`: Predicted outputs.
         - `key_paths`: Paths to free parameters of the model, see
-            :py:func:`jax.tree_util.tree_flatten_with_path`.
-        - `mse`: Msquared error.
-        - `nmse`: Nlized mean-squared error.
-        - `nrmse`: Nlized root mean-squared error.
+          :py:func:`jax.tree_util.tree_flatten_with_path`.
+        - `mse`: Mean-squared error.
+        - `nmse`: Normalized mean-squared error.
+        - `nrmse`: Normalized root mean-squared error.
 
     """
     t = jnp.asarray(t)
@@ -508,7 +508,7 @@ def fit_csd_matching(
         - `result`: Fitted model.
         - `pcov`: Estimated covariance of the parameters.
         - `key_paths`: Paths to free parameters of the model, see
-            :py:func:`jax.tree_util.tree_flatten_with_path`.
+          :py:func:`jax.tree_util.tree_flatten_with_path`.
         - `mse`: Mean-squared error.
         - `nmse`: Normalized mean-squared error.
         - `nrmse`: Normalized root mean-squared error.
