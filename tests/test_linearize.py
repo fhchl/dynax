@@ -52,6 +52,24 @@ def test_relative_degree():
     sys = SpringMassDamperWithOutput(out=1)
     assert relative_degree(sys, xs) == 1
 
+    class Allpass(AbstractControlAffine):
+        initial_state = jnp.zeros(1)
+        n_inputs = "scalar"
+
+        def f(self, x):
+            return jnp.array(0.)
+
+        def g(self, x):
+            return jnp.array(0.)
+
+        def h(self, x):
+            return jnp.array(0.)
+
+        def i(self, x):
+            return jnp.array(1.)
+
+    assert relative_degree(Allpass(), xs) == 0
+
 
 def test_discrete_relative_degree():
     xs = np.random.normal(size=(100, 2))
