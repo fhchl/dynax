@@ -85,6 +85,8 @@ intersphinx_mapping = {
     "jaxtyping": ("https://docs.kidger.site/jaxtyping/", None),
     "diffrax": ("https://docs.kidger.site/diffrax/", None),
     "equinox": ("https://docs.kidger.site/equinox/", None),
+    "optimistix": ("https://docs.kidger.site/optimistix/", None),
+    "lineax": ("https://docs.kidger.site/lineax/", None),
     "jax": ("https://jax.readthedocs.io/en/latest/", None),
 }
 
