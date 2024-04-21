@@ -23,6 +23,23 @@ from dynax.linearize import (
 tols = dict(rtol=1e-04, atol=1e-06)
 
 
+class Allpass(AbstractControlAffine):
+    initial_state = jnp.zeros(1)
+    n_inputs = "scalar"
+
+    def f(self, x):
+        return jnp.array(0.)
+
+    def g(self, x):
+        return jnp.array(0.)
+
+    def h(self, x):
+        return jnp.array(0.)
+
+    def i(self, x):
+        return jnp.array(1.)
+
+
 class SpringMassDamperWithOutput(AbstractControlAffine):
     m: float = 0.1
     r: float = 0.1
@@ -52,22 +69,6 @@ def test_relative_degree():
     sys = SpringMassDamperWithOutput(out=1)
     assert relative_degree(sys, xs) == 1
 
-    class Allpass(AbstractControlAffine):
-        initial_state = jnp.zeros(1)
-        n_inputs = "scalar"
-
-        def f(self, x):
-            return jnp.array(0.)
-
-        def g(self, x):
-            return jnp.array(0.)
-
-        def h(self, x):
-            return jnp.array(0.)
-
-        def i(self, x):
-            return jnp.array(1.)
-
     assert relative_degree(Allpass(), xs) == 0
 
 
@@ -78,11 +79,10 @@ def test_discrete_relative_degree():
     sys = SpringMassDamperWithOutput(out=0)
     assert discrete_relative_degree(sys, xs, us) == 2
 
-    with npt.assert_raises(RuntimeError):
-        discrete_relative_degree(sys, xs, us, max_reldeg=1)
-
     sys = SpringMassDamperWithOutput(out=1)
     assert discrete_relative_degree(sys, xs, us) == 1
+
+    assert discrete_relative_degree(Allpass(), xs, us) == 0
 
 
 def test_is_controllable():

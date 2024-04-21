@@ -1,4 +1,4 @@
-"""Functions related to feedback linearization of nonlinear systems."""
+"""Functions related to input-output linearization of nonlinear systems."""
 
 from collections.abc import Callable
 from functools import partial
@@ -20,11 +20,23 @@ from .system import (
 )
 
 
-# TODO: make this a method of ControlAffine
 def relative_degree(
     sys: AbstractControlAffine, xs: Array, output: Optional[int] = None
 ) -> int:
-    """Estimate relative degree of system on region xs."""
+    """Estimate the relative degree of a single-output control-affine system.
+
+    Tests that Lie derivatives of the output function are zero exactly up to the
+    relative degree on the state space samples `xs`.
+
+    Args:
+        sys: Control affine system.
+        xs: Samples of the state space stacked along the first axis.
+        output: Index of the output function if the system has multiple outputs.
+
+    Returns:
+        Established relative degree of the system.
+
+    """
     if sys.n_inputs not in ["scalar", 1]:
         raise ValueError("System must be single input.")
     if output is None:
@@ -42,15 +54,16 @@ def relative_degree(
         else:
             LgLfn1h = lie_derivative(sys.g, lie_derivative(sys.f, h, n - 1))
             res = jax.vmap(LgLfn1h)(xs)
+
         if np.all(res == 0.0):
             continue
         elif np.all(res != 0.0):
             return n
-        else:
-            raise RuntimeError("sys has ill-defined relative degree.")
-    raise RuntimeError("Could not estimate relative degree. Increase max_reldeg.")
+
+    raise RuntimeError("sys has ill-defined relative degree.")
 
 
+# TODO: remove?
 def is_controllable(A, B) -> bool:
     """Test controllability of linear system."""
     n = A.shape[0]
@@ -155,7 +168,6 @@ def discrete_relative_degree(
     sys: AbstractSystem,
     xs: Array,
     us: Array,
-    max_reldeg=10,
     output: Optional[int] = None,
 ):
     """Estimate relative degree of discrete-time system on region xs.
@@ -163,20 +175,28 @@ def discrete_relative_degree(
     See :cite:p:`leeLinearizationNonlinearControl2022{def 7.7.}`.
 
     """
+    if sys.n_inputs not in ["scalar", 1]:
+        raise ValueError("System must be single input.")
+    if output is None:
+        # Make sure system has single output
+        if sys.n_outputs not in ["scalar", 1]:
+            raise ValueError(f"Output is None, but system has {sys.n_outputs} outputs.")
+        h = sys.output
+    else:
+        h = lambda *args, **kwargs: sys.output(*args, **kwargs)[output]
+
     f = sys.vector_field
-    h = sys.output
+    y = lambda n, x, u: h(propagate(f, n, x, u), u)
+    y_depends_u = jax.grad(y, 2)
 
-    y_depends_u = jax.grad(lambda n, x, u: h(propagate(f, n, x, u)), 2)
-
-    for n in range(1, max_reldeg + 1):
+    max_reldeg = jnp.size(sys.initial_state)
+    for n in range(0, max_reldeg + 1):
         res = jax.vmap(partial(y_depends_u, n))(xs, us)
         if np.all(res == 0):
             continue
         elif np.all(res != 0):
             return n
-        else:
-            raise RuntimeError("sys has ill defined relative degree.")
-    raise RuntimeError("Could not estmate relative degree. Increase max_reldeg.")
+    raise RuntimeError("sys has ill defined relative degree.")
 
 
 def discrete_input_output_linearize(
@@ -226,7 +246,7 @@ def discrete_input_output_linearize(
 
 
 class DiscreteLinearizingSystem(AbstractSystem, _CoupledSystemMixin):
-    r"""Dynamics computing linearizing feedback as output."""
+    """Dynamics computing linearizing feedback as output."""
 
     _v: Callable
 
