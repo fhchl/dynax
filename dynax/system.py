@@ -196,62 +196,6 @@ class AbstractSystem(equinox.Module):
         """Return a pretty formatted string representation."""
         return pretty(self)
 
-    # def obs_ident_mat(self, x0, u=None, t=None):
-    #   """Generalized observability-identifiability matrix for constant input.
-
-    #   Villaverde, 2017.
-    #   """
-    #   params, treedef = jax.tree_util.tree_flatten(self)
-
-    #   def f(x, p):
-    #     """Vector-field for argumented state vector xp = [x, p]."""
-    #     model = treedef.unflatten(p)
-    #     return model.vector_field(x, u, t)
-
-    #   def g(x, p):
-    #     """Output function for argumented state vector xp = [x, p]."""
-    #     model = treedef.unflatten(p)
-    #     return model.output(x, t)
-
-    #   params = jnp.array(params)
-    #   O_i = jnp.vstack(
-    #     [jnp.hstack(
-    #       jax.jacfwd(lie_derivative(f, g, n), (0, 1))(x0, params))
-    #       for n in range(self.n_states+self.n_params)])
-
-    #   return O_i
-
-    # def extended_obs_ident_mat(self, x0, u, t=None):
-    #   """Generalized observability-identifiability matrix for constant input.
-
-    #   Villaverde, 2017.
-    #   """
-    #   params, treedef = jax.tree_util.tree_flatten(self)
-
-    #   def f(x, u, p):
-    #     """Vector-field for argumented state vector xp = [x, p]."""
-    #     model = treedef.unflatten(p)
-    #     return model.vector_field(x, u, t)
-
-    #   def g(x, p):
-    #     """Output function for argumented state vector xp = [x, p]."""
-    #     model = treedef.unflatten(p)
-    #     return model.output(x, t)
-
-    #   params = jnp.array(params)
-    #   u = jnp.array(u)
-    #   lies = [extended_lie_derivative(f, g, n)
-    #           for n in range(self.n_states+self.n_params)]
-    #   grad_of_outputs = [jnp.hstack(jax.jacfwd(l, (0, 2))(x0, u, params))
-    #                      for l in lies]
-    #   O_i = jnp.vstack(grad_of_outputs)
-    #   return O_i
-
-    # def test_observability():
-    #   pass# This allows to us to guess the shapes of the state-space mawhen given
-    # as trices 1d-arrays
-    # , we interpet them asumn vectors.
-
 
 # TODO: have output_internals, that makes methods return tuple
 #       (x, pytree_interal_states_x)
