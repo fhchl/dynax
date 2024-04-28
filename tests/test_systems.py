@@ -1,3 +1,4 @@
+import jax.numpy as jnp
 import numpy as np
 import numpy.testing as npt
 
@@ -6,16 +7,16 @@ from dynax import FeedbackSystem, LinearSystem, SeriesSystem
 
 def test_series():
     n1, m1, p1 = 4, 3, 2
-    A1 = np.random.randint(-5, 5, size=(n1, n1))
-    B1 = np.random.randint(-5, 5, size=(n1, m1))
-    C1 = np.random.randint(-5, 5, size=(p1, n1))
-    D1 = np.random.randint(-5, 5, size=(p1, m1))
+    A1 = jnp.array(np.random.randint(-5, 5, size=(n1, n1)))
+    B1 = jnp.array(np.random.randint(-5, 5, size=(n1, m1)))
+    C1 = jnp.array(np.random.randint(-5, 5, size=(p1, n1)))
+    D1 = jnp.array(np.random.randint(-5, 5, size=(p1, m1)))
     sys1 = LinearSystem(A1, B1, C1, D1)
     n2, m2, p2 = 5, p1, 3
-    A2 = np.random.randint(-5, 5, size=(n2, n2))
-    B2 = np.random.randint(-5, 5, size=(n2, m2))
-    C2 = np.random.randint(-5, 5, size=(p2, n2))
-    D2 = np.random.randint(-5, 5, size=(p2, m2))
+    A2 = jnp.array(np.random.randint(-5, 5, size=(n2, n2)))
+    B2 = jnp.array(np.random.randint(-5, 5, size=(n2, m2)))
+    C2 = jnp.array(np.random.randint(-5, 5, size=(p2, n2)))
+    D2 = jnp.array(np.random.randint(-5, 5, size=(p2, m2)))
     sys2 = LinearSystem(A2, B2, C2, D2)
     sys = SeriesSystem(sys1, sys2)
     linsys = sys.linearize()
@@ -29,16 +30,16 @@ def test_series():
 
 def test_feedback():
     n1, m1, p1 = 4, 3, 2
-    A1 = np.random.randint(-5, 5, size=(n1, n1))
-    B1 = np.random.randint(-5, 5, size=(n1, m1))
-    C1 = np.random.randint(-5, 5, size=(p1, n1))
-    D1 = np.zeros((p1, m1))
+    A1 = jnp.array(np.random.randint(-5, 5, size=(n1, n1)))
+    B1 = jnp.array(np.random.randint(-5, 5, size=(n1, m1)))
+    C1 = jnp.array(np.random.randint(-5, 5, size=(p1, n1)))
+    D1 = jnp.array(np.zeros((p1, m1)))
     sys1 = LinearSystem(A1, B1, C1, D1)
     n2, m2, p2 = 5, p1, 3
-    A2 = np.random.randint(-5, 5, size=(n2, n2))
-    B2 = np.random.randint(-5, 5, size=(n2, m2))
-    C2 = np.random.randint(-5, 5, size=(p2, n2))
-    D2 = np.random.randint(-5, 5, size=(p2, m2))
+    A2 = jnp.array(np.random.randint(-5, 5, size=(n2, n2)))
+    B2 = jnp.array(np.random.randint(-5, 5, size=(n2, m2)))
+    C2 = jnp.array(np.random.randint(-5, 5, size=(p2, n2)))
+    D2 = jnp.array(np.random.randint(-5, 5, size=(p2, m2)))
     sys2 = LinearSystem(A2, B2, C2, D2)
     sys = FeedbackSystem(sys1, sys2)
     linsys = sys.linearize()

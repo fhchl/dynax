@@ -99,10 +99,10 @@ def test_is_controllable():
 
 def test_linearize_lin2lin():
     n, m, p = 3, 2, 1
-    A = np.random.normal(size=(n, n))
-    B = np.random.normal(size=(n, m))
-    C = np.random.normal(size=(p, n))
-    D = np.random.normal(size=(p, m))
+    A = jnp.array(np.random.normal(size=(n, n)))
+    B = jnp.array(np.random.normal(size=(n, m)))
+    C = jnp.array(np.random.normal(size=(p, n)))
+    D = jnp.array(np.random.normal(size=(p, m)))
     sys = LinearSystem(A, B, C, D)
     linsys = sys.linearize()
     assert np.allclose(A, linsys.A)

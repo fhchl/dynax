@@ -2,8 +2,8 @@
 
 from abc import abstractmethod
 from collections.abc import Callable
-from dataclasses import field
-from typing import Literal
+from dataclasses import field, Field
+from typing import Literal, Any
 
 import equinox
 import jax
@@ -24,8 +24,15 @@ def _linearize(f, h, x0, u0, t0):
     return A, B, C, D
 
 
-def static_field(**kwargs):
-    """Like `equinox.static_field`, but removes constraints if they exist."""
+def static_field(**kwargs: Any) -> Field:
+    """Mark an attribute value as non-trainable.
+
+    Like :py:func:`equinox.static_field`, but removes constraints if they exist.
+
+    Args:
+        **kwargs: Keyword arguments passed to :py:func:`dataclasses.field`.
+
+    """
     try:
         metadata = dict(kwargs["metadata"])
     except KeyError:
@@ -37,8 +44,15 @@ def static_field(**kwargs):
     return field(**kwargs)
 
 
-def boxed_field(lower: float, upper: float, **kwargs):
-    """Mark a field value as box-constrained."""
+def boxed_field(lower: float, upper: float, **kwargs: Any) -> Field:
+    """Mark an attribute value as trainable and box-constrained on `[lower, upper]`.
+
+    Args:
+        lower: Lower bound.
+        upper: Upper bound.
+        **kwargs: Keyword arguments passed to :py:func:`dataclasses.field`.
+
+    """
     try:
         metadata = dict(kwargs["metadata"])
     except KeyError:
@@ -48,8 +62,13 @@ def boxed_field(lower: float, upper: float, **kwargs):
     return field(**kwargs)
 
 
-def free_field(**kwargs):
-    """Remove the value constraint from attribute, e.g. when subclassing."""
+def free_field(**kwargs: Any) -> Field:
+    """Mark an attribute value as trainable and unconstrained, e.g. when subclassing.
+
+    Args:
+        **kwargs: Keyword arguments passed to :py:func:`dataclasses.field`.
+
+    """
     try:
         metadata = dict(kwargs["metadata"])
     except KeyError:
@@ -59,34 +78,46 @@ def free_field(**kwargs):
     return field(**kwargs)
 
 
-def non_negative_field(min_val: float = 0.0, **kwargs):
-    """Mark a parameter as non-negative."""
+def non_negative_field(min_val: float = 0.0, **kwargs: Any) -> Field:
+    """Mark an attribute value as trainable and non-negative.
+
+    Args:
+        min_val: Minimum value.
+        **kwargs: Keyword arguments passed to :py:func:`dataclasses.field`.
+
+    """
     return boxed_field(lower=min_val, upper=np.inf, **kwargs)
 
 
 class AbstractSystem(equinox.Module):
     r"""Base class for dynamical systems.
 
-    Can be continous
+    Any dynamical system in Dynax must inherit from this class. Subclasses can define
+    continous-time
 
     .. math::
 
         ẋ &= f(x, u, t) \\
         y &= h(x, u, t)
 
-    or discrete
+    or discrete-time
 
     .. math::
 
         x_{k+1} &= f(x_k, u_k, t) \\
         y_k &= h(x_k, u_k, t)
 
-    Subclasses must set values for attributes n_states, n_inputs, and implement the
-    `vector_field` method. Use the optional `output` method to describe measurent
-    equations. Otherwise, the total state is returned as output.
+    system. The distinction between the two is only made when instances of subclasses
+    are passed to objects such as :py:class:`dynax.evolution.Flow`,
+    :py:class:`dynax.evolution.Map`, :py:class:`dynax.linearize.input_output_linearize`,
+    or :py:class:`dynax.linearize.discrete_input_output_linearize`.
 
-    In most cases, it is not needed to define a custom __init__ method, as
-    `AbstractSystem` is a dataclass.
+    Subclasses must set values for the `n_inputs`, and `initial_state` attributes
+    and implement the `vector_field` method. The `output` method describes the measurent
+    equations. By default, the full state vector is returned as output.
+
+    `AbstractSystem` is a dataclass and as such defines a default constructor. Thus it
+    might often not be necessary to implement a costum `__init__` method.
 
     Example::
 
@@ -174,11 +205,11 @@ class AbstractSystem(equinox.Module):
     def linearize(
         self, x0: Array | None = None, u0: Array | None = None, t: float | None = None
     ) -> "LinearSystem":
-        """Compute the approximate linearized system around a point.
+        """Compute the Jacobian linearizationaround a point.
 
         Args:
-            x0: State at which to linearize.
-            u0: Input at which to linearize.
+            x0: State at which to linearize. Defaults to `initial_state`.
+            u0: Input at which to linearize. Defaults to zero input.
             t: Time at which to linearize.
 
         Returns:
@@ -193,25 +224,29 @@ class AbstractSystem(equinox.Module):
         return LinearSystem(A, B, C, D)
 
     def pretty(self) -> str:
-        """Return a pretty formatted string representation."""
+        """Return a pretty formatted string representation.
+
+        The string includes the constrains of all trainable parameters and the values of
+        all parameters.
+        """
         return pretty(self)
-
-
-# TODO: have output_internals, that makes methods return tuple
-#       (x, pytree_interal_states_x)
 
 
 class AbstractControlAffine(AbstractSystem):
     r"""Base class for control-affine dynamical systems.
+
+    Both in continuous-time
 
     .. math::
 
         ẋ &= f(x) + g(x)u \\
         y &= h(x) + i(x)u
 
-    Subclasses must implement the `f` and `g` methods. Optionally, the `h` and `i`
-    methods can be implemented to describe measurement equations. By default, the full
-    state vector is returned as output.
+    or the discrete-time equivalent.
+
+    Subclasses must implement the `f` and `g` methods that characterize the vector
+    field. Optionally, the `h` and `i` methods can be implemented to describe the
+    measurement equations. By default, the full state vector is returned as output.
 
     """
 
@@ -268,40 +303,36 @@ class LinearSystem(AbstractControlAffine):
     D: Array
     """Feedthrough matrix."""
 
-    def __init__(self, A: ArrayLike, B: ArrayLike, C: ArrayLike, D: ArrayLike):
-        self.A = jnp.array(A)
-        self.B = jnp.array(B)
-        self.C = jnp.array(C)
-        self.D = jnp.array(D)
+    def __post_init__(self):
+        self.initial_state = (
+            jnp.array(0) if self.A.ndim == 0 else jnp.zeros(self.A.shape[0])
+        )
 
-    @property
-    def initial_state(self) -> Array:  # type: ignore
-        return jnp.array(0) if self.A.ndim == 0 else jnp.zeros(self.A.shape[0])
-
-    @property
-    def n_inputs(self) -> int | Literal["scalar"]:  # type: ignore
         if self.initial_state.ndim == 0:
             if self.B.ndim == 0:
-                return "scalar"
+                self.n_inputs = "scalar"
             elif self.B.ndim == 1:
-                return self.B.size
+                self.n_inputs = self.B.size
+            else:
+                raise ValueError("Dimension mismatch.")
         else:
             if self.B.ndim == 1:
-                return "scalar"
+                self.n_inputs = "scalar"
             elif self.B.ndim == 2:
-                return self.B.shape[1]
-        raise ValueError("Dimension mismatch.")
+                self.n_inputs = self.B.shape[1]
+            else:
+                raise ValueError("Dimension mismatch.")
 
-    def f(self, x):
+    def f(self, x: Array) -> Array:
         return self.A.dot(x)
 
-    def g(self, x):
+    def g(self, x: Array) -> Array:
         return self.B
 
-    def h(self, x):
+    def h(self, x: Array) -> Array:
         return self.C.dot(x)
 
-    def i(self, x):
+    def i(self, x: Array) -> Array:
         return self.D
 
 
