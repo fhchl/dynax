@@ -1,4 +1,4 @@
-"""Classes for representing dynamical systems."""
+"""Classes representing dynamical systems."""
 
 from abc import abstractmethod
 from collections.abc import Callable
@@ -12,7 +12,7 @@ import numpy as np
 from jax import Array
 
 from .custom_types import ArrayLike
-from .util import dim2shape
+from .util import dim2shape, pretty
 
 
 def _linearize(f, h, x0, u0, t0):
@@ -191,6 +191,10 @@ class AbstractSystem(equinox.Module):
             u0 = jnp.zeros(dim2shape(self.n_inputs))
         A, B, C, D = _linearize(self.vector_field, self.output, x0, u0, t)
         return LinearSystem(A, B, C, D)
+
+    def pretty(self) -> str:
+        """Return a pretty formatted string representation."""
+        return pretty(self)
 
     # def obs_ident_mat(self, x0, u=None, t=None):
     #   """Generalized observability-identifiability matrix for constant input.
