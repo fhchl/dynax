@@ -2,7 +2,7 @@ import typing
 
 
 html_theme = "sphinx_rtd_theme"
-html_static_path = ["_static"]
+# html_static_path = ["_static"]
 
 project = "Dynax"
 copyright = "2023, Franz M. Heuchel"
@@ -67,7 +67,7 @@ always_use_bars_union = True
 
 napoleon_numpy_docstring = False
 napoleon_google_docstring = True
-napoleon_include_init_with_doc = True
+napoleon_include_init_with_doc = False
 napoleon_include_special_with_doc = False
 napoleon_preprocess_types = True
 napoleon_attr_annotations = True

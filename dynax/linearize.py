@@ -26,13 +26,14 @@ def relative_degree(
 ) -> int:
     """Estimate the relative degree of a SISO control-affine system.
 
-    Tests that the Lie derivatives of the output are zero exactly up to the
-    relative-degree order for each state in `xs`.
+    Tests that the Lie derivatives of the output are zero exactly up but not including
+    to the relative-degree'th order for each state in `xs`.
 
     Args:
-        sys: Control affine system.
+        sys: Continous time control-affine system with well defined relative degree and
+            single input and output.
         xs: Samples of the state space stacked along the first axis.
-        output: Optional index of the output if the system has multiple outputs.
+        output: Optional index of the output if `sys` has multiple outputs.
 
     Returns:
         Estimated relative degree of the system.
@@ -83,11 +84,11 @@ def input_output_linearize(
     """Construct an input-output linearizing feedback law.
 
     Args:
-        sys: Control-affine system with well defined relative degree and single input
-            and output.
+        sys: Continous time control-affine system with well defined relative degree and
+            single input and output.
         reldeg: Relative degree of `sys` and lower bound of relative degree of `ref`.
         ref: Linear target system with single input and output.
-        output: Optional index of the output if the `sys` has multiple outputs.
+        output: Optional index of the output if `sys` has multiple outputs.
         asymptotic: If `None`, compute the exactly linearizing law. Otherwise, compute
             an asymptotically linearizing law. Then `asymptotic` is interpreted as the
             sequence of length `reldeg` of coefficients of the characteristic polynomial
@@ -96,7 +97,7 @@ def input_output_linearize(
             effective if asymptotic is not `None`.
 
     Returns:
-        A feedback law `u = u(x, z, v)` that input-output linearizes the system.
+        Feedback law `u = u(x, z, v)` that input-output linearizes the system.
 
     """
     assert sys.n_inputs == ref.n_inputs, "systems have same input dimension"
@@ -181,7 +182,8 @@ def discrete_relative_degree(
     this way, the discrete relative-degree can be interpreted as a system delay.
 
     Args:
-        sys: Concrete dynamical system.
+        sys: Discrete-time dynamical system with well defined relative degree and
+            single input and output.
         xs: Initial state samples stacked along the first axis.
         us: Initial input samples stacked along the first axis.
         output: Optional index of the output if the system has multiple outputs.
@@ -230,7 +232,8 @@ def discrete_input_output_linearize(
     which case the feedback law implements an exact tracking controller.
 
     Args:
-        sys: Concrete dynamical system.
+        sys: Discrete-time dynamical system with well defined relative degree and
+            single input and output.
         reldeg: Relative degree of `sys` and lower bound of relative degree of `ref`.
         ref: Discrete-time reference system.
         output: Optional index of the output if the `sys` has multiple outputs.
@@ -238,7 +241,7 @@ def discrete_input_output_linearize(
             :py:class:`optimistix.Newton` with absolute and relative tolerance `1e-6`.
 
     Returns:
-        A feedback law :math:`u_n = u(x_n, z_n, v_n, u_{n-1})` that input-output
+        Feedback law :math:`u_n = u(x_n, z_n, v_n, u_{n-1})` that input-output
         linearizes the system.
 
     See :cite:p:`leeLinearizationNonlinearControl2022{def 7.4.}`.
@@ -285,7 +288,7 @@ class DiscreteLinearizingSystem(AbstractSystem, _CoupledSystemMixin):
 
     .. math::
 
-        x_{n+1} &= f^{sys}(x_n, v_n)         \\
+        x_{n+1} &= f^{sys}(x_n, v_n)   \\
         z_{n+1} &= f^{ref}(z_n, u_n)   \\
         y_n &= v_n = v(x_n, z_n, u_n)
 
@@ -293,10 +296,11 @@ class DiscreteLinearizingSystem(AbstractSystem, _CoupledSystemMixin):
     :math:`y^{ref}_n = h^{ref}(z_n, u_n)`.
 
     Args:
-        sys: Concrete discrete-time system.
-        refsys: Reference system.
-        reldeg: Relative degree of `sys` and lower bound of relative degree of
-            `refsys`.
+        sys: Discrete-time dynamical system with well defined relative degree and
+            single input and output.
+        ref: Discrete-time reference system.
+        reldeg: Discrete relative degree of `sys` and lower bound of discrete relative
+            degree of `ref`.
         fb_kwargs: Additional keyword arguments passed to
             :py:func:`discrete_input_output_linearize`.
 
@@ -348,9 +352,10 @@ class LinearizingSystem(DynamicStateFeedbackSystem):
     :math:`y^{ref} = Cz + Du`.
 
     Args:
-        sys: Concrete control-affine system.
-        ref: Linear reference system.
-        reldeg: Relative degree of `sys` and lower bound of relative degree of `refsys`.
+        sys: Continous time control-affine system with well defined relative degree and
+            single input and output.
+        ref: Linear target system with single input and output.
+        reldeg: Relative degree of `sys` and lower bound of relative degree of `ref`.
         fb_kwargs: Additional keyword arguments passed to
             :py:func:`input_output_linearize`.
 

@@ -543,6 +543,11 @@ class DynamicStateFeedbackSystem(AbstractSystem, _CoupledSystemMixin):
            +->+ sys2 |
               +------+
 
+    Args:
+        sys1: system with vector field :math:`f_1` and output :math:`h`
+        sys2: system with vector field :math:`f_2`
+        v: dynamic feedback law :math:`v`
+
     """
 
     _v: Callable[[Array, Array, float], float]
@@ -553,13 +558,6 @@ class DynamicStateFeedbackSystem(AbstractSystem, _CoupledSystemMixin):
         sys2: AbstractSystem,
         v: Callable[[Array, Array, Array | float], float],
     ):
-        r"""
-        Args:
-            sys1: system with vector field :math:`f_1` and output :math:`h`
-            sys2: system with vector field :math:`f_2`
-            v: dynamic feedback law :math:`v`
-
-        """
         self._sys1 = sys1
         self._sys2 = sys2
         self._v = staticmethod(v)
