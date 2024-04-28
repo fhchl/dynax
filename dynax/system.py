@@ -340,7 +340,7 @@ class _CoupledSystemMixin(equinox.Module):
     _sys1: AbstractSystem
     _sys2: AbstractSystem
 
-    def _pack_states(self, x1, x2) -> Array:
+    def _pack_states(self, x1: Array, x2: Array) -> Array:
         return jnp.concatenate(
             (
                 jnp.atleast_1d(x1),
@@ -348,7 +348,7 @@ class _CoupledSystemMixin(equinox.Module):
             )
         )
 
-    def _unpack_states(self, x):
+    def _unpack_states(self, x: Array) -> tuple[Array, Array]:
         sys1_size = (
             1
             if jnp.ndim(self._sys1.initial_state) == 0
@@ -376,28 +376,28 @@ class SeriesSystem(AbstractSystem, _CoupledSystemMixin):
         u --+->+ sys1 +--y1->+ sys2 +--> y2
                +------+      +------+
 
+    Args:
+        sys1: System with :math:`n` outputs.
+        sys2: System with :math:`n` inputs.
+
     """
 
     def __init__(self, sys1: AbstractSystem, sys2: AbstractSystem):
-        """
-        Args:
-            sys1: system with n outputs
-            sys2: system with n inputs
-
-        """
         self._sys1 = sys1
         self._sys2 = sys2
         self.initial_state = self._pack_states(sys1.initial_state, sys2.initial_state)
         self.n_inputs = sys1.n_inputs
 
-    def vector_field(self, x, u=None, t=None):
+    def vector_field(
+        self, x: Array, u: Array | None = None, t: float | None = None
+    ) -> Array:
         x1, x2 = self._unpack_states(x)
         y1 = self._sys1.output(x1, u, t)
         dx1 = self._sys1.vector_field(x1, u, t)
         dx2 = self._sys2.vector_field(x2, y1, t)
         return self._pack_states(dx1, dx2)
 
-    def output(self, x, u=None, t=None):
+    def output(self, x: Array, u: Array | None = None, t: float | None = None) -> Array:
         x1, x2 = self._unpack_states(x)
         y1 = self._sys1.output(x1, u, t)
         y2 = self._sys2.output(x2, y1, t)
@@ -412,7 +412,7 @@ class FeedbackSystem(AbstractSystem, _CoupledSystemMixin):
         ẋ_1 &= f_1(x_1, u + y_2, t) \\
         y_1 &= h_1(x_1, t)          \\
         ẋ_2 &= f_2(x_2, y_1, t)     \\
-        y_2 &= h_2(x_2, y_1, t)     \\
+        y_2 &= h_2(x_2, y_1, t)
 
     .. aafig::
 
@@ -424,23 +424,23 @@ class FeedbackSystem(AbstractSystem, _CoupledSystemMixin):
             +--+ sys2 |<-+
                +------+
 
+    Args:
+        sys1: System in forward path with :math:`n` inputs.
+        sys2: System in feedback path with :math:`n` outputs.
+
     """
 
     def __init__(self, sys1: AbstractSystem, sys2: AbstractSystem):
-        """
-        Args:
-            sys1: system in forward path with n inputs
-            sys2: system in feedback path with n outputs
-
-        """
         self._sys1 = sys1
         self._sys2 = sys2
         self.initial_state = self._pack_states(sys1.initial_state, sys2.initial_state)
         self.n_inputs = sys1.n_inputs
 
-    def vector_field(self, x, u=None, t=None):
+    def vector_field(
+        self, x: Array, u: Array | None = None, t: float | None = None
+    ) -> Array:
         if u is None:
-            u = np.zeros(dim2shape(self._sys1.n_inputs))
+            u = jnp.zeros(dim2shape(self._sys1.n_inputs))
         x1, x2 = self._unpack_states(x)
         y1 = self._sys1.output(x1, None, t)
         y2 = self._sys2.output(x2, y1, t)
@@ -449,7 +449,7 @@ class FeedbackSystem(AbstractSystem, _CoupledSystemMixin):
         dx = self._pack_states(dx1, dx2)
         return dx
 
-    def output(self, x, u=None, t=None):
+    def output(self, x: Array, u: Array | None = None, t: float | None = None) -> Array:
         x1, _ = self._unpack_states(x)
         y = self._sys1.output(x1, None, t)
         return y
@@ -474,18 +474,16 @@ class StaticStateFeedbackSystem(AbstractSystem):
             +--+ "v(x)" +<----+
                +--------+
 
+    Args:
+        sys: System with vector field :math:`f` and output :math:`h`.
+        v: Static feedback law :math:`v`.
+
     """
 
     _sys: AbstractSystem
     _v: Callable[[Array], Array]
 
     def __init__(self, sys: AbstractSystem, v: Callable[[Array], Array]):
-        """
-        Args:
-            sys: system with vector field `f` and output `h`
-            v: static feedback law `v`
-
-        """
         self._sys = sys
         self._v = staticmethod(v)
         self.initial_state = sys.initial_state
@@ -523,9 +521,9 @@ class DynamicStateFeedbackSystem(AbstractSystem, _CoupledSystemMixin):
               +------+
 
     Args:
-        sys1: system with vector field :math:`f_1` and output :math:`h`
-        sys2: system with vector field :math:`f_2`
-        v: dynamic feedback law :math:`v`
+        sys1: System with vector field :math:`f_1` and output :math:`h`.
+        sys2: System with vector field :math:`f_2`.
+        v: dynamic feedback law :math:`v`.
 
     """
 
