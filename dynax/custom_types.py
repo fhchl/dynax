@@ -1,7 +1,8 @@
 import typing
-from typing import Callable, TypeAlias
+from typing import Callable, TypeAlias, Union
 
 import jaxtyping
+import numpy as np
 
 
 generating_docs = getattr(typing, "GENERATING_DOCUMENTATION", False)
@@ -13,6 +14,7 @@ if typing.TYPE_CHECKING:
 
     Scalar: TypeAlias = Array
     ScalarLike: TypeAlias = ArrayLike
+    FloatScalarLike = Union[float, Array, np.ndarray]
 elif generating_docs:
     # In the docs.
     class Scalar:
@@ -27,6 +29,8 @@ elif generating_docs:
     class ArrayLike:
         pass
 
+    FloatScalarLike = float
+
     for cls in (Scalar, ScalarLike, Array, ArrayLike):
         cls.__module__ = "builtins"
         cls.__qualname__ = cls.__name__
@@ -37,6 +41,7 @@ else:
 
     Scalar = jaxtyping.Shaped[Array, ""]
     ScalarLike = jaxtyping.Shaped[ArrayLike, ""]
+    FloatScalarLike = jaxtyping.Float[ArrayLike, ""]
 
 
 VectorFunc: TypeAlias = Callable[[Array], Array]

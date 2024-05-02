@@ -2,8 +2,8 @@
 
 from abc import abstractmethod
 from collections.abc import Callable
-from dataclasses import field, Field
-from typing import Literal, Any
+from dataclasses import Field, field
+from typing import Any, Literal
 
 import equinox
 import jax
@@ -11,7 +11,7 @@ import jax.numpy as jnp
 import numpy as np
 from jax import Array
 
-from .custom_types import ArrayLike
+from .custom_types import FloatScalarLike
 from .util import dim2shape, pretty
 
 
@@ -165,7 +165,7 @@ class AbstractSystem(equinox.Module):
 
     @abstractmethod
     def vector_field(
-        self, x: Array, u: Array | None = None, t: float | None = None
+        self, x: Array, u: Array | None = None, t: FloatScalarLike | None = None
     ) -> Array:
         """Compute state derivative.
 
@@ -180,7 +180,9 @@ class AbstractSystem(equinox.Module):
         """
         raise NotImplementedError
 
-    def output(self, x: Array, u: Array | None = None, t: float | None = None) -> Array:
+    def output(
+        self, x: Array, u: Array | None = None, t: FloatScalarLike | None = None
+    ) -> Array:
         """Compute output.
 
         Args:
@@ -203,7 +205,10 @@ class AbstractSystem(equinox.Module):
         return "scalar" if y.ndim == 0 else y.shape[0]
 
     def linearize(
-        self, x0: Array | None = None, u0: Array | None = None, t: float | None = None
+        self,
+        x0: Array | None = None,
+        u0: Array | None = None,
+        t: FloatScalarLike | None = None,
     ) -> "LinearSystem":
         """Compute the Jacobian linearizationaround a point.
 
@@ -389,7 +394,7 @@ class SeriesSystem(AbstractSystem, _CoupledSystemMixin):
         self.n_inputs = sys1.n_inputs
 
     def vector_field(
-        self, x: Array, u: Array | None = None, t: float | None = None
+        self, x: Array, u: Array | None = None, t: FloatScalarLike | None = None
     ) -> Array:
         x1, x2 = self._unpack_states(x)
         y1 = self._sys1.output(x1, u, t)
@@ -397,7 +402,9 @@ class SeriesSystem(AbstractSystem, _CoupledSystemMixin):
         dx2 = self._sys2.vector_field(x2, y1, t)
         return self._pack_states(dx1, dx2)
 
-    def output(self, x: Array, u: Array | None = None, t: float | None = None) -> Array:
+    def output(
+        self, x: Array, u: Array | None = None, t: FloatScalarLike | None = None
+    ) -> Array:
         x1, x2 = self._unpack_states(x)
         y1 = self._sys1.output(x1, u, t)
         y2 = self._sys2.output(x2, y1, t)
@@ -437,7 +444,7 @@ class FeedbackSystem(AbstractSystem, _CoupledSystemMixin):
         self.n_inputs = sys1.n_inputs
 
     def vector_field(
-        self, x: Array, u: Array | None = None, t: float | None = None
+        self, x: Array, u: Array | None = None, t: FloatScalarLike | None = None
     ) -> Array:
         if u is None:
             u = jnp.zeros(dim2shape(self._sys1.n_inputs))
@@ -449,7 +456,9 @@ class FeedbackSystem(AbstractSystem, _CoupledSystemMixin):
         dx = self._pack_states(dx1, dx2)
         return dx
 
-    def output(self, x: Array, u: Array | None = None, t: float | None = None) -> Array:
+    def output(
+        self, x: Array, u: Array | None = None, t: FloatScalarLike | None = None
+    ) -> Array:
         x1, _ = self._unpack_states(x)
         y = self._sys1.output(x1, None, t)
         return y
