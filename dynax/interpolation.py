@@ -18,6 +18,7 @@ class InterpolationFunction(equinox.Module):
         self.path = dfx.CubicInterpolation(ts, coeffs)
 
     def __call__(self, t: float) -> Array:
+        """Evaluate the interpolating function at time `t`."""
         return self.path.evaluate(t)
 
 
