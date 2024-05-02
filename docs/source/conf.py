@@ -34,11 +34,11 @@ exclude_patterns = ["_build", "Thumbs.db", ".DS_Store"]
 
 autosummary_generate = True
 autodoc_member_order = "bysource"
-autodoc_default_flags = ["show-inheritance", "members", "inherited-members"]
 autodoc_default_options = {
     "members": True,
     "inherited-members": False,
     "show-inheritance": True,
+    "special-members": "__call__",
 }
 autoclass_content = "both"
 autodoc_typehints = "signature"
