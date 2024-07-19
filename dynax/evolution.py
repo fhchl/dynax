@@ -14,7 +14,7 @@ from diffrax import (
     ODETerm,
     SaveAt,
 )
-from equinox import Module, static_field
+from equinox import filter_eval_shape, Module, static_field
 from jax import Array
 from jaxtyping import PyTree
 
@@ -125,7 +125,7 @@ class Flow(AbstractEvolution):
             raise ValueError("Must specify one of u, ufun, or ucoeffs.")
 
         # Check shape of ufun return values.
-        out = jax.eval_shape(_ufun, 0.0)
+        out = filter_eval_shape(_ufun, 0.0)
         if not isinstance(out, jax.ShapeDtypeStruct):
             raise ValueError(f"ufun must return Arrays, not {type(out)}.")
         else:

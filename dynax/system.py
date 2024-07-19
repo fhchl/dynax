@@ -5,7 +5,7 @@ from collections.abc import Callable
 from dataclasses import Field, field
 from typing import Any, Literal
 
-import equinox
+import equinox as eqx
 import jax
 import jax.numpy as jnp
 import numpy as np
@@ -89,7 +89,7 @@ def non_negative_field(min_val: float = 0.0, **kwargs: Any) -> Field:
     return boxed_field(lower=min_val, upper=np.inf, **kwargs)
 
 
-class AbstractSystem(equinox.Module):
+class AbstractSystem(eqx.Module):
     r"""Base class for dynamical systems.
 
     Any dynamical system in Dynax must inherit from this class. Subclasses can define
@@ -151,8 +151,8 @@ class AbstractSystem(equinox.Module):
         x = self.initial_state
         u = jax.ShapeDtypeStruct(dim2shape(self.n_inputs), jnp.float64)
         try:
-            dx = jax.eval_shape(self.vector_field, x, u, t=1.0)
-            y = jax.eval_shape(self.output, x, u, t=1.0)
+            dx = eqx.filter_eval_shape(self.vector_field, x, u, t=1.0)
+            y = eqx.filter_eval_shape(self.output, x, u, t=1.0)
         except Exception as e:
             raise ValueError(
                 "Can not evaluate output shapes. Check your definitions!"
@@ -201,7 +201,7 @@ class AbstractSystem(equinox.Module):
         """The size of the output vector."""
         x = self.initial_state
         u = jax.ShapeDtypeStruct(dim2shape(self.n_inputs), jnp.float64)
-        y = jax.eval_shape(self.output, x, u, t=1.0)
+        y = eqx.filter_eval_shape(self.output, x, u, t=1.0)
         return "scalar" if y.ndim == 0 else y.shape[0]
 
     def linearize(
@@ -341,7 +341,7 @@ class LinearSystem(AbstractControlAffine):
         return self.D
 
 
-class _CoupledSystemMixin(equinox.Module):
+class _CoupledSystemMixin(eqx.Module):
     _sys1: AbstractSystem
     _sys2: AbstractSystem
 

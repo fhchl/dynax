@@ -227,6 +227,7 @@ def test_transfer_function():
     npt.assert_array_almost_equal(H, H_true)
 
 
+# FIXME: this test fails in jax>0.4.23 when run with others, but succeeds alone ...
 def test_csd_matching():
     np.random.seed(123)
     # model
