@@ -16,7 +16,7 @@ urls = { repository = "https://github.com/fhchl/dynax" }
 dependencies = ["jax<=0.4.23", "diffrax>=0.5", "scipy<=1.12"]
 
 [project.optional-dependencies]
-dev = ["pytest", "jupyter", "matplotlib", "pre-commit"]
+dev = ["pytest", "jupyter", "matplotlib", "pre-commit", "ruff<0.6"]
 docs = [
     "nbsphinx",
     "sphinx-autobuild",
@@ -40,6 +40,12 @@ requires = ["hatchling"]
 build-backend = "hatchling.build"
 
 [tool.ruff]
+line-length = 88
+src = ["dynax", "tests", "examples"]
+force-exclude = true
+extend-include = ["*.ipynb"]
+
+[tool.ruff.lint]
 select = ["E", "F", "I001", "B"]
 ignore = [
     "E402", # Module level import not at top of file
@@ -47,14 +53,9 @@ ignore = [
     "E731", # Do not assign a lambda expression, use a def (E731)
     "E741", # Do not use variables named 'I', 'O', or 'l'
 ]
-ignore-init-module-imports = true
 fixable = ["I001", "F401"]
-line-length = 88
-src = ["dynax", "tests", "examples"]
-force-exclude = true
-extend-include = ["*.ipynb"]
 
-[tool.ruff.isort]
+[tool.ruff.lint.isort]
 combine-as-imports = true
 lines-after-imports = 2
 order-by-type = false

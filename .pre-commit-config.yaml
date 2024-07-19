@@ -1,12 +1,10 @@
 repos:
   - repo: https://github.com/astral-sh/ruff-pre-commit
-    rev: 'v0.1.15'
+    rev: 'v0.5.3'
     hooks:
       - id: ruff
         args: [--fix]
+        types_or: [ python, pyi, jupyter ]
       - id: ruff-format
-  - repo: https://github.com/nbQA-dev/nbQA
-    rev: 1.7.1
-    hooks:
-    - id: nbqa-ruff
-      args: [--fix]
+        types_or: [ python, pyi, jupyter ]
+        args: [--fix]
