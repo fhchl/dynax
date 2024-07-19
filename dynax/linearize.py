@@ -72,6 +72,7 @@ def is_controllable(A, B) -> bool:
     contrmat = np.hstack([np.linalg.matrix_power(A, ni).dot(B) for ni in range(n)])
     return np.linalg.matrix_rank(contrmat) == n
 
+
 # TODO: Adapt to general nonlinear reference system.
 def input_output_linearize(
     sys: AbstractControlAffine,

@@ -28,16 +28,16 @@ class Allpass(AbstractControlAffine):
     n_inputs = "scalar"
 
     def f(self, x):
-        return jnp.array(0.)
+        return jnp.array(0.0)
 
     def g(self, x):
-        return jnp.array(0.)
+        return jnp.array(0.0)
 
     def h(self, x):
-        return jnp.array(0.)
+        return jnp.array(0.0)
 
     def i(self, x):
-        return jnp.array(1.)
+        return jnp.array(1.0)
 
 
 class SpringMassDamperWithOutput(AbstractControlAffine):
