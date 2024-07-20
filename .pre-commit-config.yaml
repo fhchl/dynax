@@ -7,4 +7,3 @@ repos:
         types_or: [ python, pyi, jupyter ]
       - id: ruff-format
         types_or: [ python, pyi, jupyter ]
-        args: [--fix]
