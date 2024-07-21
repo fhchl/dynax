@@ -147,9 +147,9 @@ class LotkaVolterra(AbstractSystem):
 
     # The values of parameters can be constrained by initializing them with the
     # `non_negative_field` and `boxed_field` functions
-    alpha: float = boxed_field(0, jnp.inf, default=0.0)
-    beta: float = boxed_field(0, jnp.inf, default=0.0)
-    gamma: float = boxed_field(0, jnp.inf, default=0.0)
+    alpha: float = boxed_field(0.0, jnp.inf, default=0.0)
+    beta: float = boxed_field(0.0, jnp.inf, default=0.0)
+    gamma: float = boxed_field(0.0, jnp.inf, default=0.0)
     delta: float = non_negative_field(default=0.0)  # same as boxed_field(0, jnp.inf)
 
     initial_state = jnp.ones(2) * 0.5
