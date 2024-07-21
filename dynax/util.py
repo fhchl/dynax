@@ -4,38 +4,6 @@ from typing import Literal
 import equinox
 import jax
 import jax.numpy as jnp
-from jax import Array
-
-from .custom_types import ArrayLike
-
-
-def ssmatrix(data: ArrayLike, axis: int = 0) -> Array:
-    """Convert argument to a (possibly empty) 2D state space matrix.
-
-    The axis keyword argument makes it convenient to specify that if the input
-    is a vector, it is a row (axis=1) or column (axis=0) vector.
-    """
-    arr = jnp.array(data, dtype=float)
-    ndim = arr.ndim
-    shape = arr.shape
-
-    # Change the shape of the array into a 2D array
-    if ndim > 2:
-        raise ValueError("state-space matrix must be 2-dimensional")
-    elif arr.size == 0:
-        # Passed an empty matrix or empty vector; change shape to (0, 0)
-        shape = (0, 0)
-    elif ndim == 1:
-        # Passed a row or column vector
-        shape = (1, shape[0]) if axis == 1 else (shape[0], 1)
-    elif ndim == 0:
-        # Passed a constant; turn into a matrix
-        shape = (1, 1)
-    else:
-        assert ndim == 2
-
-    #  Create the actual object used to store the result
-    return arr.reshape(shape)
 
 
 def value_and_jacfwd(f, x):
