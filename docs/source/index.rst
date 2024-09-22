@@ -17,12 +17,12 @@ linearization of dynamical systems. It combines `JAX`_,
 
 .. note::
 
-   This project is under active development.
+   This project is under active development. The documentation is not there yet.
 
 .. toctree::
    :maxdepth: 2
    :caption: Contents:
-   
+
    quick-start
    user-guide
    examples
