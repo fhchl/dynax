@@ -384,21 +384,23 @@ def fit_multiple_shooting(
     # Each segment's time starts at 0.
     ts0 = ts - ts[:, :1]
 
-    # prepare optimization
-    init_params, unravel = ravel_pytree((x0s, model))
-    std_y = np.std(y, axis=0)
-    parameter_bounds = _get_bounds(model)
+    # Prepare optimization.
+    model_params, param_bounds, unravel_model = ravel_and_bounds(model)
+    init_params, unravel_params = ravel_pytree((x0s, model_params))
+
     state_bounds = (
         (num_shots - 1) * n_states * [-np.inf],
         (num_shots - 1) * n_states * [np.inf],
     )
     bounds = (
-        state_bounds[0] + parameter_bounds[0],
-        state_bounds[1] + parameter_bounds[1],
+        state_bounds[0] + param_bounds[0],
+        state_bounds[1] + param_bounds[1],
     )
+    std_y = np.std(y, axis=0)
 
     def residuals(params):
-        x0s, model = unravel(params)
+        x0s, model_params = unravel_params(params)
+        model = unravel_model(model_params)
         x0s = jnp.concatenate((model.system.initial_state[None], x0s), axis=0)
         xs_pred, ys_pred = jax.vmap(model)(t=ts0, ucoeffs=ucoeffs, initial_state=x0s)
         # output residual
@@ -412,7 +414,8 @@ def fit_multiple_shooting(
 
     res = _least_squares(residuals, init_params, bounds, x_scale=False, **kwargs)
 
-    x0s, res.result = unravel(res.x)
+    x0s, model_params = unravel_params(res.x)
+    res.result = unravel_model(model_params)
     res.x0s = jnp.concatenate((res.result.system.initial_state[None], x0s), axis=0)
     res.ts = np.asarray(ts)
     res.ts0 = np.asarray(ts0)
