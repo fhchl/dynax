@@ -37,21 +37,24 @@ def _get_bounds(module: eqx.Module) -> tuple[list[float], list[float]]:
         value = module.__dict__.get(name, None)
         if value is None:
             continue
-        elif field_.metadata.get("static", False):
-            continue
+        # elif field_.metadata.get("static", False):
+        #     continue
         elif isinstance(value, eqx.Module):
             lbs, ubs = _get_bounds(value)
             lower_bounds.extend(lbs)
             upper_bounds.extend(ubs)
         elif constraint := field_.metadata.get("constrained", False):
+            assert isinstance(value, jax.Array)
             _, (lb, ub) = constraint  # type: ignore
             size = np.asarray(value).size
             lower_bounds.extend([lb] * size)
             upper_bounds.extend([ub] * size)
-        else:
+        elif isinstance(value, jax.Array):
             size = np.asarray(value).size
             lower_bounds.extend([-np.inf] * size)
             upper_bounds.extend([np.inf] * size)
+        else:
+            continue
     return list(lower_bounds), list(upper_bounds)
 
 
@@ -127,7 +130,7 @@ def _least_squares(
         f = lambda params: ___f(params * norm)
         bounds = (np.array(bounds[0]) / norm, np.array(bounds[1]) / norm)
 
-    fun = MemoizeJac(jax.jit(lambda x: value_and_jacfwd(f, x)))
+    fun = MemoizeJac(eqx.filter_jit(lambda x: value_and_jacfwd(f, x)))
     jac = fun.derivative
     res = least_squares(
         fun,
@@ -155,6 +158,19 @@ def _least_squares(
         res.cost = np.sum(res.fun**2) / 2
 
     return res
+
+
+def ravel_and_bounds(pytree):
+    params, static = eqx.partition(pytree, lambda x: isinstance(x, jax.Array))
+    params_flat, _unravel = ravel_pytree(params)
+    bounds = _get_bounds(params)
+
+    def unravel(params_flat: np.ndarray):
+        params = _unravel(params_flat)
+        pytree = eqx.combine(params, static)
+        return pytree
+
+    return params_flat, bounds, unravel
 
 
 def fit_least_squares(
@@ -233,8 +249,7 @@ def fit_least_squares(
     else:
         ucoeffs = None
 
-    init_params, unravel = ravel_pytree(model)
-    bounds = _get_bounds(model)
+    init_params, bounds, unravel = ravel_and_bounds(model)
 
     param_bias = 0
     if reg_bias == "initial":
@@ -248,8 +263,8 @@ def fit_least_squares(
         cov_prior = None
         reg_term = None
 
-    def residual_term(params):
-        model = unravel(params)
+    def residual_term(params_flat):
+        model = unravel(params_flat)
         if batched:
             # this can use pmap, if batch size is smaller than CPU cores
             model = jax.vmap(model)

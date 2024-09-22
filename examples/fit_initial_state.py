@@ -6,10 +6,10 @@ import numpy as np
 
 from dynax import (
     AbstractControlAffine,
+    field,
     fit_csd_matching,
     fit_least_squares,
     Flow,
-    free_field,
 )
 
 
@@ -29,14 +29,14 @@ class NonlinearDrag(AbstractControlAffine):
     """
 
     # Declare parameters as dataclass fields.
-    m: float
-    r: float
-    r2: float
-    k: float
+    m: float = field()
+    r: float = field()
+    r2: float = field()
+    k: float = field()
 
     # The initial_state attribute is static by default. If we want to make it learnable
-    # we must declare it using the `free_field` function.
-    initial_state: jnp.ndarray = free_field(init=True)
+    # we must declare it using the `field` function.
+    initial_state: jnp.ndarray = field(init=True)
 
     n_inputs = "scalar"
 

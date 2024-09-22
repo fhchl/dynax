@@ -25,7 +25,7 @@ from .system import (
     boxed_field as boxed_field,
     DynamicStateFeedbackSystem as DynamicStateFeedbackSystem,
     FeedbackSystem as FeedbackSystem,
-    free_field as free_field,
+    field as field,
     LinearSystem as LinearSystem,
     non_negative_field as non_negative_field,
     SeriesSystem as SeriesSystem,

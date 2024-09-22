@@ -125,12 +125,15 @@ class Flow(AbstractEvolution):
             raise ValueError("Must specify one of u, ufun, or ucoeffs.")
 
         # Check shape of ufun return values.
-        out = filter_eval_shape(_ufun, 0.0)
-        if not isinstance(out, jax.ShapeDtypeStruct):
-            raise ValueError(f"ufun must return Arrays, not {type(out)}.")
+        _u = filter_eval_shape(_ufun, 0.0)
+        if not isinstance(_u, jax.ShapeDtypeStruct):
+            raise ValueError(f"ufun must return Arrays, not {type(_u)}.")
         else:
-            if not out.shape == dim2shape(self.system.n_inputs):
-                raise ValueError("Input dimensions do not match.")
+            if not _u.shape == dim2shape(self.system.n_inputs):
+                raise ValueError(
+                    f"Input dimensions do not match: inputs have shape {_u.shape}, but"
+                    f"system.n_inputs is {self.system.n_inputs}"
+                )
 
         # Solve ODE.
         diffeqsolve_default_options = dict(

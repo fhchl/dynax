@@ -2,8 +2,8 @@
 
 from abc import abstractmethod
 from collections.abc import Callable
-from dataclasses import Field, field
-from typing import Any, Literal
+from dataclasses import Field
+from typing import Any, Literal, TypeVar
 
 import equinox as eqx
 import jax
@@ -24,10 +24,18 @@ def _linearize(f, h, x0, u0, t0):
     return A, B, C, D
 
 
-def static_field(**kwargs: Any) -> Field:
-    """Mark an attribute value as non-trainable.
+T = TypeVar("T")
 
-    Like :py:func:`equinox.static_field`, but removes constraints if they exist.
+
+def _to_static_array(x: T) -> np.ndarray | T:
+    if isinstance(x, jax.Array):
+        return np.asarray(x)
+    else:
+        return x
+
+
+def field(**kwargs: Any) -> Field:
+    """Mark an attribute value as trainable and unconstrained.
 
     Args:
         **kwargs: Keyword arguments passed to :py:func:`dataclasses.field`.
@@ -37,11 +45,26 @@ def static_field(**kwargs: Any) -> Field:
         metadata = dict(kwargs["metadata"])
     except KeyError:
         metadata = kwargs["metadata"] = {}
-    if "static" in metadata:
-        raise ValueError("Cannot use metadata with `static` already set.")
-    metadata["static"] = True
     metadata["constrained"] = False
-    return field(**kwargs)
+    return eqx.field(converter=jnp.asarray, **kwargs)
+
+
+def static_field(**kwargs: Any) -> Field:
+    """Mark an attribute value as non-trainable.
+
+    Like :py:func:`equinox.field`, but removes constraints if they exist and converts
+    JAX arrays to Numpy arrays.
+
+    Args:
+        **kwargs: Keyword arguments passed to :py:func:`eqx.field`.
+
+    """
+    try:
+        metadata = dict(kwargs["metadata"])
+    except KeyError:
+        metadata = kwargs["metadata"] = {}
+    metadata["constrained"] = False
+    return eqx.field(converter=_to_static_array, **kwargs)
 
 
 def boxed_field(lower: float, upper: float, **kwargs: Any) -> Field:
@@ -58,23 +81,6 @@ def boxed_field(lower: float, upper: float, **kwargs: Any) -> Field:
     except KeyError:
         metadata = kwargs["metadata"] = {}
     metadata["constrained"] = ("boxed", (lower, upper))
-    metadata["static"] = False
-    return field(**kwargs)
-
-
-def free_field(**kwargs: Any) -> Field:
-    """Mark an attribute value as trainable and unconstrained, e.g. when subclassing.
-
-    Args:
-        **kwargs: Keyword arguments passed to :py:func:`dataclasses.field`.
-
-    """
-    try:
-        metadata = dict(kwargs["metadata"])
-    except KeyError:
-        metadata = kwargs["metadata"] = {}
-    metadata["static"] = False
-    metadata["constrained"] = False
     return field(**kwargs)
 
 
@@ -135,7 +141,8 @@ class AbstractSystem(eqx.Module):
 
     """
 
-    initial_state: Array = static_field(init=False)
+    # TODO: make these abstract vars?
+    initial_state: np.ndarray = static_field(init=False)
     """Initial state vector."""
     n_inputs: int | Literal["scalar"] = static_field(init=False)
     """Number of inputs."""

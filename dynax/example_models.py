@@ -1,11 +1,12 @@
 import jax.numpy as jnp
+import numpy as np
 
 from .custom_types import Array, Scalar
 from .system import (
     AbstractControlAffine,
     AbstractSystem,
     boxed_field,
-    free_field,
+    field,
     non_negative_field,
     static_field,
 )
@@ -20,16 +21,16 @@ class SpringMassDamper(AbstractSystem):
     """
 
     # Define the system parameters as data fields.
-    m: float
+    m: float = field()
     """Mass."""
-    r: float
+    r: float = field()
     """Linear drag."""
-    k: float
+    k: float = field()
     """Stiffness."""
 
     # The following two fields are aleady defined in `AbstractSystem`. Thus, their
     # type declarations can be left out.
-    initial_state = jnp.zeros(2)
+    initial_state = np.zeros(2)
     n_inputs = "scalar"
 
     # Define the vector field of the system by implementing the `vector_field` method.
@@ -63,13 +64,13 @@ class NonlinearDrag(AbstractControlAffine):
 
     """
 
-    r: float
+    r: Array = field()
     """Linear drag."""
-    r2: float
+    r2: Array = field()
     """Nonlinear drag."""
-    k: float
+    k: Array = field()
     """Stiffness."""
-    m: float
+    m: Array = field()
     """Mass."""
 
     # We can define additional dataclass fields that do not represent trainable
@@ -166,10 +167,10 @@ class LotkaVolterra(AbstractSystem):
 
 # We can also subclass already defined systems to further change their behaviour.
 class LotkaVolterraWithTrainableInitialState(LotkaVolterra):
-    # We can release parameter constraints with `free_field`. This will remove
+    # We can release parameter constraints with `field`. This will remove
     # the metadata on the corresponding field, indcating that this parameter is
     # unconstrained.
-    alpha: float = free_field(default=1.0)
+    alpha: float = field(default=1.0)
 
     # In constrast, the following line will not change the constraint on beta parameter,
     # only its default value, as the metadata of the field is unchanged.
@@ -178,4 +179,4 @@ class LotkaVolterraWithTrainableInitialState(LotkaVolterra):
     # Here we redeclare the initial_state field to be trainable. When default values
     # with the *_field functions are set to mutable values (which funnily includes
     # jax.Array), one must use the `default_factory` argument.
-    initial_state: Array = free_field(default_factory=lambda: jnp.ones(2) * 0.5)
+    initial_state: Array = field(default_factory=lambda: jnp.ones(2) * 0.5)
