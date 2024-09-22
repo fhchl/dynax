@@ -542,7 +542,7 @@ def fit_csd_matching(
 
     s = 2 * np.pi * f * 1j
     weight = 1 / np.std(Syu, axis=0)
-    init_params, unravel = ravel_pytree(sys)
+    init_params, bounds, unravel = ravel_and_bounds(sys)
 
     is_regularized = np.any(reg != 0)
     if is_regularized:
@@ -561,7 +561,6 @@ def fit_csd_matching(
         r = jnp.concatenate((jnp.real(r), jnp.imag(r)))
         return r.reshape(-1)
 
-    bounds = _get_bounds(sys)
     res = _least_squares(
         residuals,
         init_params,

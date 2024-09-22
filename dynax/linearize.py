@@ -4,7 +4,6 @@ from collections.abc import Callable
 from functools import partial
 from typing import Optional, Sequence
 
-import equinox as eqx
 import jax
 import jax.numpy as jnp
 import numpy as np
@@ -208,7 +207,7 @@ def discrete_relative_degree(
 
     f = sys.vector_field
     y = lambda n, x, u: h(_propagate(f, n, x, u), u)
-    y_depends_u = eqx.filter_grad(y, 2)
+    y_depends_u = jax.grad(y, 2)
 
     max_reldeg = jnp.size(sys.initial_state)
     for n in range(0, max_reldeg + 1):
