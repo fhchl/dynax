@@ -122,9 +122,6 @@ class AbstractSystem(eqx.Module):
     and implement the `vector_field` method. The `output` method describes the measurent
     equations. By default, the full state vector is returned as output.
 
-    `AbstractSystem` is a dataclass and as such defines a default constructor. Thus it
-    might often not be necessary to implement a costum `__init__` method.
-
     Example::
 
         class IntegratorAndGain(AbstractSystem):
@@ -138,6 +135,10 @@ class AbstractSystem(eqx.Module):
 
             def output(self, x, u, t):
                 return self.gain*x
+
+
+    `AbstractSystem` is a dataclass and as such defines a default constructor which can
+    make it necessary to implement a custom `__init__` method.
 
     """
 
