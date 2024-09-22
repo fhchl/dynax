@@ -13,7 +13,7 @@ keywords = [
     "linearization",
 ]
 urls = { repository = "https://github.com/fhchl/dynax" }
-dependencies = ["jax<=0.4.23", "diffrax<=0.5", "scipy<=1.12"]
+dependencies = ["jax<=0.4.33", "diffrax<=0.5", "scipy<=1.12"]
 
 [project.optional-dependencies]
 dev = ["pytest", "jupyter", "matplotlib", "pre-commit", "ruff<0.6"]
