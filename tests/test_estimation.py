@@ -6,22 +6,21 @@ import numpy.testing as npt
 import pytest
 from diffrax import Kvaerno5, PIDController
 from jax import Array
-from jax.flatten_util import ravel_pytree
 
 from dynax import (
     AbstractSystem,
+    field,
     fit_csd_matching,
     fit_least_squares,
     fit_multiple_shooting,
     Flow,
-    free_field,
     non_negative_field,
     transfer_function,
 )
 from dynax.example_models import LotkaVolterra, NonlinearDrag, SpringMassDamper
 
 
-tols = dict(rtol=1e-02, atol=1e-04)
+tols = {"rtol": 1e-02, "atol": 1e-04}
 
 
 @pytest.mark.parametrize("outputs", [[0], [0, 1]])
@@ -43,11 +42,7 @@ def test_fit_least_squares(outputs):
     # check result
     _, y_pred = pred_model(t, u)
     npt.assert_allclose(y_pred, y_true, **tols)
-    npt.assert_allclose(
-        jax.tree_util.tree_flatten(pred_model)[0],
-        jax.tree_util.tree_flatten(true_model)[0],
-        **tols,
-    )
+    assert eqx.tree_equal(pred_model, true_model, **tols)
 
 
 def test_fit_least_squares_on_batch():
@@ -74,15 +69,11 @@ def test_fit_least_squares_on_batch():
     # check result
     _, ys_pred = jax.vmap(pred_model)(ts, us)
     npt.assert_allclose(ys_pred, ys, **tols)
-    npt.assert_allclose(
-        jax.tree_util.tree_flatten(pred_model)[0],
-        jax.tree_util.tree_flatten(true_model)[0],
-        **tols,
-    )
+    assert eqx.tree_equal(pred_model, true_model, **tols)
 
 
 def test_can_compute_jacfwd_with_implicit_methods():
-    # don't get catched by https://github.com/patrick-kidger/diffrax/issues/135
+    # don't get caught by https://github.com/patrick-kidger/diffrax/issues/135
     t = jnp.linspace(0, 1, 10)
     x0 = jnp.array([1.0, 0.0])
     solver_opt = dict(
@@ -114,21 +105,17 @@ def test_fit_with_bounded_parameters():
     # check result
     x_pred, _ = pred_model(t)
     npt.assert_allclose(x_pred, x_true, **tols)
-    npt.assert_allclose(
-        jax.tree_util.tree_flatten(pred_model)[0],
-        jax.tree_util.tree_flatten(true_model)[0],
-        **tols,
-    )
+    assert eqx.tree_equal(pred_model, true_model, **tols)
 
 
 def test_fit_with_bounded_parameters_and_ndarrays():
     # model
     class LotkaVolterraBounded(AbstractSystem):
-        alpha: float
-        beta: float
+        alpha: float = field()
+        beta: float = field()
         delta_gamma: Array = non_negative_field()
 
-        initial_state = jnp.array((0.5, 0.5))
+        initial_state = np.array((0.5, 0.5))
         n_inputs = 0
 
         def vector_field(self, x, u=None, t=None):
@@ -156,10 +143,8 @@ def test_fit_with_bounded_parameters_and_ndarrays():
     pred_model = fit_least_squares(init_model, t, x_true).result
     # check result
     x_pred, _ = pred_model(t)
+    assert eqx.tree_equal(pred_model, true_model, **tols)
     npt.assert_allclose(x_pred, x_true, **tols)
-    npt.assert_allclose(
-        ravel_pytree(pred_model)[0], ravel_pytree(true_model)[0], **tols
-    )
 
 
 @pytest.mark.parametrize("num_shots", [1, 2, 3])
@@ -183,11 +168,7 @@ def test_fit_multiple_shooting_with_input(num_shots):
     # check result
     x_pred, _ = pred_model(t, u)
     npt.assert_allclose(x_pred, x_true, **tols)
-    npt.assert_allclose(
-        jax.tree_util.tree_flatten(pred_model)[0],
-        jax.tree_util.tree_flatten(true_model)[0],
-        **tols,
-    )
+    assert eqx.tree_equal(pred_model, true_model, **tols)
 
 
 @pytest.mark.parametrize("num_shots", [1, 2, 3])
@@ -209,9 +190,9 @@ def test_fit_multiple_shooting_without_input(num_shots):
     # check result
     x_pred, _ = pred_model(t)
     npt.assert_allclose(x_pred, x_true, atol=1e-3, rtol=1e-3)
-    npt.assert_allclose(
-        jax.tree_util.tree_flatten(pred_model)[0],
-        jax.tree_util.tree_flatten(true_model)[0],
+    assert eqx.tree_equal(
+        pred_model,
+        true_model,
         atol=1e-2,
         rtol=1e-2,
     )
@@ -244,9 +225,9 @@ def test_csd_matching():
     init_sys = SpringMassDamper(1.0, 1.0, 1.0)
     fitted_sys = fit_csd_matching(init_sys, u, y, sr, nperseg=1024, verbose=1).result
 
-    npt.assert_allclose(
-        jax.tree_util.tree_flatten(fitted_sys)[0],
-        jax.tree_util.tree_flatten(sys)[0],
+    assert eqx.tree_equal(
+        fitted_sys,
+        sys,
         rtol=1e-1,
         atol=1e-1,
     )
@@ -254,7 +235,7 @@ def test_csd_matching():
 
 def test_estimate_initial_state():
     class NonlinearDragFreeInitialState(NonlinearDrag):
-        initial_state: Array = free_field(init=False)
+        initial_state: Array = field(init=False)
 
         def __post_init__(self):
             self.initial_state = jnp.zeros(2)

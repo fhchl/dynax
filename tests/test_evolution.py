@@ -17,7 +17,7 @@ class SecondOrder(AbstractSystem):
     c: float
 
     n_inputs = 0
-    initial_state = jnp.array([0.0, 0.0])
+    initial_state = np.array([0.0, 0.0])
 
     def vector_field(self, x, u=None, t=None):
         """ddx + b dx + c x = u as first order with x1=x and x2=dx."""
