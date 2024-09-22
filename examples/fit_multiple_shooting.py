@@ -26,7 +26,7 @@ print("initial system:", pretty(initial_sys))
 # Combine the ODE with an ODE solver.
 init_model = Flow(initial_sys)
 
-# Fit parameters with single shooting
+# Fiting with single shooting fails: the optimizer gets stuck in local minima.
 num_shots = 1
 res = fit_multiple_shooting(
     model=init_model,
@@ -52,7 +52,7 @@ for i in range(num_shots):
 plt.plot()
 plt.legend()
 
-# Fit parameters with multiple shooting
+# Multiple shooting to the rescue.
 num_shots = 3
 res = fit_multiple_shooting(
     model=init_model,

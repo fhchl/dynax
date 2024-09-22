@@ -23,7 +23,7 @@ from dynax.example_models import LotkaVolterra, NonlinearDrag, SpringMassDamper
 tols = {"rtol": 1e-02, "atol": 1e-04}
 
 
-@pytest.mark.parametrize("outputs", [[0], [0, 1]])
+@pytest.mark.parametrize("outputs", [(0,), (0, 1)])
 def test_fit_least_squares(outputs):
     # data
     t = np.linspace(0, 1, 100)
@@ -250,14 +250,14 @@ def test_estimate_initial_state():
 
     # True model has nonzero initial state
     true_initial_state = jnp.array([1.0, 0.5])
-    true_model = Flow(NonlinearDragFreeInitialState(1.0, 2.0, 3.0, 4.0, outputs=[0, 1]))
+    true_model = Flow(NonlinearDragFreeInitialState(1.0, 2.0, 3.0, 4.0, outputs=(0, 1)))
     true_model = eqx.tree_at(
         lambda t: t.system.initial_state, true_model, true_initial_state
     )
     _, y_true = true_model(t, u, true_initial_state)
 
     # fit
-    init_model = Flow(NonlinearDragFreeInitialState(1.0, 1.0, 1.0, 1.0, outputs=[0, 1]))
+    init_model = Flow(NonlinearDragFreeInitialState(1.0, 1.0, 1.0, 1.0, outputs=(0, 1)))
     pred_model = fit_least_squares(init_model, t, y_true, u=u).result
 
     # check result

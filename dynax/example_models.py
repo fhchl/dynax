@@ -107,7 +107,7 @@ class NonlinearDrag(AbstractControlAffine):
         .. math: y = h(x) = {x_j | j ∈ outputs}.
 
         """
-        return x[self.outputs]
+        return x[np.array(self.outputs)]
 
 
 class Sastry9_9(AbstractControlAffine):
