@@ -59,9 +59,10 @@ def _get_bounds(module: eqx.Module) -> tuple[list[float], list[float]]:
 
 
 def _key_paths(tree: Any, root: str = "tree") -> list[str]:
-    """List key_paths to free fields of pytree including elements of JAX arrays."""
-    f = lambda l: l.tolist() if isinstance(l, jax.Array) else l
-    flattened, _ = jtu.tree_flatten_with_path(jtu.tree_map(f, tree))
+    """List key_paths to trainable fields of pytree including elements of JAX arrays."""
+    arr_to_list = lambda x: x.tolist() if isinstance(x, jax.Array) else x
+    params, _ = eqx.partition(tree, lambda x: isinstance(x, jax.Array))
+    flattened, _ = jtu.tree_flatten_with_path(jtu.tree_map(arr_to_list, params))
     return [f"{root}{jtu.keystr(kp)}" for kp, _ in flattened]
 
 
