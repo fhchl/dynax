@@ -1,6 +1,6 @@
 [project]
 name = "dynax"
-version = "0.0.2"
+version = "0.0.3"
 description = "Dynamical systems with JAX!"
 readme = "README.rst"
 requires-python = ">=3.10"
