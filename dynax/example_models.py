@@ -76,10 +76,10 @@ class NonlinearDrag(AbstractControlAffine):
     # We can define additional dataclass fields that do not represent trainable
     # model parameters using the `static_field` function. This function tells JAX that
     # the field is a constant and should not be differentiated by.
-    outputs: list[int] = static_field(default_factory=lambda: [0])
+    outputs: tuple[int, ...] = static_field(default=(0,))
     """Indeces of state vectors that are outputs. Defaults to `[0]`."""
 
-    initial_state = jnp.zeros(2)
+    initial_state = np.zeros(2)
     n_inputs = "scalar"
 
     def f(self, x: Array) -> Array:
@@ -107,7 +107,7 @@ class NonlinearDrag(AbstractControlAffine):
         .. math: y = h(x) = {x_j | j ∈ outputs}.
 
         """
-        return x[jnp.array(self.outputs)]
+        return x[self.outputs]
 
 
 class Sastry9_9(AbstractControlAffine):
@@ -122,7 +122,7 @@ class Sastry9_9(AbstractControlAffine):
 
     """
 
-    initial_state = jnp.zeros(3)
+    initial_state = np.zeros(3)
     n_inputs = "scalar"
 
     def f(self, x: Array) -> Array:
@@ -153,7 +153,7 @@ class LotkaVolterra(AbstractSystem):
     gamma: float = boxed_field(0.0, jnp.inf, default=0.0)
     delta: float = non_negative_field(default=0.0)  # same as boxed_field(0, jnp.inf)
 
-    initial_state = jnp.ones(2) * 0.5
+    initial_state = np.ones(2) * 0.5
 
     # Systems without inputs should set n_inputs to zero.
     n_inputs = 0
@@ -172,11 +172,11 @@ class LotkaVolterraWithTrainableInitialState(LotkaVolterra):
     # unconstrained.
     alpha: float = field(default=1.0)
 
-    # In constrast, the following line will not change the constraint on beta parameter,
-    # only its default value, as the metadata of the field is unchanged.
+    # In constrast, the following line will not change the constraint on the parameter,
+    # only its default value. The metadata of the field is unchanged.
     beta = 1.0
 
     # Here we redeclare the initial_state field to be trainable. When default values
-    # with the *_field functions are set to mutable values (which funnily includes
+    # with the field functions are set to mutable values (which includes
     # jax.Array), one must use the `default_factory` argument.
     initial_state: Array = field(default_factory=lambda: jnp.ones(2) * 0.5)

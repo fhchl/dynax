@@ -2,87 +2,36 @@
 
 import equinox as eqx
 import jax
-import jax.numpy as jnp
 import matplotlib.pyplot as plt
 import numpy as np
 
-from dynax import AbstractControlAffine, fit_multiple_shooting, Flow
+from dynax import fit_multiple_shooting, Flow, pretty
+from dynax.example_models import LotkaVolterra
 
 
-def tree_pformat(tree):
-    return eqx.tree_pformat(tree, short_arrays=False)
-
-
-# Define a dynamical system of the form
-#
-# ẋ = f(x) + g(x)u
-# y = h(x)
-#
-# The `ControlAffine` class inherits from eqinox.Module which inherits from
-# `dataclasses.dataclass`.
-class NonlinearDrag(AbstractControlAffine):
-    """Spring-mass-damper system with nonliner drag.
-
-    .. math:: m ẍ +  r ẋ + r2 ẋ |ẋ| + k x = u
-              y = x
-
-    """
-
-    # Declare parameters as dataclass fields.
-    m: float
-    r: float
-    r2: float
-    k: float
-
-    # Set the number of states (order of system), the number of inputs
-    initial_state = jnp.zeros(2)
-    n_inputs = "scalar"
-
-    # Define the dynamical system via the methods f, g, and h
-    def f(self, x):
-        x1, x2 = x
-        return jnp.array(
-            [x2, (-self.r * x2 - self.r2 * jnp.abs(x2) * x2 - self.k * x1) / self.m]
-        )
-
-    def g(self, x):
-        return jnp.array([0.0, 1.0 / self.m])
-
-    def h(self, x):
-        return x[0]
-
-
-# initiate a dynamical system representing the some "true" parameters
-true_system = NonlinearDrag(m=1.0, r=2.0, r2=0.1, k=4.0)
-# combine ODE system with ODE solver (Dopri5 and constant stepsize by default)
+# Initiate a dynamical system representing the some "true" parameters.
+true_system = LotkaVolterra(alpha=0.1, beta=0.2, gamma=0.3, delta=0.4)
+# Combine ODE system with ODE solver (Dopri5 and constant stepsize by default)
 true_model = Flow(true_system)
 print("true system:", true_system)
 
-# some training data using the true model. This could be your measurement data.
-t_train = np.linspace(0, 10, 1000)
-samplerate = 1 / t_train[1]
-np.random.seed(42)
-u_train = np.sum(
-    np.stack(
-        [np.sin(f * t_train) for f in np.random.uniform(0, samplerate / 4, size=10)]
-    ),
-    axis=0,
-)
-x_train, y_train = true_model(t_train, u_train)
+# Generate training data using the true model. This could be your measurement data.
+t_train = np.linspace(0, 100, 1000)
+_, y_train = true_model(t_train)
 
-# create our model system with some initial parameters
-initial_sys = NonlinearDrag(m=1.0, r=1.0, r2=1.0, k=1.0)
-print("initial system:", tree_pformat(initial_sys))
+# Initiate ODE with some initial parameters.
+initial_sys = LotkaVolterra(alpha=0.5, beta=0.5, gamma=0.5, delta=0.5)
+print("initial system:", pretty(initial_sys))
 
-# Combine the ODE with an ODE solver
+# Combine the ODE with an ODE solver.
 init_model = Flow(initial_sys)
-# Fit all parameters with multiple shooting
-num_shots = 3
+
+# Fit parameters with single shooting
+num_shots = 1
 res = fit_multiple_shooting(
     model=init_model,
     t=t_train,
     y=y_train,
-    u=u_train,
     verbose=2,
     num_shots=num_shots,
 )
@@ -90,21 +39,48 @@ model = res.result
 x0s = res.x0s
 ts = res.ts
 ts0 = res.ts0
-us = res.us
-print("fitted system:", tree_pformat(model.system))
+print("single shooting:", pretty(model.system))
 
-# check the results
-x_pred, y_pred = model(t_train, u_train)
-
-# plot
-xs_pred, _ = jax.vmap(model)(ts0, us, initial_state=x0s)
-plt.plot(t_train, x_train, "k--", label="target")
+plt.figure()
+plt.title("single shooting")
+_, ys_pred = jax.vmap(model)(ts0, initial_state=x0s)
+plt.plot(t_train, y_train, "k--", label="target")
 for i in range(num_shots):
-    plt.plot(ts[i], xs_pred[i], label="multiple shooting", color=f"C{i}")
+    plt.plot(ts[i], ys_pred[i], label="fitted", color=f"C{i}")
     for j in range(x0s.shape[1]):
         plt.scatter(ts[i, 0], x0s[i, j], c=f"C{i}")
 plt.plot()
 plt.legend()
+
+# Fit parameters with multiple shooting
+num_shots = 3
+res = fit_multiple_shooting(
+    model=init_model,
+    t=t_train,
+    y=y_train,
+    verbose=2,
+    num_shots=num_shots,
+)
+model = res.result
+x0s = res.x0s
+ts = res.ts
+ts0 = res.ts0
+print("multiple shooting:", pretty(model.system))
+
+plt.figure()
+plt.title("multiple shooting")
+_, ys_pred = jax.vmap(model)(ts0, initial_state=x0s)
+plt.plot(t_train, y_train, "k--", label="target")
+for i in range(num_shots):
+    plt.plot(ts[i], ys_pred[i], label="fitted", color=f"C{i}")
+    for j in range(x0s.shape[1]):
+        plt.scatter(ts[i, 0], x0s[i, j], c=f"C{i}")
+plt.plot()
+plt.legend()
+
 plt.show()
 
-assert np.allclose(x_train, x_pred, atol=1e-5, rtol=1e-5)
+# Check the results
+_, y_pred = model(t_train)
+assert eqx.tree_equal(model.system, true_system, rtol=1e-3, atol=1e-3)
+assert np.allclose(y_train, y_pred, atol=1e-5, rtol=1e-5)
