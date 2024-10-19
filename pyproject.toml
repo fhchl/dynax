@@ -13,7 +13,7 @@ keywords = [
     "linearization",
 ]
 urls = { repository = "https://github.com/fhchl/dynax" }
-dependencies = ["jax<=0.4.33", "diffrax<=0.5", "scipy<=1.12"]
+dependencies = ["jax<=0.4.33", "diffrax<=0.6"]
 
 [project.optional-dependencies]
 dev = ["pytest", "jupyter", "matplotlib", "pre-commit", "ruff<0.6"]
@@ -26,7 +26,6 @@ docs = [
     "sphinxcontrib-bibtex",
     "sphinxcontrib-aafig",
     "furo",
-    "jaxlib<=0.4.23",
 ]
 
 [tool.pytest.ini_options]
@@ -60,3 +59,11 @@ combine-as-imports = true
 lines-after-imports = 2
 order-by-type = false
 known-first-party = ["dynax"]
+
+[tool.uv]
+dev-dependencies = [
+    "dynax[dev, docs]",
+]
+
+[tool.uv.sources]
+dynax = { workspace = true }
