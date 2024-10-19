@@ -18,12 +18,12 @@ include:
 
 - estimation of ODE parameters and their covariance via the prediction-error method (`example <examples/fit_nonlinear_ode.ipynb>`_)
 - estimation of the initial state (`example <examples/fit_initial_state.py>`_)
-- estimation of linear ODE parameters via matching of frequency-response functions (`example <examples/fit_long_input.ipynb>`_)
+- estimation of linear ODE parameters via matching of frequency-response functions (`example <examples/fit_long_input.py>`_)
 - estimation from multiple experiments
 - estimation with a poor man's multiple shooting (`example <examples/fit_multiple_shooting.py>`_)
 - input-output linearization of continuous-time input affine systems
-- input-output linearization of discrete-time systems (`example <examples/linearize_discrete_time>`_)
-- estimation of a system's relative-degree (`example <examples/linearize_discrete_time>`_)
+- input-output linearization of discrete-time systems (`example <examples/linearize_recurrent_network.py>`_)
+- estimation of a system's relative-degree (`example <examples/linearize_recurrent_network.py>`_)
 
 Documentation is on its way. Until then, have a look at the `example <examples>`_ and `test <tests>`_ folders.
 
