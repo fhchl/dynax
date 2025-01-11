@@ -13,7 +13,7 @@ from dynax import (
 )
 
 
-# The system to control: a simple RNN with a GRU cell
+# The nonlinear system to control: a simple RNN with a GRU cell
 class Recurrent(AbstractSystem):
     cell: GRUCell
 
@@ -64,7 +64,7 @@ print(
 )
 
 # We compute the input signal that forces the outputs of the nonlinear and reference
-# systems to be equal by solving a coupled ODE system that is constructed by
+# systems to be equal by solving a coupled system that is constructed by
 # `dynax.DiscreteLinearizingSystem`
 linearizing_system = DiscreteLinearizingSystem(system, reference_system, reldeg)
 
