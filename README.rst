@@ -21,7 +21,7 @@ include:
 - estimation of linear ODE parameters via matching of frequency-response functions (`example <examples/fit_long_input.py>`_)
 - estimation from multiple experiments
 - estimation with a poor man's multiple shooting (`example <examples/fit_multiple_shooting.py>`_)
-- input-output linearization of continuous-time input affine systems
+- input-output linearization of continuous-time input affine systems (`example <examples/linearize_ode.py>`_)
 - input-output linearization of discrete-time systems (`example <examples/linearize_recurrent_network.py>`_)
 - estimation of a system's relative-degree (`example <examples/linearize_recurrent_network.py>`_)
 
