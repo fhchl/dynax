@@ -32,13 +32,11 @@ from .system import (
     static_field as static_field,
     StaticStateFeedbackSystem as StaticStateFeedbackSystem,
 )
-from .util import _monkeypatch_pretty_print, pretty as pretty
+from .util import pretty as pretty
 
 
 # TODO: leave out or make clear somewhere
 print("Setting jax_enable_x64 to True.")
 _jax.config.update("jax_enable_x64", True)
-
-_monkeypatch_pretty_print()
 
 __version__ = importlib.metadata.version("dynax")

@@ -54,6 +54,7 @@ def nrmse(target: Array, prediction: Array, axis: int = 0) -> Scalar:
 
 
 def _monkeypatch_pretty_print():
+    # FIXME: not working anymore for new equinox versions
     from equinox._pretty_print import named_objs, bracketed, pp, dataclasses  # noqa
 
     def _pformat_dataclass(obj, **kwargs):
