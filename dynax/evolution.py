@@ -102,7 +102,7 @@ class Flow(AbstractEvolution):
         t = jnp.asarray(t)
 
         if initial_state is not None:
-            x = jnp.asarray(initial_state)
+            initial_state = jnp.asarray(initial_state)
             if initial_state.shape != self.system.initial_state.shape:
                 raise ValueError("Initial state dimenions do not match.")
         else:
