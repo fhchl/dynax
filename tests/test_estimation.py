@@ -72,6 +72,22 @@ def test_fit_least_squares_on_batch():
     assert eqx.tree_equal(pred_model, true_model, **tols)
 
 
+def test_can_use_implicit_methods():
+    # this errs on diffrax 0.7.0
+    t = jnp.linspace(0, 1, 10)
+    x0 = jnp.array([1.0, 0.0])
+    solver_opt = dict(
+        solver=Kvaerno5(), stepsize_controller=PIDController(atol=1e-6, rtol=1e-3)
+    )
+
+    def fun(m, r, k, x0=x0, solver_opt=solver_opt, t=t):
+        model = Flow(SpringMassDamper(m, r, k), **solver_opt)
+        x_true, _ = model(t, u=jnp.zeros_like(t), initial_state=x0)
+        return x_true
+
+    fun(0.1, 0.1, 0.1)
+
+
 def test_can_compute_jacfwd_with_implicit_methods():
     # don't get caught by https://github.com/patrick-kidger/diffrax/issues/135
     t = jnp.linspace(0, 1, 10)
