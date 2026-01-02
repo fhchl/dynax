@@ -64,7 +64,7 @@ def static_field(**kwargs: Any) -> Field:
     except KeyError:
         metadata = kwargs["metadata"] = {}
     metadata["constrained"] = False
-    return eqx.field(converter=_to_static_array, static=True, **kwargs)
+    return eqx.field(converter=_to_static_array, **kwargs)
 
 
 def boxed_field(lower: float, upper: float, **kwargs: Any) -> Field:
