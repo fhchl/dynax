@@ -9,8 +9,8 @@ from diffrax import (
     ConstantStepSize,
     CubicInterpolation,
     diffeqsolve,
-    DirectAdjoint,
     Dopri5,
+    ForwardMode,
     ODETerm,
     SaveAt,
 )
@@ -141,7 +141,7 @@ class Flow(AbstractEvolution):
             stepsize_controller=self.stepsize_controller,
             saveat=SaveAt(ts=t),
             max_steps=50 * len(t),  # completely arbitrary number of steps
-            adjoint=DirectAdjoint(),
+            adjoint=ForwardMode(),
             dt0=(
                 t[1] if isinstance(self.stepsize_controller, ConstantStepSize) else None
             ),

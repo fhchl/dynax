@@ -72,6 +72,22 @@ def test_fit_least_squares_on_batch():
     assert eqx.tree_equal(pred_model, true_model, **tols)
 
 
+def test_can_use_implicit_methods():
+    # this errs on diffrax 0.7.0
+    t = jnp.linspace(0, 1, 10)
+    x0 = jnp.array([1.0, 0.0])
+    solver_opt = dict(
+        solver=Kvaerno5(), stepsize_controller=PIDController(atol=1e-6, rtol=1e-3)
+    )
+
+    def fun(m, r, k, x0=x0, solver_opt=solver_opt, t=t):
+        model = Flow(SpringMassDamper(m, r, k), **solver_opt)
+        x_true, _ = model(t, u=jnp.zeros_like(t), initial_state=x0)
+        return x_true
+
+    fun(0.1, 0.1, 0.1)
+
+
 def test_can_compute_jacfwd_with_implicit_methods():
     # don't get caught by https://github.com/patrick-kidger/diffrax/issues/135
     t = jnp.linspace(0, 1, 10)
@@ -208,27 +224,31 @@ def test_transfer_function():
     npt.assert_array_almost_equal(H, H_true)
 
 
-# FIXME: this test fails in jax>0.4.23 when run with others, but succeeds alone ...
 def test_csd_matching():
+    from scipy.signal import butter, lfilter
+    from scipy.signal.windows import tukey
+
     np.random.seed(123)
     # model
-    sys = SpringMassDamper(1.0, 1.0, 1.0)
-    model = Flow(sys, stepsize_controller=PIDController(rtol=1e-4, atol=1e-6))
-    # input
-    duration = 1000
-    sr = 50
+    sys = SpringMassDamper(1.0, 20.0, 1.0)
+    model = Flow(sys, stepsize_controller=PIDController(rtol=1e-5, atol=1e-5))
+    # input is lowpassed and windowed noise
+    duration = 100
+    sr = 40
     t = np.arange(int(duration * sr)) / sr
-    u = np.random.normal(size=len(t))
+    b, a = butter(4, sr / 2 * 0.7, fs=sr)
+    u = lfilter(b, a, np.random.normal(size=len(t))) * tukey(len(t))
     # output
     _, y = model(t, u)
     # fit
-    init_sys = SpringMassDamper(1.0, 1.0, 1.0)
-    fitted_sys = fit_csd_matching(init_sys, u, y, sr, nperseg=1024, verbose=1).result
+    init_sys = sys
+    nperseg = sr * 5
+    fitted_sys = fit_csd_matching(init_sys, u, y, sr, nperseg=nperseg, verbose=2).result
 
     assert eqx.tree_equal(
         fitted_sys,
         sys,
-        rtol=1e-1,
+        rtol=1e-1,  # yep, this method is not very accurate
         atol=1e-1,
     )
 
