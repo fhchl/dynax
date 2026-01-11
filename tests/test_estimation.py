@@ -17,7 +17,9 @@ from dynax import (
     non_negative_field,
     transfer_function,
 )
+from dynax.estimation import estimate_spectra
 from dynax.example_models import LotkaVolterra, NonlinearDrag, SpringMassDamper
+from dynax.util import multitone
 
 
 tols = {"rtol": 1e-02, "atol": 1e-04}
@@ -222,14 +224,46 @@ def test_csd_matching():
     # output
     _, y = model(t, u)
     # fit
-    init_sys = SpringMassDamper(1.0, 1.0, 1.0)
-    fitted_sys = fit_csd_matching(init_sys, u, y, sr, nperseg=1024, verbose=1).result
+    f, Syu, Suu = estimate_spectra(u, y, sr, nperseg=1024)
+    fitted_sys = fit_csd_matching(sys, f, Syu, Suu, verbose=1).result
 
+    # poor fit due to random input signal that requires windowing
     assert eqx.tree_equal(
         fitted_sys,
         sys,
         rtol=1e-1,
         atol=1e-1,
+    )
+
+
+def test_csd_matching_multitone():
+    np.random.seed(123)
+    # model
+    sys = SpringMassDamper(1.0, 1.0, 1.0)
+    model = Flow(sys, stepsize_controller=PIDController(rtol=1e-6, atol=1e-6))
+    # input
+    nperseg = 1024
+    segs = 10
+    num_total_samples = nperseg * segs
+    sr = 50
+    t = np.arange(num_total_samples) / sr
+    u = np.tile(multitone(nperseg, num_tones=nperseg // 2), segs)
+    # output
+    _, y = model(t, u)
+    # fit
+    warmup_seps = 5
+    warmup = warmup_seps * nperseg
+    f, Syu, Suu = estimate_spectra(
+        u[warmup:], y[warmup:], sr, nperseg=nperseg, window="boxcar", noverlap=0
+    )
+    fitted_sys = fit_csd_matching(sys, f, Syu, Suu, verbose=1).result
+
+    # good fit with much less data!
+    assert eqx.tree_equal(
+        fitted_sys,
+        sys,
+        rtol=1e-2,
+        atol=1e-2,
     )
 
 
