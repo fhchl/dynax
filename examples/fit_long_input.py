@@ -4,6 +4,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 
 from dynax import fit_csd_matching, fit_least_squares, Flow, pretty
+from dynax.estimation import estimate_spectra
 from dynax.example_models import NonlinearDrag
 
 
@@ -27,9 +28,8 @@ print("initial system:", pretty(initial_sys))
 # If we have long-duration, wide-band input data we can fit the linear
 # parameters first by matching the transfer-functions. In this example the result is
 # not very good.
-initial_sys = fit_csd_matching(
-    initial_sys, u_train, y_train, samplerate, nperseg=500
-).result
+f, Syu, Suu = estimate_spectra(u_train, y_train, samplerate, nperseg=512)
+initial_sys = fit_csd_matching(initial_sys, f, Syu, Suu).result
 print("linear params fitted:", pretty(initial_sys))
 
 # Combine the fitted ODE with an ODE solver

@@ -457,7 +457,11 @@ def transfer_function(
 
 
 def estimate_spectra(
-    u: np.ndarray, y: np.ndarray, sr: float, nperseg: int
+    u: ArrayLike,
+    y: ArrayLike,
+    sr: float,
+    with_dc: bool = False,
+    **kwargs,
 ) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
     """Estimate cross- and autospectral densities using Welch's method.
 
@@ -465,7 +469,8 @@ def estimate_spectra(
         u: Input signal.
         y: Output signal.
         sr: Sampling rate.
-        nperseg: Number of samples per segment.
+        with_dc: Wether or not to include zero frequency term.
+        kwargs: Passed to `scipy.signal.csd`.
 
     Returns:
         Tuple `(f, S_yu, S_uu)` of frequencies, cross- and autospectral densities.
@@ -473,30 +478,37 @@ def estimate_spectra(
     """
     u_ = np.asarray(u)
     y_ = np.asarray(y)
+
     # Prep for correct broadcasting in sig.csd
     if u_.ndim == 1:
         u_ = u_[:, None]
     if y_.ndim == 1:
         y_ = y_[:, None]
-    f, S_yu = sig.csd(u_[:, None, :], y_[:, :, None], fs=sr, nperseg=nperseg, axis=0)
-    _, S_uu = sig.welch(u, fs=sr, nperseg=nperseg, axis=0)
+    f, Syu = sig.csd(u_[:, None, :], y_[:, :, None], fs=sr, **kwargs, axis=0)
+    _, Suu = sig.welch(u, fs=sr, **kwargs, axis=0)
+
     # Reshape back with dimensions of arguments
-    S_yu = S_yu.reshape((nperseg // 2 + 1,) + y.shape[1:] + u.shape[1:])
-    S_uu = S_uu.reshape((nperseg // 2 + 1,) + u.shape[1:])
-    return f, S_yu, S_uu
+    Syu = Syu.reshape((Syu.shape[0],) + y.shape[1:] + u.shape[1:])
+    Suu = Suu.reshape((Suu.shape[0],) + u.shape[1:])
+
+    if not with_dc:
+        # remove dc term
+        f = f[1:]
+        Syu = Syu[1:]
+        Suu = Suu[1:]
+
+    return f, Syu, Suu
 
 
 def fit_csd_matching(
     sys: AbstractSystem,
-    u: ArrayLike,
-    y: ArrayLike,
-    sr: float = 1.0,
-    nperseg: int = 1024,
+    f: ArrayLike,
+    Syu: ArrayLike,
+    Suu: ArrayLike,
     reg: float = 0,
     x_scale: bool = True,
     verbose_mse: bool = True,
     absolute_sigma: bool = False,
-    fit_dc: bool = False,
     linearize_kwargs: dict | None = None,
     **kwargs,
 ) -> OptimizeResult:
@@ -504,10 +516,9 @@ def fit_csd_matching(
 
     Args:
         sys: Concrete dynamical system.
-        u: Input signal.
-        y: Output signal.
-        sr: Sampling rate.
-        nperseg: Number of samples per segment.
+        f: Frequencies.
+        S_yu: Cross-spectral density.
+        S_uu: Auto-spectral density.
         reg: Weight of the :math:`L_2` regularization.
         x_scale: Whether parameters are scaled by the initial values.
         verbose_mse: Whether the cost is scaled to the mean-squared error during logging
@@ -516,7 +527,6 @@ def fit_csd_matching(
             parameter covariance reflects these absolute values. Otherwise, only
             the relative magnitudes of the sigma values matter. See also
             :func:`scipy.optimize.curve_fit`.
-        fit_dc: Whether to fit the DC term.
         linearize_kwargs: Arguments passed to
             :py:meth:`~dynax.system.AbstractSystem.linearize`.
         kwargs: Optional parameters for `scipy.optimize.least_squares`.
@@ -535,14 +545,6 @@ def fit_csd_matching(
     """
     if linearize_kwargs is None:
         linearize_kwargs = {}
-
-    f, Syu, Suu = estimate_spectra(u, y, sr=sr, nperseg=nperseg)
-
-    if not fit_dc:
-        # remove dc term
-        f = f[1:]
-        Syu = Syu[1:]
-        Suu = Suu[1:]
 
     s = 2 * np.pi * f * 1j
     weight = 1 / np.std(Syu, axis=0)
