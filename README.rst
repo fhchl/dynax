@@ -29,7 +29,7 @@ Documentation is on its way. Until then, have a look at the `example <examples>`
 Installing
 ----------
 
-Requires Python 3.9+, JAX 0.4.23+, Equinox 0.11+ and Diffrax 0.5+. With a
+Requires Python 3.10+, JAX 0.4.23+, Equinox 0.11+ and Diffrax 0.5+. With a
 suitable version of jaxlib installed:
 
 ::
