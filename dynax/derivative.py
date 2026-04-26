@@ -45,9 +45,11 @@ def lie_derivative(f: VectorFunc, h: ScalarFunc, n: int = 1) -> ScalarFunc:
 
 
 def lie_derivative_jet(f: VectorFunc, h: ScalarFunc, n: int = 1) -> ScalarFunc:
-    """Compute the Lie derivative of `h` along `f` using Taylor-mode differentiation.
+    """Compute the n-th order Lie derivative of `h` along `f` using Taylor-mode AD.
 
-    Same parameters as :py:func:`lie_derivative`. Uses :py:func:`lie_derivatives_jet`.
+    Takes the same arguments as :py:func:`lie_derivative` and returns the same type,
+    but uses Taylor-mode differentiation via :py:func:`lie_derivatives_jet` internally.
+    Unlike :py:func:`lie_derivatives_jet`, only the n-th order derivative is returned.
 
     """
 

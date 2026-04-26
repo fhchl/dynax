@@ -250,7 +250,7 @@ def discrete_input_output_linearize(
     """
     f = lambda x, u: sys.vector_field(x, u)
     h = sys.output
-    if sys.n_inputs != ref.n_inputs != 1:
+    if sys.n_inputs not in ["scalar", 1] or ref.n_inputs not in ["scalar", 1]:
         raise ValueError("Systems must have single input.")
     if output is None:
         if not (sys.n_outputs == ref.n_outputs and sys.n_outputs in ["scalar", 1]):

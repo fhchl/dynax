@@ -469,7 +469,7 @@ def estimate_spectra(
         u: Input signal.
         y: Output signal.
         sr: Sampling rate.
-        with_dc: Wether or not to include zero frequency term.
+        with_dc: Whether or not to include zero frequency term.
         kwargs: Passed to `scipy.signal.csd`.
 
     Returns:
@@ -517,8 +517,8 @@ def fit_csd_matching(
     Args:
         sys: Concrete dynamical system.
         f: Frequencies.
-        S_yu: Cross-spectral density.
-        S_uu: Auto-spectral density.
+        Syu: Cross-spectral density.
+        Suu: Auto-spectral density.
         reg: Weight of the :math:`L_2` regularization.
         x_scale: Whether parameters are scaled by the initial values.
         verbose_mse: Whether the cost is scaled to the mean-squared error during logging

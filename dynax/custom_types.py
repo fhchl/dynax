@@ -1,3 +1,5 @@
+"""Custom type aliases used throughout dynax."""
+
 import typing
 from typing import Callable, TypeAlias, Union
 
