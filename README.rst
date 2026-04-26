@@ -10,8 +10,6 @@ Dynax
 .. |doc_badge| image:: https://readthedocs.org/projects/dynax/badge/?version=latest
    :target: https://dynax.readthedocs.io/en/latest/?badge=latest
 
-**This is WIP. Expect things to break!**
-
 This package allows for straight-forward simulation, fitting and linearization of dynamical systems
 by combing `JAX`_, `Diffrax`_, `Equinox`_, and `scipy.optimize`_. Its main features
 include:
@@ -25,7 +23,7 @@ include:
 - input-output linearization of discrete-time systems (`example <examples/linearize_recurrent_network.py>`_)
 - estimation of a system's relative-degree (`example <examples/linearize_recurrent_network.py>`_)
 
-Documentation is on its way. Until then, have a look at the `example <examples>`_ and `test <tests>`_ folders.
+Documentation is on its way. Until then, have a look at the `example <examples>`_ and `test <tests>`_ folders or create an issue.
 
 
 Installing
