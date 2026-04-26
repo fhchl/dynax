@@ -52,8 +52,8 @@ def field(**kwargs: Any) -> Field:
 def static_field(**kwargs: Any) -> Field:
     """Mark an attribute value as non-trainable.
 
-    Like :py:func:`equinox.field`, but removes constraints if they exist and converts
-    JAX arrays to Numpy arrays.
+    Like :py:func:`equinox.field`, but marks the field as unconstrained and converts
+    JAX arrays to NumPy arrays so the value is treated as a static constant.
 
     Args:
         **kwargs: Keyword arguments passed to :py:func:`eqx.field`.
@@ -99,7 +99,7 @@ class AbstractSystem(eqx.Module):
     r"""Base class for dynamical systems.
 
     Any dynamical system in Dynax must inherit from this class. Subclasses can define
-    continous-time
+    continuous-time
 
     .. math::
 
@@ -119,8 +119,8 @@ class AbstractSystem(eqx.Module):
     or :py:class:`dynax.linearize.discrete_input_output_linearize`.
 
     Subclasses must set values for the `n_inputs`, and `initial_state` attributes
-    and implement the `vector_field` method. The `output` method describes the measurent
-    equations. By default, the full state vector is returned as output.
+    and implement the `vector_field` method. The `output` method describes the
+    measurement equations. By default, the full state vector is returned as output.
 
     Example::
 
@@ -221,7 +221,7 @@ class AbstractSystem(eqx.Module):
         u0: Array | None = None,
         t: FloatScalarLike | None = None,
     ) -> "LinearSystem":
-        """Compute the Jacobian linearizationaround a point.
+        """Compute the Jacobian linearization around a point.
 
         Args:
             x0: State at which to linearize. Defaults to `initial_state`.

@@ -1,3 +1,5 @@
+"""Interpolation utilities for signal data."""
+
 import diffrax as dfx
 import equinox
 import jax.numpy as jnp

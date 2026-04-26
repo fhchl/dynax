@@ -9,12 +9,15 @@ import numpy as np
 from .custom_types import Array, ArrayLike, Scalar
 
 
-def value_and_jacfwd(fun: Callable, x: Array) -> tuple[Array, Callable]:
-    """Create a function that evaluates both fun and its foward-mode jacobian.
+def value_and_jacfwd(fun: Callable, x: Array) -> tuple[Array, Array]:
+    """Evaluate `fun` and its forward-mode Jacobian at `x`.
 
     Args:
         fun: Function whose Jacobian is to be computed.
         x: Point at which function and Jacobian is evaluated.
+
+    Returns:
+        Tuple `(y, jac)` of the function value and Jacobian matrix at `x`.
 
     From this `issue <https://github.com/google/jax/pull/762#issuecomment-1002267121>`_.
     """
@@ -24,12 +27,15 @@ def value_and_jacfwd(fun: Callable, x: Array) -> tuple[Array, Callable]:
     return y, jac
 
 
-def value_and_jacrev(fun: Callable, x: Array) -> tuple[Array, Callable]:
-    """Create a function that evaluates both fun and its reverse-mode jacobian.
+def value_and_jacrev(fun: Callable, x: Array) -> tuple[Array, Array]:
+    """Evaluate `fun` and its reverse-mode Jacobian at `x`.
 
     Args:
         fun: Function whose Jacobian is to be computed.
         x: Point at which function and Jacobian is evaluated.
+
+    Returns:
+        Tuple `(y, jac)` of the function value and Jacobian matrix at `x`.
 
     From this `issue <https://github.com/google/jax/pull/762#issuecomment-1002267121>`_.
     """
@@ -88,21 +94,32 @@ def _monkeypatch_pretty_print():
 
 
 def pretty(tree):
+    """Return a pretty-formatted string representation of an equinox pytree."""
     return equinox.tree_pformat(tree, short_arrays=False)
 
 
 def broadcast_right(arr, target):
+    """Append trailing size-1 axes to `arr` until it has the same ndim as `target`."""
     return arr.reshape(arr.shape + (1,) * (target.ndim - arr.ndim))
 
 
 def dim2shape(x: int | Literal["scalar"]) -> tuple:
+    """Convert a dimension specifier to a shape tuple.
+
+    Args:
+        x: Either `"scalar"` or a non-negative integer number of dimensions.
+
+    Returns:
+        `()` if `x` is `"scalar"`, otherwise `(x,)`.
+
+    """
     return () if x == "scalar" else (x,)
 
 
 def multitone(length: int, num_tones: int, first_tone: int = 0) -> Array:
     """Create a periodic bandpassed multitone signal.
 
-    Has flat flat spectrum and crest factor <= 2.
+    Has flat spectrum and crest factor <= 2.
 
     From: S. Boyd, "Multitone Signals with Low Crest Factor"
           IEEE Transactions on Circuits and Systems, CAS-33(10):1018-1022, October 1986

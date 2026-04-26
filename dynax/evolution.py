@@ -1,3 +1,5 @@
+"""Classes for simulating the evolution of dynamical systems over time."""
+
 from abc import abstractmethod
 from typing import Callable, cast, Optional
 
