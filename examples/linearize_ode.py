@@ -1,3 +1,4 @@
+# %%
 import matplotlib.pyplot as plt
 import numpy as np
 
@@ -54,3 +55,5 @@ plt.show()
 
 # The output of the linearized system is equal to the output of the reference system!
 assert np.allclose(output_ref, output_linearized, atol=1e-4)
+
+# %%
