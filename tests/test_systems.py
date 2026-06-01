@@ -11,13 +11,13 @@ def test_series():
     B1 = jnp.array(np.random.randint(-5, 5, size=(n1, m1)))
     C1 = jnp.array(np.random.randint(-5, 5, size=(p1, n1)))
     D1 = jnp.array(np.random.randint(-5, 5, size=(p1, m1)))
-    sys1 = LinearSystem(A1, B1, C1, D1)
+    sys1 = LinearSystem(A1, B1, C1, D1)  # type: ignore[call-arg]
     n2, m2, p2 = 5, p1, 3
     A2 = jnp.array(np.random.randint(-5, 5, size=(n2, n2)))
     B2 = jnp.array(np.random.randint(-5, 5, size=(n2, m2)))
     C2 = jnp.array(np.random.randint(-5, 5, size=(p2, n2)))
     D2 = jnp.array(np.random.randint(-5, 5, size=(p2, m2)))
-    sys2 = LinearSystem(A2, B2, C2, D2)
+    sys2 = LinearSystem(A2, B2, C2, D2)  # type: ignore[call-arg]
     sys = SeriesSystem(sys1, sys2)
     linsys = sys.linearize()
     npt.assert_array_equal(
@@ -34,13 +34,13 @@ def test_feedback():
     B1 = jnp.array(np.random.randint(-5, 5, size=(n1, m1)))
     C1 = jnp.array(np.random.randint(-5, 5, size=(p1, n1)))
     D1 = jnp.array(np.zeros((p1, m1)))
-    sys1 = LinearSystem(A1, B1, C1, D1)
+    sys1 = LinearSystem(A1, B1, C1, D1)  # type: ignore[call-arg]
     n2, m2, p2 = 5, p1, 3
     A2 = jnp.array(np.random.randint(-5, 5, size=(n2, n2)))
     B2 = jnp.array(np.random.randint(-5, 5, size=(n2, m2)))
     C2 = jnp.array(np.random.randint(-5, 5, size=(p2, n2)))
     D2 = jnp.array(np.random.randint(-5, 5, size=(p2, m2)))
-    sys2 = LinearSystem(A2, B2, C2, D2)
+    sys2 = LinearSystem(A2, B2, C2, D2)  # type: ignore[call-arg]
     sys = FeedbackSystem(sys1, sys2)
     linsys = sys.linearize()
     npt.assert_array_equal(

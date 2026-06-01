@@ -2,20 +2,20 @@
 
 from abc import abstractmethod
 from collections.abc import Callable
-from dataclasses import Field
 from typing import Any, Literal, TypeVar
 
 import equinox as eqx
 import jax
 import jax.numpy as jnp
 import numpy as np
-from jax import Array
 
-from .custom_types import FloatScalarLike
+from .custom_types import Array, FloatScalarLike
 from .util import dim2shape, pretty
 
 
-def _linearize(f, h, x0, u0, t0):
+def _linearize(
+    f, h, x0: Array, u0: Array, t0: float
+) -> tuple[Array, Array, Array, Array]:
     """Linearize dx=f(x,u,t), y=h(x,u,t) around x0, u0, t0."""
     A = jax.jacfwd(f, argnums=0)(x0, u0, t0)
     B = jax.jacfwd(f, argnums=1)(x0, u0, t0)
@@ -34,7 +34,7 @@ def _to_static_array(x: T) -> np.ndarray | T:
         return x
 
 
-def field(**kwargs: Any) -> Field:
+def field(**kwargs: Any) -> Any:
     """Mark an attribute value as trainable and unconstrained.
 
     Args:
@@ -49,7 +49,7 @@ def field(**kwargs: Any) -> Field:
     return eqx.field(converter=jnp.asarray, **kwargs)
 
 
-def static_field(**kwargs: Any) -> Field:
+def static_field(**kwargs: Any) -> Any:
     """Mark an attribute value as non-trainable.
 
     Like :py:func:`equinox.field`, but marks the field as unconstrained and converts
@@ -67,7 +67,7 @@ def static_field(**kwargs: Any) -> Field:
     return eqx.field(converter=_to_static_array, **kwargs)
 
 
-def boxed_field(lower: float, upper: float, **kwargs: Any) -> Field:
+def boxed_field(lower: float, upper: float, **kwargs: Any) -> Any:
     """Mark an attribute value as trainable and box-constrained on `[lower, upper]`.
 
     Args:
@@ -84,7 +84,7 @@ def boxed_field(lower: float, upper: float, **kwargs: Any) -> Field:
     return field(**kwargs)
 
 
-def non_negative_field(min_val: float = 0.0, **kwargs: Any) -> Field:
+def non_negative_field(min_val: float = 0.0, **kwargs: Any) -> Any:
     """Mark an attribute value as trainable and non-negative.
 
     Args:
@@ -142,13 +142,13 @@ class AbstractSystem(eqx.Module):
 
     """
 
-    # TODO: make these abstract vars?
-    initial_state: np.ndarray = static_field(init=False)
+    initial_state: eqx.AbstractVar[Array | np.ndarray]
     """Initial state vector."""
-    n_inputs: int | Literal["scalar"] = static_field(init=False)
+    n_inputs: eqx.AbstractVar[int | Literal["scalar"]]
     """Number of inputs."""
 
     def __check_init__(self):
+        # TODO: remove
         # Check that required attributes are initialized
         required_attrs = ["initial_state", "n_inputs"]
         for attr in required_attrs:
@@ -219,7 +219,7 @@ class AbstractSystem(eqx.Module):
         self,
         x0: Array | None = None,
         u0: Array | None = None,
-        t: FloatScalarLike | None = None,
+        t0: float | None = None,
     ) -> "LinearSystem":
         """Compute the Jacobian linearization around a point.
 
@@ -233,11 +233,13 @@ class AbstractSystem(eqx.Module):
 
         """
         if x0 is None:
-            x0 = self.initial_state
+            x0 = jnp.array(self.initial_state)
         if u0 is None:
             u0 = jnp.zeros(dim2shape(self.n_inputs))
-        A, B, C, D = _linearize(self.vector_field, self.output, x0, u0, t)
-        return LinearSystem(A, B, C, D)
+        if t0 is None:
+            t0 = 0.0
+        A, B, C, D = _linearize(self.vector_field, self.output, x0, u0, t0)
+        return LinearSystem(A, B, C, D)  # type: ignore[call-arg]
 
     def pretty(self) -> str:
         """Return a pretty formatted string representation.
@@ -284,13 +286,17 @@ class AbstractControlAffine(AbstractSystem):
         """The input-proportional part of the output equation."""
         return jnp.array(0.0)
 
-    def vector_field(self, x, u=None, t=None):
+    def vector_field(
+        self, x: Array, u: Array | None = None, t: FloatScalarLike | None = None
+    ) -> Array:
         out = self.f(x)
         if u is not None:
             out += self.g(x).dot(u)
         return out
 
-    def output(self, x, u=None, t=None):
+    def output(
+        self, x: Array, u: Array | None = None, t: FloatScalarLike | None = None
+    ) -> Array:
         out = self.h(x)
         if u is not None:
             out += self.i(x).dot(u)
@@ -319,12 +325,18 @@ class LinearSystem(AbstractControlAffine):
     D: Array
     """Feedthrough matrix."""
 
+    initial_state: Array = static_field(default=None)
+    n_inputs: int | Literal["scalar"] = static_field(default=None)
+
     def __post_init__(self):
         # Without this context manager, `initial_state` will leak later
         with jax.ensure_compile_time_eval():
-            self.initial_state = (
-                jnp.array(0) if self.A.ndim == 0 else jnp.zeros(self.A.shape[0])
+            setattr(  # noqa: B010
+                self,
+                "initial_state",
+                jnp.array(0) if self.A.ndim == 0 else jnp.zeros(self.A.shape[0]),
             )
+            assert self.initial_state is not None
             if self.initial_state.ndim == 0:
                 if self.B.ndim == 0:
                     self.n_inputs = "scalar"
@@ -399,10 +411,15 @@ class SeriesSystem(AbstractSystem, _CoupledSystemMixin):
 
     """
 
+    initial_state: Array = static_field(init=False)
+    n_inputs: int | Literal["scalar"] = static_field(init=False)
+
     def __init__(self, sys1: AbstractSystem, sys2: AbstractSystem):
         self._sys1 = sys1
         self._sys2 = sys2
-        self.initial_state = self._pack_states(sys1.initial_state, sys2.initial_state)
+        self.initial_state = self._pack_states(
+            jnp.asarray(sys1.initial_state), jnp.asarray(sys2.initial_state)
+        )
         self.n_inputs = sys1.n_inputs
 
     def vector_field(
@@ -449,10 +466,15 @@ class FeedbackSystem(AbstractSystem, _CoupledSystemMixin):
 
     """
 
+    initial_state: Array = static_field(init=False)
+    n_inputs: int | Literal["scalar"] = static_field(init=False)
+
     def __init__(self, sys1: AbstractSystem, sys2: AbstractSystem):
         self._sys1 = sys1
         self._sys2 = sys2
-        self.initial_state = self._pack_states(sys1.initial_state, sys2.initial_state)
+        self.initial_state = self._pack_states(
+            jnp.asarray(sys1.initial_state), jnp.asarray(sys2.initial_state)
+        )
         self.n_inputs = sys1.n_inputs
 
     def vector_field(
@@ -503,19 +525,25 @@ class StaticStateFeedbackSystem(AbstractSystem):
 
     _sys: AbstractSystem
     _v: Callable[[Array], Array]
+    initial_state: Array = static_field(init=False)
+    n_inputs: int | Literal["scalar"] = static_field(init=False)
 
     def __init__(self, sys: AbstractSystem, v: Callable[[Array], Array]):
         self._sys = sys
         self._v = staticmethod(v)
-        self.initial_state = sys.initial_state
+        self.initial_state = jnp.asarray(sys.initial_state)
         self.n_inputs = sys.n_inputs
 
-    def vector_field(self, x, u=None, t=None):
+    def vector_field(
+        self, x: Array, u: Array | None = None, t: FloatScalarLike | None = None
+    ) -> Array:
         v = self._v(x)
         dx = self._sys.vector_field(x, v, t)
         return dx
 
-    def output(self, x, u=None, t=None):
+    def output(
+        self, x: Array, u: Array | None = None, t: FloatScalarLike | None = None
+    ) -> Array:
         y = self._sys.output(x, u, t)
         return y
 
@@ -548,30 +576,38 @@ class DynamicStateFeedbackSystem(AbstractSystem, _CoupledSystemMixin):
 
     """
 
-    _v: Callable[[Array, Array, float], float]
+    _v: Callable[[Array, Array, Array | float], Array]
+    initial_state: Array = static_field(init=False)
+    n_inputs: int | Literal["scalar"] = static_field(init=False)
 
     def __init__(
         self,
         sys1: AbstractSystem,
         sys2: AbstractSystem,
-        v: Callable[[Array, Array, Array | float], float],
+        v: Callable[[Array, Array, Array | float], Array],
     ):
         self._sys1 = sys1
         self._sys2 = sys2
         self._v = staticmethod(v)
-        self.initial_state = self._pack_states(sys1.initial_state, sys2.initial_state)
+        self.initial_state = self._pack_states(
+            jnp.asarray(sys1.initial_state), jnp.asarray(sys2.initial_state)
+        )
         self.n_inputs = sys1.n_inputs
 
-    def vector_field(self, x, u=None, t=None):
+    def vector_field(
+        self, x: Array, u: Array | None = None, t: FloatScalarLike | None = None
+    ) -> Array:
         if u is None:
-            u = np.zeros(dim2shape(self._sys1.n_inputs))
+            u = jnp.zeros(dim2shape(self._sys1.n_inputs))
         x1, x2 = self._unpack_states(x)
         v = self._v(x1, x2, u)
         dx = self._sys1.vector_field(x1, v, t)
         dz = self._sys2.vector_field(x2, u, t)
         return jnp.concatenate((dx, dz))
 
-    def output(self, x, u=None, t=None):
+    def output(
+        self, x: Array, u: Array | None = None, t: FloatScalarLike | None = None
+    ) -> Array:
         x1, _ = self._unpack_states(x)
         y = self._sys1.output(x1, u, t)
         return y

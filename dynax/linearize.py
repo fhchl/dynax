@@ -2,15 +2,14 @@
 
 from collections.abc import Callable
 from functools import partial
-from typing import Optional, Sequence
+from typing import Literal, Optional, Sequence
 
 import jax
 import jax.numpy as jnp
 import numpy as np
 import optimistix as optx
-from jax import Array
 
-from .custom_types import Scalar
+from .custom_types import Array, ArrayLike, FloatScalarLike
 from .derivative import lie_derivative
 from .system import (
     _CoupledSystemMixin,
@@ -18,11 +17,12 @@ from .system import (
     AbstractSystem,
     DynamicStateFeedbackSystem,
     LinearSystem,
+    static_field,
 )
 
 
 def relative_degree(
-    sys: AbstractControlAffine, xs: Array, output: Optional[int] = None
+    sys: AbstractControlAffine, xs: ArrayLike, output: Optional[int] = None
 ) -> int:
     """Estimate the relative degree of a SISO control-affine system.
 
@@ -39,6 +39,8 @@ def relative_degree(
         Estimated relative degree of the system.
 
     """
+    xs = jnp.asarray(xs)
+
     if sys.n_inputs not in ["scalar", 1]:
         raise ValueError("System must be single input.")
     if output is None:
@@ -81,7 +83,7 @@ def input_output_linearize(
     output: Optional[int] = None,
     asymptotic: Optional[Sequence] = None,
     reg: Optional[float] = None,
-) -> Callable[[Array, Array, float], Scalar]:
+) -> Callable[[Array, Array, Array | float], Array]:
     """Construct an input-output linearizing feedback law.
 
     Args:
@@ -120,7 +122,7 @@ def input_output_linearize(
 
     if asymptotic is None:
 
-        def feedbacklaw(x: Array, z: Array, v: float) -> Scalar:
+        def feedbacklaw(x: Array, z: Array, v: Array | float) -> Array:
             y_reldeg_ref = cAn.dot(z) + cAnm1b * v
             y_reldeg = Lfnh(x)
             out = (y_reldeg_ref - y_reldeg) / LgLfnm1h(x)
@@ -141,7 +143,7 @@ def input_output_linearize(
         cAis = [c.dot(np.linalg.matrix_power(A, i)) for i in range(reldeg)]
         Lfihs = [lie_derivative(sys.f, h, i) for i in range(reldeg)]
 
-        def feedbacklaw(x: Array, z: Array, v: float) -> Scalar:
+        def feedbacklaw(x: Array, z: Array, v: Array | float) -> Array:
             y_reldeg_ref = cAn.dot(z) + cAnm1b * v
             y_reldeg = Lfnh(x)
             ae0s = jnp.array(
@@ -161,7 +163,9 @@ def input_output_linearize(
     return feedbacklaw
 
 
-def _propagate(f: Callable[[Array, float], Array], n: int, x: Array, u: float) -> Array:
+def _propagate(
+    f: Callable[[Array, Array | float], Array], n: int, x: Array, u: Array | float
+) -> Array:
     # Propagates system for n <= discrete_relative_degree(sys) steps."""
     def fun(x, _):
         return f(x, u), None
@@ -172,8 +176,8 @@ def _propagate(f: Callable[[Array, float], Array], n: int, x: Array, u: float) -
 
 def discrete_relative_degree(
     sys: AbstractSystem,
-    xs: Array,
-    us: Array,
+    xs: ArrayLike,
+    us: ArrayLike,
     output: Optional[int] = None,
 ):
     """Estimate the relative degree of a SISO discrete-time system.
@@ -195,6 +199,9 @@ def discrete_relative_degree(
     See :cite:p:`leeLinearizationNonlinearControl2022{def 7.7.}`.
 
     """
+    xs = jnp.asarray(xs)
+    us = jnp.asarray(us)
+
     if sys.n_inputs not in ["scalar", 1]:
         raise ValueError("System must be single input.")
     if output is None:
@@ -205,7 +212,8 @@ def discrete_relative_degree(
     else:
         h = lambda *args, **kwargs: sys.output(*args, **kwargs)[output]
 
-    f = sys.vector_field
+    _vf = sys.vector_field
+    f: Callable[[Array, Array | float], Array] = lambda x, u: _vf(x, jnp.asarray(u))
     y = lambda n, x, u: h(_propagate(f, n, x, u), u)
     y_depends_u = jax.grad(y, 2)
 
@@ -248,7 +256,9 @@ def discrete_input_output_linearize(
     See :cite:p:`leeLinearizationNonlinearControl2022{def 7.4.}`.
 
     """
-    f = lambda x, u: sys.vector_field(x, u)
+    f: Callable[[Array, Array | float], Array] = lambda x, u: sys.vector_field(
+        x, jnp.asarray(u)
+    )
     h = sys.output
     if sys.n_inputs not in ["scalar", 1] or ref.n_inputs not in ["scalar", 1]:
         raise ValueError("Systems must have single input.")
@@ -270,7 +280,10 @@ def discrete_input_output_linearize(
             B_reldeg = c.dot(np.linalg.matrix_power(A, reldeg - 1)).dot(b)
             return _output(A_reldeg.dot(z) + B_reldeg.dot(v))
         else:
-            _output(ref.output(_propagate(ref.vector_field, reldeg, z, v)))
+            _ref_f: Callable[[Array, Array | float], Array] = lambda x, u: (
+                ref.vector_field(x, jnp.asarray(u))
+            )
+            _output(ref.output(_propagate(_ref_f, reldeg, z, v)))
 
     def feedbacklaw(x: Array, z: Array, v: float, u_prev: float) -> float:
         def fn(u, _):
@@ -308,8 +321,8 @@ class DiscreteLinearizingSystem(AbstractSystem, _CoupledSystemMixin):
     """
 
     _v: Callable
-
-    n_inputs = "scalar"
+    initial_state: Array = static_field(init=False)
+    n_inputs: int | Literal["scalar"] = static_field(init=False)
 
     def __init__(
         self,
@@ -323,8 +336,13 @@ class DiscreteLinearizingSystem(AbstractSystem, _CoupledSystemMixin):
         self._sys1 = sys
         self._sys2 = ref
         self.initial_state = jnp.append(
-            self._pack_states(self._sys1.initial_state, self._sys2.initial_state), 0.0
+            self._pack_states(
+                jnp.asarray(self._sys1.initial_state),
+                jnp.asarray(self._sys2.initial_state),
+            ),
+            0.0,
         )
+        self.n_inputs = "scalar"
         self._v = discrete_input_output_linearize(sys, reldeg, ref, **fb_kwargs)
 
     def vector_field(self, x, u=None, t=None):
@@ -362,8 +380,6 @@ class LinearizingSystem(DynamicStateFeedbackSystem):
 
     """
 
-    n_inputs = "scalar"
-
     def __init__(
         self,
         sys: AbstractControlAffine,
@@ -374,7 +390,9 @@ class LinearizingSystem(DynamicStateFeedbackSystem):
         v = input_output_linearize(sys, reldeg, ref, **fb_kwargs)
         super().__init__(sys, ref, v)
 
-    def output(self, x, u, t=None):
+    def output(
+        self, x: Array, u: Array | None = None, t: FloatScalarLike | None = None
+    ) -> Array:
         x, z = self._unpack_states(x)
-        v = self._v(x, z, u)
+        v = self._v(x, z, u if u is not None else jnp.zeros(()))
         return v

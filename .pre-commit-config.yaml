@@ -1,9 +1,23 @@
 repos:
-  - repo: https://github.com/astral-sh/ruff-pre-commit
-    rev: 'v0.5.3'
+  - repo: local
     hooks:
-      - id: ruff
-        args: [--fix]
-        types_or: [ python, pyi, jupyter ]
+      - id: sort-pyproject
+        name: sort pyproject
+        files: ^pyproject\.toml$
+        language: system
+        entry: uv run -- toml-sort -i --sort-table-keys --sort-inline-tables
       - id: ruff-format
-        types_or: [ python, pyi, jupyter ]
+        name: ruff format
+        types_or: [python, pyi, jupyter]
+        language: system
+        entry: uv run -- ruff format --
+      - id: ruff-lint
+        name: ruff lint
+        types_or: [python, pyi, jupyter]
+        language: system
+        entry: uv run -- ruff check --fix --
+      - id: pyright
+        name: pyright
+        types_or: [python]
+        language: system
+        entry: uv run -- pyright

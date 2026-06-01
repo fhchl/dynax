@@ -5,9 +5,8 @@ import numpy.testing as npt
 from scipy.signal import dlsim, dlti
 
 from dynax import AbstractSystem, Flow, LinearSystem, Map
-
-
-tols = dict(rtol=1e-04, atol=1e-06)
+from dynax.custom_types import Array, FloatScalarLike
+from dynax.system import static_field
 
 
 class SecondOrder(AbstractSystem):
@@ -16,17 +15,21 @@ class SecondOrder(AbstractSystem):
     b: float
     c: float
 
-    n_inputs = 0
-    initial_state = np.array([0.0, 0.0])
+    initial_state: Array = static_field(default_factory=lambda: jnp.zeros(2))
+    n_inputs: int | str = static_field(default=0)
 
-    def vector_field(self, x, u=None, t=None):
+    def vector_field(
+        self, x: Array, u: Array | None = None, t: FloatScalarLike | None = None
+    ) -> Array:
         """ddx + b dx + c x = u as first order with x1=x and x2=dx."""
         x1, x2 = x
         dx1 = x2
         dx2 = -self.b * x2 - self.c * x1
         return jnp.array([dx1, dx2])
 
-    def output(self, x, u=None, t=None):
+    def output(
+        self, x: Array, u: Array | None = None, t: FloatScalarLike | None = None
+    ) -> Array:
         x1, _ = x
         return x1
 
@@ -59,7 +62,7 @@ def test_forward_model_lin_sys():
     B = jnp.array([[0], [1]])
     C = jnp.array([[1, 0]])
     D = jnp.zeros((1, 1))
-    sys = LinearSystem(A, B, C, D)
+    sys = LinearSystem(A, B, C, D)  # type: ignore[call-arg]
 
     def x(t, x0, dx0, uconst):
         """Solution to critically damped linear second-order system."""
@@ -87,27 +90,29 @@ def test_discrete_forward_model():
     C = jnp.array([[1, 0]])
     D = jnp.zeros((1, 1))
     # test just input
-    sys = LinearSystem(A, B, C, D)
+    sys = LinearSystem(A, B, C, D)  # type: ignore[call-arg]
     model = Map(sys)
     x, y = model(u=u, initial_state=x0)  # ours
     scipy_sys = dlti(A, B, C, D)
-    _, scipy_y, scipy_x = dlsim(scipy_sys, u, x0=x0)
-    npt.assert_allclose(scipy_y, y, **tols)
-    npt.assert_allclose(scipy_x, x, **tols)
+    _, scipy_y, scipy_x = dlsim(scipy_sys, u, x0=x0)  # type: ignore[misc]
+    npt.assert_allclose(scipy_y, y, rtol=1e-04, atol=1e-06)
+    npt.assert_allclose(scipy_x, x, rtol=1e-04, atol=1e-06)
     # test input and time (results should be same)
     x, y = model(u=u, t=t, initial_state=x0)
-    scipy_t, scipy_y, scipy_x = dlsim(scipy_sys, u, x0=x0, t=t)
-    npt.assert_allclose(scipy_y, y, **tols)
-    npt.assert_allclose(scipy_x, x, **tols)
+    scipy_t, scipy_y, scipy_x = dlsim(scipy_sys, u, x0=x0, t=t)  # type: ignore[misc]
+    npt.assert_allclose(scipy_y, y, rtol=1e-04, atol=1e-06)
+    npt.assert_allclose(scipy_x, x, rtol=1e-04, atol=1e-06)
 
 
 def test_initial_state():
     class Sys(AbstractSystem):
-        n_inputs = "scalar"
-        initial_state = jnp.array(1.0)
+        initial_state: Array = static_field(default_factory=lambda: jnp.array(1.0))
+        n_inputs: int | str = static_field(default="scalar")
 
-        def vector_field(self, x, u, t=None):
-            return x * 0.1 + u
+        def vector_field(
+            self, x: Array, u: Array | None = None, t: FloatScalarLike | None = None
+        ) -> Array:
+            return x * 0.1 + (u if u is not None else jnp.zeros(()))
 
     t = jnp.arange(5)
     u = jnp.zeros(5)

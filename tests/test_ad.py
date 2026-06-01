@@ -1,3 +1,4 @@
+import jax.numpy as jnp
 import numpy as np
 import numpy.testing as npt
 
@@ -12,7 +13,7 @@ def test_lie_derivative():
     h = sys.h
 
     np.random.seed(0)
-    xs = np.random.normal(size=(10, 3))
+    xs = jnp.asarray(np.random.normal(size=(10, 3)))
     for x in xs:
         x1, x2, x3 = x
         npt.assert_allclose(lie_derivative(f, h, n=1)(x), x1 - x2)
@@ -34,17 +35,17 @@ def test_lie_derivative2():
     h = sys.h
 
     np.random.seed(0)
-    xs = np.random.normal(size=(10, 3))
-    tol = dict(atol=1e-8, rtol=1e-6)
+    xs = jnp.asarray(np.random.normal(size=(10, 3)))
 
     for x in xs:
         x1, x2, _ = x
         npt.assert_allclose(
             lie_derivatives_jet(f, h, n=3)(x),
             [h(x), x1 - x2, -x1 - x2**2, -2 * x2 * (x1 + x2**2)],
-            **tol,
+            atol=1e-8,
+            rtol=1e-6,
         )
-        npt.assert_allclose(lie_derivative_jet(g, h, n=1)(x), 0, **tol)
+        npt.assert_allclose(lie_derivative_jet(g, h, n=1)(x), 0, atol=1e-8, rtol=1e-6)
         npt.assert_allclose(lie_derivative_jet(g, lie_derivative_jet(f, h, n=1))(x), 0)
         npt.assert_allclose(
             lie_derivative_jet(g, lie_derivative_jet(f, h, n=2))(x),

@@ -14,29 +14,28 @@ from dynax import (
     Map,
     relative_degree,
 )
+from dynax.custom_types import Array, FloatScalarLike
 from dynax.example_models import NonlinearDrag, Sastry9_9
 from dynax.linearize import (
     is_controllable,
 )
-
-
-tols = dict(rtol=1e-04, atol=1e-06)
+from dynax.system import static_field
 
 
 class Allpass(AbstractControlAffine):
-    initial_state = jnp.zeros(0)
-    n_inputs = "scalar"
+    initial_state: Array = static_field(default_factory=lambda: jnp.zeros(0))
+    n_inputs: int | str = static_field(default="scalar")
 
-    def f(self, x):
+    def f(self, x: Array) -> Array:
         return jnp.array(0.0)
 
-    def g(self, x):
+    def g(self, x: Array) -> Array:
         return jnp.array(0.0)
 
-    def h(self, x):
+    def h(self, x: Array) -> Array:
         return jnp.array(0.0)
 
-    def i(self, x):
+    def i(self, x: Array) -> Array:
         return jnp.array(1.0)
 
 
@@ -46,22 +45,22 @@ class SpringMassDamperWithOutput(AbstractControlAffine):
     k: float = 0.1
     out: int = 0
 
-    initial_state = jnp.zeros(2)
-    n_inputs = "scalar"
+    initial_state: Array = static_field(default_factory=lambda: jnp.zeros(2))
+    n_inputs: int | str = static_field(default="scalar")
 
-    def f(self, x):
+    def f(self, x: Array) -> Array:
         x1, x2 = x
         return jnp.array([x2, (-self.r * x2 - self.k * x1) / self.m])
 
-    def g(self, x):
+    def g(self, x: Array) -> Array:
         return jnp.array([0, 1 / self.m])
 
-    def h(self, x):
+    def h(self, x: Array) -> Array:
         return x[np.array(self.out)]
 
 
 def test_relative_degree():
-    xs = np.random.normal(size=(100, 2))
+    xs = jnp.asarray(np.random.normal(size=(100, 2)))
     # output is position
     sys = SpringMassDamperWithOutput(out=0)
     assert relative_degree(sys, xs) == 2
@@ -69,13 +68,13 @@ def test_relative_degree():
     sys = SpringMassDamperWithOutput(out=1)
     assert relative_degree(sys, xs) == 1
 
-    xs = np.random.normal(size=100)
+    xs = jnp.asarray(np.random.normal(size=100))
     assert relative_degree(Allpass(), xs) == 0
 
 
 def test_discrete_relative_degree():
-    xs = np.random.normal(size=(100, 2))
-    us = np.random.normal(size=(100))
+    xs = jnp.asarray(np.random.normal(size=(100, 2)))
+    us = jnp.asarray(np.random.normal(size=(100)))
 
     sys = SpringMassDamperWithOutput(out=0)
     assert discrete_relative_degree(sys, xs, us) == 2
@@ -83,7 +82,7 @@ def test_discrete_relative_degree():
     sys = SpringMassDamperWithOutput(out=1)
     assert discrete_relative_degree(sys, xs, us) == 1
 
-    xs = np.random.normal(size=100)
+    xs = jnp.asarray(np.random.normal(size=100))
     assert discrete_relative_degree(Allpass(), xs, us) == 0
 
 
@@ -103,7 +102,7 @@ def test_linearize_lin2lin():
     B = jnp.array(np.random.normal(size=(n, m)))
     C = jnp.array(np.random.normal(size=(p, n)))
     D = jnp.array(np.random.normal(size=(p, m)))
-    sys = LinearSystem(A, B, C, D)
+    sys = LinearSystem(A, B, C, D)  # type: ignore[call-arg]
     linsys = sys.linearize()
     assert np.allclose(A, linsys.A)
     assert np.allclose(B, linsys.B)
@@ -113,14 +112,18 @@ def test_linearize_lin2lin():
 
 def test_linearize_dyn2lin():
     class ScalarScalar(AbstractSystem):
-        initial_state = jnp.array(0.0)
-        n_inputs = "scalar"
+        initial_state: Array = static_field(default_factory=lambda: jnp.array(0.0))
+        n_inputs: int | str = static_field(default="scalar")
 
-        def vector_field(self, x, u, t):
-            return -1 * x + 2 * u
+        def vector_field(
+            self, x: Array, u: Array | None = None, t: FloatScalarLike | None = None
+        ) -> Array:
+            return -1 * x + 2 * (u if u is not None else jnp.zeros(()))
 
-        def output(self, x, u, t):
-            return 3 * x + 4 * u
+        def output(
+            self, x: Array, u: Array | None = None, t: FloatScalarLike | None = None
+        ) -> Array:
+            return 3 * x + 4 * (u if u is not None else jnp.zeros(()))
 
     sys = ScalarScalar()
     linsys = sys.linearize()
@@ -142,9 +145,9 @@ def test_linearize_sastry9_9():
 
 def test_input_output_linearize_single_output():
     """Feedback linearized system equals system linearized around x0."""
-    sys = NonlinearDrag(0.1, 0.1, 0.1, 0.1)
+    sys = NonlinearDrag(jnp.array(0.1), jnp.array(0.1), jnp.array(0.1), jnp.array(0.1))
     ref = sys.linearize()
-    xs = np.random.normal(size=(100,) + sys.initial_state.shape)
+    xs = jnp.asarray(np.random.normal(size=(100,) + sys.initial_state.shape))
     reldeg = relative_degree(sys, xs)
     feedbacklaw = input_output_linearize(sys, reldeg, ref)
     feedback_sys = DynamicStateFeedbackSystem(sys, ref, feedbacklaw)
@@ -153,17 +156,18 @@ def test_input_output_linearize_single_output():
     npt.assert_allclose(
         Flow(ref)(t, u)[1],
         Flow(feedback_sys)(t, u)[1],
-        **tols,
+        rtol=1e-04,
+        atol=1e-06,
     )
 
 
 def test_input_output_linearize_multiple_outputs():
     """Can select an output for linearization."""
-    sys = SpringMassDamperWithOutput(out=[0, 1])
+    sys = SpringMassDamperWithOutput(out=[0, 1])  # type: ignore[arg-type]
     ref = sys.linearize()
     for out_idx in range(2):
         out_idx = 1
-        xs = np.random.normal(size=(100,) + sys.initial_state.shape)
+        xs = jnp.asarray(np.random.normal(size=(100,) + sys.initial_state.shape))
         reldeg = relative_degree(sys, xs, output=out_idx)
         feedbacklaw = input_output_linearize(sys, reldeg, ref, output=out_idx)
         feedback_sys = DynamicStateFeedbackSystem(sys, ref, feedbacklaw)
@@ -171,26 +175,31 @@ def test_input_output_linearize_multiple_outputs():
         u = jnp.sin(t) * 0.1
         y_ref = Flow(ref)(t, u)[1]
         y = Flow(feedback_sys)(t, u)[1]
-        npt.assert_allclose(y_ref[:, out_idx], y[:, out_idx], **tols)
+        npt.assert_allclose(y_ref[:, out_idx], y[:, out_idx], rtol=1e-04, atol=1e-06)
 
 
 class Lee7_4_5(AbstractSystem):
-    initial_state = jnp.zeros(2)
-    n_inputs = "scalar"
+    initial_state: Array = static_field(default_factory=lambda: jnp.zeros(2))
+    n_inputs: int | str = static_field(default="scalar")
 
-    def vector_field(self, x, u, t=None):
+    def vector_field(
+        self, x: Array, u: Array | None = None, t: FloatScalarLike | None = None
+    ) -> Array:
         x1, x2 = x
-        return 0.1 * jnp.array([x1 + x1**3 + x2, x2 + x2**3 + u])
+        u_val = u if u is not None else jnp.zeros(())
+        return 0.1 * jnp.array([x1 + x1**3 + x2, x2 + x2**3 + u_val])
 
-    def output(self, x, u=None, t=None):
+    def output(
+        self, x: Array, u: Array | None = None, t: FloatScalarLike | None = None
+    ) -> Array:
         return x[0]
 
 
 def test_discrete_input_output_linearize():
     sys = Lee7_4_5()
     refsys = sys.linearize()
-    xs = np.random.normal(size=(100, 2))
-    us = np.random.normal(size=100)
+    xs = jnp.asarray(np.random.normal(size=(100, 2)))
+    us = jnp.asarray(np.random.normal(size=100))
     reldeg = discrete_relative_degree(sys, xs, us)
     assert reldeg == 2
 
@@ -201,4 +210,4 @@ def test_discrete_input_output_linearize():
     _, y = Map(sys)(t, u)
     _, y_ref = Map(refsys)(t, u)
 
-    npt.assert_allclose(y_ref, y, **tols)
+    npt.assert_allclose(y_ref, y, rtol=1e-04, atol=1e-06)

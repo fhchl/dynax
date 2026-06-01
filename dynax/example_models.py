@@ -1,7 +1,7 @@
 import jax.numpy as jnp
 import numpy as np
 
-from .custom_types import Array, Scalar
+from .custom_types import Array, FloatScalarLike, Scalar
 from .system import (
     AbstractControlAffine,
     AbstractSystem,
@@ -28,16 +28,16 @@ class SpringMassDamper(AbstractSystem):
     k: float = field()
     """Stiffness."""
 
-    # The following two fields are aleady defined in `AbstractSystem`. Thus, their
-    # type declarations can be left out.
-    initial_state = np.zeros(2)
-    n_inputs = "scalar"
+    initial_state: np.ndarray = static_field(default_factory=lambda: np.zeros(2))
+    n_inputs: str = "scalar"
 
     # Define the vector field of the system by implementing the `vector_field` method.
-    def vector_field(self, x: Array, u: Scalar, t=None) -> Array:
+    def vector_field(
+        self, x: Array, u: Array | None = None, t: FloatScalarLike | None = None
+    ) -> Array:
         """The vector field.
 
-        .. math:: ẋ = [x_2, (u - r x_2 - k x_1) / m]^T.
+        .. math:: ẋ = [x_2, (u - r x_2 - k x_1) / m]^T.
 
         Args:
             x: State vector.
@@ -48,7 +48,8 @@ class SpringMassDamper(AbstractSystem):
 
         """
         x1, x2 = x
-        return jnp.array([x2, (u - self.r * x2 - self.k * x1) / self.m])
+        u_val = u if u is not None else jnp.zeros(())
+        return jnp.array([x2, (u_val - self.r * x2 - self.k * x1) / self.m])
 
     # This class does not override the `AbstractSystem.output` method. The output is
     # then the full state vector by default.
@@ -64,13 +65,13 @@ class NonlinearDrag(AbstractControlAffine):
 
     """
 
-    r: Array = field()
+    r: float = field()
     """Linear drag."""
-    r2: Array = field()
+    r2: float = field()
     """Nonlinear drag."""
-    k: Array = field()
+    k: float = field()
     """Stiffness."""
-    m: Array = field()
+    m: float = field()
     """Mass."""
 
     # We can define additional dataclass fields that do not represent trainable
@@ -79,8 +80,8 @@ class NonlinearDrag(AbstractControlAffine):
     outputs: tuple[int, ...] = static_field(default=(0,))
     """Indeces of state vectors that are outputs. Defaults to `[0]`."""
 
-    initial_state = np.zeros(2)
-    n_inputs = "scalar"
+    initial_state: np.ndarray = static_field(default_factory=lambda: np.zeros(2))
+    n_inputs: str = "scalar"
 
     def f(self, x: Array) -> Array:
         """Constant-input part of the vector field.
@@ -122,8 +123,8 @@ class Sastry9_9(AbstractControlAffine):
 
     """
 
-    initial_state = np.zeros(3)
-    n_inputs = "scalar"
+    initial_state: np.ndarray = static_field(default_factory=lambda: np.zeros(3))
+    n_inputs: str = "scalar"
 
     def f(self, x: Array) -> Array:
         return jnp.array([0.0, x[0] + x[1] ** 2, x[0] - x[1]])
@@ -153,12 +154,14 @@ class LotkaVolterra(AbstractSystem):
     gamma: float = boxed_field(0.0, jnp.inf, default=0.0)
     delta: float = non_negative_field(default=0.0)  # same as boxed_field(0, jnp.inf)
 
-    initial_state = np.ones(2) * 0.5
+    initial_state: np.ndarray = static_field(default_factory=lambda: np.ones(2) * 0.5)
 
     # Systems without inputs should set n_inputs to zero.
-    n_inputs = 0
+    n_inputs: int = 0
 
-    def vector_field(self, x, u=None, t=None):
+    def vector_field(
+        self, x: Array, u: Array | None = None, t: FloatScalarLike | None = None
+    ) -> Array:
         x, y = x
         return jnp.array(
             [self.alpha * x - self.beta * x * y, self.delta * x * y - self.gamma * y]

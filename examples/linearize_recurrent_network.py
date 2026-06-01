@@ -25,7 +25,7 @@ class Recurrent(AbstractSystem):
         )
         self.initial_state = np.zeros(hidden_size)
 
-    def vector_field(self, x, u, t=None):
+    def vector_field(self, x, u, t):  # type: ignore
         return self.cell(jnp.array([u]), x)
 
     def output(self, x, u=None, t=None):
