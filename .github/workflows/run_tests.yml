@@ -18,15 +18,17 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
 
-      - name: Set up Python ${{ matrix.python-version }}
-        uses: actions/setup-python@v5
+      - name: Install uv and set the Python version
+        uses: astral-sh/setup-uv@08807647e7069bb48b6ef5acd8ec9567f424441b # v8.1.0
         with:
           python-version: ${{ matrix.python-version }}
 
+      - name: Install the project
+        run: uv sync
+        
       - name: Checks with pre-commit
         uses: pre-commit/action@v3.0.1
 
       - name: Test with pytest
         run: |
-          python -m pip install .[dev]
-          python -m pytest --runslow --durations=0
+          uv run pytest --runslow --durations=0
