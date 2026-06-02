@@ -25,7 +25,7 @@ urls = {repository = "https://github.com/fhchl/dynax"}
 version = "0.1.1"
 
 [project.optional-dependencies]
-dev = ["pytest", "jupyter", "matplotlib", "pre-commit", "ruff", "toml-sort"]
+dev = ["pytest", "jupyter", "matplotlib", "pre-commit", "ruff", "toml-sort", "pyright"]
 docs = [
   "nbsphinx",
   "sphinx-autobuild",
