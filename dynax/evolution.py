@@ -204,33 +204,29 @@ class Map(AbstractEvolution):
 
         # Parse inputs.
         if initial_state is not None:
-            x = initial_state = jnp.asarray(initial_state)
+            initial_state = jnp.asarray(initial_state)
             if initial_state.shape != self.system.initial_state.shape:
                 raise ValueError("Initial state dimenions do not match.")
         else:
             initial_state = self.system.initial_state
 
-        u_: Array | None = None
         if t is not None:
             t = jnp.asarray(t)
-        elif u is not None:
-            u_ = jnp.asarray(u)
-        elif num_steps is not None:
-            t = jnp.arange(num_steps)
-        else:
+        if u is not None:
+            u = jnp.asarray(u)
+        if t is u is num_steps is None:
             raise ValueError("must specify one of num_steps, t, or u.")
-        del u
 
-        if t is not None and u_ is not None:
-            if t.shape[0] != u_.shape[0]:
+        if t is not None and u is not None:
+            if t.shape[0] != u.shape[0]:
                 raise ValueError("t and u must have the same first dimension.")
-            inputs = jnp.stack((broadcast_right(t, u_), u_), axis=1)
+            inputs = jnp.stack((broadcast_right(t, u), u), axis=1)
             unpack = lambda input: (input[0], input[1])
         elif t is not None:
             inputs = t
             unpack = lambda input: (input, None)
-        else:
-            inputs = u_
+        else:  # u is not None
+            inputs = u
             unpack = lambda input: (None, input)
 
         # Evolve.
@@ -242,6 +238,6 @@ class Map(AbstractEvolution):
         _, x = jax.lax.scan(scan_fun, initial_state, inputs, length=num_steps)
 
         # Compute output.
-        y = jax.vmap(self.system.output)(x, u_, t)
+        y = jax.vmap(self.system.output)(x, u, t)
 
         return x, y

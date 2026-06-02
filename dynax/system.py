@@ -326,17 +326,15 @@ class LinearSystem(AbstractControlAffine):
     """Feedthrough matrix."""
 
     initial_state: Array = static_field(default=None)
-    n_inputs: int | Literal["scalar"] = static_field(default=None)
+    n_inputs: int | Literal["scalar"] = static_field(init=False, default=None)
 
     def __post_init__(self):
         # Without this context manager, `initial_state` will leak later
         with jax.ensure_compile_time_eval():
-            setattr(  # noqa: B010
-                self,
-                "initial_state",
-                jnp.array(0) if self.A.ndim == 0 else jnp.zeros(self.A.shape[0]),
-            )
-            assert self.initial_state is not None
+            if self.initial_state is None:
+                self.initial_state = (
+                    jnp.array(0) if self.A.ndim == 0 else jnp.zeros(self.A.shape[0])
+                )
             if self.initial_state.ndim == 0:
                 if self.B.ndim == 0:
                     self.n_inputs = "scalar"

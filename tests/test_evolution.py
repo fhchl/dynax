@@ -81,9 +81,9 @@ def test_forward_model_lin_sys():
 
 def test_discrete_forward_model():
     b = 2
-    c = 1  # critical damping as b**2 == 4*c
+    c = 1
     t = jnp.arange(50)
-    u = jnp.sin(1 / len(t) * 2 * np.pi * t)[:, None]  # single input
+    u = jnp.arange(50)[:, None]  # single input
     x0 = jnp.array([1.0, 0.0])
     A = jnp.array([[0, 1], [-c, -b]])
     B = jnp.array([[0], [1]])
@@ -95,13 +95,13 @@ def test_discrete_forward_model():
     x, y = model(u=u, initial_state=x0)  # ours
     scipy_sys = dlti(A, B, C, D)
     _, scipy_y, scipy_x = dlsim(scipy_sys, u, x0=x0)  # type: ignore[misc]
-    npt.assert_allclose(scipy_y, y, rtol=1e-04, atol=1e-06)
-    npt.assert_allclose(scipy_x, x, rtol=1e-04, atol=1e-06)
+    npt.assert_array_equal(y, scipy_y)
+    npt.assert_array_equal(x, scipy_x)
     # test input and time (results should be same)
     x, y = model(u=u, t=t, initial_state=x0)
     scipy_t, scipy_y, scipy_x = dlsim(scipy_sys, u, x0=x0, t=t)  # type: ignore[misc]
-    npt.assert_allclose(scipy_y, y, rtol=1e-04, atol=1e-06)
-    npt.assert_allclose(scipy_x, x, rtol=1e-04, atol=1e-06)
+    npt.assert_array_equal(y, scipy_y)
+    npt.assert_array_equal(x, scipy_x)
 
 
 def test_initial_state():

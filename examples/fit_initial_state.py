@@ -11,7 +11,7 @@ from dynax.example_models import NonlinearDrag
 
 # Declare the initial values as trainable using the `field` function.
 class NonlinearDragWithInitialValues(NonlinearDrag):
-    initial_state: jax.Array = field(init=True)
+    initial_state: jax.Array = field(init=True, default_factory=lambda: jnp.zeros(2))
 
 
 # Initiate a dynamical system representing the some "true" parameters.
