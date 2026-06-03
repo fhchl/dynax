@@ -16,22 +16,21 @@ import jax.numpy as jnp
 import jax.tree_util as jtu
 import numpy as np
 import scipy.signal as sig
-from jax import Array
 from jax.flatten_util import ravel_pytree
 from scipy.linalg import pinvh
 from scipy.optimize import least_squares, OptimizeResult
 from scipy.optimize._optimize import MemoizeJac
 
-from .custom_types import ArrayLike
+from .custom_types import Array, ArrayLike
 from .evolution import AbstractEvolution
 from .system import AbstractSystem
 from .util import broadcast_right, mse, nmse, nrmse, value_and_jacfwd
 
 
-def _get_bounds(module: eqx.Module) -> tuple[list[float], list[float]]:
+def _get_bounds(module: eqx.Module) -> tuple[np.ndarray, np.ndarray]:
     """Build flattened arrays of lower and upper parameter bounds."""
-    lower_bounds = []
-    upper_bounds = []
+    lower_bounds: list[float] = []
+    upper_bounds: list[float] = []
     for field_ in fields(module):
         name = field_.name
         value = module.__dict__.get(name, None)
@@ -41,11 +40,11 @@ def _get_bounds(module: eqx.Module) -> tuple[list[float], list[float]]:
         #     continue
         elif isinstance(value, eqx.Module):
             lbs, ubs = _get_bounds(value)
-            lower_bounds.extend(lbs)
-            upper_bounds.extend(ubs)
+            lower_bounds.extend(lbs.tolist())
+            upper_bounds.extend(ubs.tolist())
         elif constraint := field_.metadata.get("constrained", False):
             assert isinstance(value, jax.Array)
-            _, (lb, ub) = constraint  # type: ignore
+            _, (lb, ub) = constraint
             size = np.asarray(value).size
             lower_bounds.extend([lb] * size)
             upper_bounds.extend([ub] * size)
@@ -55,7 +54,7 @@ def _get_bounds(module: eqx.Module) -> tuple[list[float], list[float]]:
             upper_bounds.extend([np.inf] * size)
         else:
             continue
-    return list(lower_bounds), list(upper_bounds)
+    return np.array(lower_bounds), np.array(upper_bounds)
 
 
 def _key_paths(tree: Any, root: str = "tree") -> list[str]:
@@ -99,9 +98,9 @@ def _compute_covariance(
 
 
 def _least_squares(
-    f: Callable[[Array], Array],
+    fun_: Callable[[Array], Array],
     init_params: Array,
-    bounds: tuple[ArrayLike, ArrayLike],
+    bounds: tuple[np.ndarray, np.ndarray],
     reg_term: Optional[Callable[[Array], Array]] = None,
     x_scale: bool = True,
     verbose_mse: bool = True,
@@ -109,42 +108,47 @@ def _least_squares(
 ) -> OptimizeResult:
     """Least-squares with jit, autodiff, parameter scaling and regularization."""
 
+    # Build up the residual function via a chain of wrappers.
+    wrapped: Callable[[Array], Array] = fun_
+
     if reg_term is not None:
         # Add regularization term
-        _f = f
+        _base = wrapped
         _reg_term = reg_term  # https://github.com/python/mypy/issues/7268
-        f = lambda params: jnp.concatenate((_f(params), _reg_term(params)))
+        wrapped = lambda params: jnp.concatenate((_base(params), _reg_term(params)))
 
     if verbose_mse:
         # Scale cost to mean-squared error
-        __f = f
+        _mse_base = wrapped
 
-        def f(params):
-            res = __f(params)
+        def _mse_wrapped(params: Array) -> Array:
+            res = _mse_base(params)
             return res * np.sqrt(2 / res.size)
+
+        wrapped = _mse_wrapped
 
     if x_scale:
         # Scale parameters and bounds by initial values
         norm = np.where(np.asarray(init_params) != 0, np.abs(init_params), 1)
         init_params = init_params / norm
-        ___f = f
-        f = lambda params: ___f(params * norm)
-        bounds = (np.array(bounds[0]) / norm, np.array(bounds[1]) / norm)
+        _scale_base = wrapped
+        wrapped = lambda params: _scale_base(params * norm)
+        bounds = (bounds[0] / norm, bounds[1] / norm)
 
-    fun = MemoizeJac(eqx.filter_jit(lambda x: value_and_jacfwd(f, x)))
+    fun = MemoizeJac(eqx.filter_jit(lambda x: value_and_jacfwd(wrapped, x)))
     jac = fun.derivative
     res = least_squares(
         fun,
         init_params,
         bounds=bounds,
-        jac=jac,  # type: ignore
-        x_scale="jac",  # type: ignore
+        jac=jac,  # type: ignore[arg-type]
+        x_scale="jac",
         **kwargs,
     )
 
     if x_scale:
         # Unscale parameters
-        res.x = res.x * norm
+        res.x = res.x * norm  # type: ignore[unbound]
 
     if verbose_mse:
         # Rescale to Least Squares cost
@@ -294,7 +298,7 @@ def fit_least_squares(
     return res
 
 
-def _moving_window(a: Array, size: int, stride: int):
+def _moving_window(a: Array, size: int, stride: int) -> Array:
     start_idx = jnp.arange(0, len(a) - size + 1, stride)[:, None]
     inner_idx = jnp.arange(size)[None, :]
     return a[start_idx + inner_idx]
@@ -376,6 +380,7 @@ def fit_multiple_shooting(
     x0s = np.zeros((num_shots - 1, n_states))
 
     ucoeffs = None
+    us: Array | None = None
     if u is not None:
         us = u[:num_samples]
         us = _moving_window(us, num_samples_per_segment, num_samples_per_segment - 1)
@@ -390,12 +395,12 @@ def fit_multiple_shooting(
     init_params, unravel_params = ravel_pytree((x0s, model_params))
 
     state_bounds = (
-        (num_shots - 1) * n_states * [-np.inf],
-        (num_shots - 1) * n_states * [np.inf],
+        np.array((num_shots - 1) * n_states * [-np.inf]),
+        np.array((num_shots - 1) * n_states * [np.inf]),
     )
     bounds = (
-        state_bounds[0] + param_bounds[0],
-        state_bounds[1] + param_bounds[1],
+        np.concatenate((state_bounds[0], param_bounds[0])),
+        np.concatenate((state_bounds[1], param_bounds[1])),
     )
     std_y = np.std(y, axis=0)
 
@@ -429,7 +434,7 @@ def fit_multiple_shooting(
 
 def transfer_function(
     sys: AbstractSystem, to_states: bool = False, **kwargs
-) -> Callable[[complex], Array]:
+) -> Callable[[ArrayLike], Array]:
     """Compute transfer-function :math:`H(s)` of the linearized system.
 
     Args:
@@ -445,13 +450,15 @@ def transfer_function(
     linsys = sys.linearize(**kwargs)
     A, B, C, D = linsys.A, linsys.B, linsys.C, linsys.D
 
-    def H(s: complex):
+    def H(s: ArrayLike) -> Array:
         """Transfer-function at s."""
+        assert linsys.initial_state is not None
         identity = np.eye(linsys.initial_state.size)
         phi_B = jnp.linalg.solve(s * identity - A, B)
         if to_states:
             return phi_B
-        return C.dot(phi_B) + D
+        res = C.dot(phi_B) + D
+        return res
 
     return H
 
@@ -478,6 +485,8 @@ def estimate_spectra(
     """
     u_ = np.asarray(u)
     y_ = np.asarray(y)
+    u_shape = u_.shape
+    y_shape = y_.shape
 
     # Prep for correct broadcasting in sig.csd
     if u_.ndim == 1:
@@ -486,10 +495,12 @@ def estimate_spectra(
         y_ = y_[:, None]
     f, Syu = sig.csd(u_[:, None, :], y_[:, :, None], fs=sr, **kwargs, axis=0)
     _, Suu = sig.welch(u, fs=sr, **kwargs, axis=0)
+    Syu = cast(np.ndarray, Syu)
+    Suu = cast(np.ndarray, Suu)
 
     # Reshape back with dimensions of arguments
-    Syu = Syu.reshape((Syu.shape[0],) + y.shape[1:] + u.shape[1:])
-    Suu = Suu.reshape((Suu.shape[0],) + u.shape[1:])
+    Syu = Syu.reshape((Syu.shape[0],) + y_shape[1:] + u_shape[1:])
+    Suu = Suu.reshape((Suu.shape[0],) + u_shape[1:])
 
     if not with_dc:
         # remove dc term
@@ -545,6 +556,10 @@ def fit_csd_matching(
     """
     if linearize_kwargs is None:
         linearize_kwargs = {}
+
+    f = np.asarray(f)
+    Syu = np.asarray(Syu)
+    Suu = np.asarray(Suu)
 
     s = 2 * np.pi * f * 1j
     weight = 1 / np.std(Syu, axis=0)

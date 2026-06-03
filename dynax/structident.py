@@ -1,3 +1,5 @@
+# type: ignore
+
 # TODO: This is an old draft, update and test this file.
 # NOTE: extended_lie_derivative is not yet implemented in derivative.py;
 #       this module will fail to import until that function is added.

@@ -1,6 +1,7 @@
 """Fit a parameters and initial values of an ODE."""
 
 import jax
+import jax.numpy as jnp
 import matplotlib.pyplot as plt
 import numpy as np
 
@@ -10,12 +11,12 @@ from dynax.example_models import NonlinearDrag
 
 # Declare the initial values as trainable using the `field` function.
 class NonlinearDragWithInitialValues(NonlinearDrag):
-    initial_state: jax.Array = field(init=True)
+    initial_state: jax.Array = field(init=True, default_factory=lambda: jnp.zeros(2))
 
 
 # Initiate a dynamical system representing the some "true" parameters.
 true_system = NonlinearDragWithInitialValues(
-    m=1.0, r=2.0, r2=0.1, k=4.0, initial_state=(0.5, 1.0)
+    m=1.0, r=2.0, r2=0.1, k=4.0, initial_state=jnp.array([0.5, 1.0])
 )
 
 # Combine ODE system and ODE solver (Dopri5 and constant stepsize by default).
@@ -31,7 +32,7 @@ x_train, y_train = true_model(t_train, u_train)
 
 # Create our model system with some initial parameters.
 initial_sys = NonlinearDragWithInitialValues(
-    m=1.0, r=1.0, r2=1.0, k=1.0, initial_state=(0.0, 0.0)
+    m=1.0, r=1.0, r2=1.0, k=1.0, initial_state=jnp.array([0.5, 1.0])
 )
 print("initial system:", pretty(initial_sys))
 

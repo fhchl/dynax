@@ -47,6 +47,8 @@ def value_and_jacrev(fun: Callable, x: Array) -> tuple[Array, Array]:
 
 def mse(target: ArrayLike, prediction: ArrayLike, axis: int = 0) -> Scalar:
     """Compute mean-squared error."""
+    target = jnp.asarray(target)
+    prediction = jnp.asarray(prediction)
     return jnp.mean(jnp.abs(target - prediction) ** 2, axis=axis)
 
 
@@ -60,8 +62,8 @@ def nrmse(target: ArrayLike, prediction: ArrayLike, axis: int = 0) -> Scalar:
     return jnp.sqrt(nmse(target, prediction, axis))
 
 
-def _monkeypatch_pretty_print():
-    from equinox._pretty_print import named_objs, bracketed, pp, dataclasses  # noqa
+def monkeypatch_pretty_print():
+    from equinox._pretty_print import named_objs, bracketed, pp, dataclasses  # type: ignore # noqa
 
     def _pformat_dataclass(obj, **kwargs):
         def field_kind(field):

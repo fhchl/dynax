@@ -20,6 +20,7 @@ from equinox import filter_eval_shape, Module, static_field
 from jax import Array
 from jaxtyping import PyTree
 
+from .custom_types import ArrayLike
 from .interpolation import spline_it
 from .system import AbstractSystem
 from .util import broadcast_right, dim2shape
@@ -73,9 +74,9 @@ class Flow(AbstractEvolution):
 
     def __call__(
         self,
-        t: Array,
-        u: Optional[Array] = None,
-        initial_state: Optional[Array] = None,
+        t: ArrayLike,
+        u: Optional[ArrayLike] = None,
+        initial_state: Optional[ArrayLike] = None,
         *,
         ufun: Optional[Callable[[float], Array]] = None,
         ucoeffs: Optional[tuple[PyTree, PyTree, PyTree, PyTree]] = None,
@@ -111,20 +112,22 @@ class Flow(AbstractEvolution):
             initial_state = self.system.initial_state
 
         # Prepare input function.
+        u_: Array | None = None
         if ucoeffs is not None:
             path = CubicInterpolation(t, ucoeffs)
             _ufun = path.evaluate
         elif callable(ufun):
             _ufun = ufun
         elif u is not None:
-            u = jnp.asarray(u)
-            if len(t) != u.shape[0]:
+            u_ = jnp.asarray(u)
+            if len(t) != u_.shape[0]:
                 raise ValueError("t and u must have matching first dimension.")
-            _ufun = spline_it(t, u)
+            _ufun = spline_it(t, u_)
         elif self.system.n_inputs == 0:
-            _ufun = lambda t: jnp.empty((0,))
+            _ufun = lambda _: jnp.empty((0,))
         else:
             raise ValueError("Must specify one of u, ufun, or ucoeffs.")
+        del u
 
         # Check shape of ufun return values.
         _u = filter_eval_shape(_ufun, 0.0)
@@ -136,6 +139,7 @@ class Flow(AbstractEvolution):
                     f"Input dimensions do not match: inputs have shape {_u.shape}, but"
                     f"system.n_inputs is {self.system.n_inputs}"
                 )
+        del _u
 
         # Solve ODE.
         diffeqsolve_default_options = dict(
@@ -163,7 +167,7 @@ class Flow(AbstractEvolution):
         x = cast(Array, x)
 
         # Compute output.
-        y = jax.vmap(self.system.output)(x, u, t)
+        y = jax.vmap(self.system.output)(x, u_, t)
 
         return x, y
 
@@ -178,9 +182,9 @@ class Map(AbstractEvolution):
 
     def __call__(
         self,
-        t: Optional[Array] = None,
-        u: Optional[Array] = None,
-        initial_state: Optional[Array] = None,
+        t: Optional[ArrayLike] = None,
+        u: Optional[ArrayLike] = None,
+        initial_state: Optional[ArrayLike] = None,
         *,
         num_steps: Optional[int] = None,
     ) -> tuple[Array, Array]:
@@ -200,7 +204,7 @@ class Map(AbstractEvolution):
 
         # Parse inputs.
         if initial_state is not None:
-            x = jnp.asarray(initial_state)
+            initial_state = jnp.asarray(initial_state)
             if initial_state.shape != self.system.initial_state.shape:
                 raise ValueError("Initial state dimenions do not match.")
         else:
@@ -208,11 +212,9 @@ class Map(AbstractEvolution):
 
         if t is not None:
             t = jnp.asarray(t)
-        elif u is not None:
+        if u is not None:
             u = jnp.asarray(u)
-        elif num_steps is not None:
-            t = jnp.arange(num_steps)
-        else:
+        if t is u is num_steps is None:
             raise ValueError("must specify one of num_steps, t, or u.")
 
         if t is not None and u is not None:
@@ -223,7 +225,7 @@ class Map(AbstractEvolution):
         elif t is not None:
             inputs = t
             unpack = lambda input: (input, None)
-        else:
+        else:  # u is not None
             inputs = u
             unpack = lambda input: (None, input)
 

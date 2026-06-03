@@ -2,6 +2,7 @@ import jax.numpy as jnp
 import matplotlib.pyplot as plt
 import numpy as np
 from equinox.nn import GRUCell
+from jax import Array
 from jax.random import PRNGKey
 
 from dynax import (
@@ -16,16 +17,16 @@ from dynax import (
 # The nonlinear system to control: a simple RNN with a GRU cell
 class Recurrent(AbstractSystem):
     cell: GRUCell
-
+    initial_state: Array
     n_inputs = "scalar"
 
     def __init__(self, hidden_size, *, key):
         self.cell = GRUCell(
             input_size=1, hidden_size=hidden_size, use_bias=False, key=key
         )
-        self.initial_state = np.zeros(hidden_size)
+        self.initial_state = jnp.zeros(hidden_size)
 
-    def vector_field(self, x, u, t=None):
+    def vector_field(self, x, u, t=None):  # type: ignore
         return self.cell(jnp.array([u]), x)
 
     def output(self, x, u=None, t=None):
